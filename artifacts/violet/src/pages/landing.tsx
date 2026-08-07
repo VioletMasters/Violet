@@ -196,7 +196,7 @@ export default function LandingPage() {
               <p className="text-sm text-muted-foreground mb-6">
                 Full setup instructions including backup guide, HTTPS setup, and troubleshooting are included in <code className="bg-muted px-1 rounded text-xs">README-local.md</code> inside the download.
               </p>
-              <a href="https://github.com/violet-enterprise/violet/releases/latest" target="_blank" rel="noopener noreferrer">
+              <a href="/api/download">
                 <Button size="lg" className="w-full">
                   <Download className="mr-2 w-4 h-4" /> Download Violet Enterprise
                 </Button>

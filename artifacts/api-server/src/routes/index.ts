@@ -13,6 +13,7 @@ import plansRouter from "./plans";
 import reportsRouter from "./reports";
 import settingsRouter from "./settings";
 import adminRouter from "./admin";
+import downloadRouter from "./download";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(plansRouter);
 router.use(reportsRouter);
 router.use(settingsRouter);
 router.use(adminRouter);
+router.use(downloadRouter);
 
 export default router;
