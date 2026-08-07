@@ -1,0 +1,614 @@
+Commercial Cloud POS, Inventory & Business Management Platform
+
+You are an elite team of senior software architects, full-stack engineers, UI/UX designers, database engineers, DevOps engineers, cybersecurity specialists, QA engineers, and product designers.
+
+Your objective is to build Violet Enterprise, a commercial-grade cloud Point of Sale (POS), Inventory, Business Management, and SaaS platform.
+
+This is NOT a simple POS.
+
+This is a software product that will be licensed and sold to businesses worldwide under monthly, yearly, lifetime, and enterprise licensing models.
+
+The software must be designed from the beginning to support thousands of businesses, millions of transactions, and future expansion.
+
+The codebase should follow enterprise software architecture, be modular, scalable, maintainable, secure, and production-ready.
+
+Primary Goals
+
+Build software that rivals:
+
+Square POS
+Shopify POS
+Lightspeed
+Clover
+Toast
+Loyverse
+Revel
+Odoo
+Zoho Inventory
+Microsoft Dynamics (SMB Level)
+
+The application should feel modern, polished, intuitive, and extremely fast.
+
+Technology Stack
+
+Use:
+
+Next.js 15
+React
+TypeScript
+Tailwind CSS
+shadcn/ui
+Supabase (Authentication, PostgreSQL, Storage, Realtime)
+PostgreSQL
+React Query (TanStack Query)
+React Hook Form
+Zod
+Framer Motion
+Recharts
+Lucide Icons
+
+Organize the project using a clean, modular architecture with reusable components, feature-based folders, and maintainable code.
+
+SaaS Multi-Tenant Architecture
+
+Violet must be built as a multi-tenant SaaS platform.
+
+Each business (tenant) has its own completely isolated data.
+
+Every record in the database must belong to a tenant.
+
+Businesses cannot access another business's:
+
+Products
+Customers
+Employees
+Inventory
+Reports
+Sales
+Settings
+
+Use Row Level Security and tenant-aware queries throughout the application.
+
+Deployment Modes
+
+Support three deployment options:
+
+1. Standalone
+
+Everything runs on one computer.
+
+Perfect for a small business.
+
+2. Client / Server
+
+One computer acts as the server.
+
+Server hosts:
+
+Database
+Authentication
+API
+Synchronization
+Reports
+Backup Service
+
+All cashier computers connect to this server.
+
+Clients should:
+
+Discover server automatically
+Connect by IP
+Connect by Hostname
+
+Support unlimited POS terminals.
+
+3. Cloud
+
+Deploy to VPS or cloud hosting.
+
+Allow businesses to connect from anywhere.
+
+Support multiple locations.
+
+Offline Support
+
+Every POS terminal should maintain a secure local cache/database so that if connectivity is lost:
+
+Sales continue.
+Inventory updates locally.
+Receipts still print.
+Payments continue.
+Customer lookups remain available.
+
+When connectivity returns, automatically synchronize all pending changes using conflict resolution.
+
+Authentication
+
+Support:
+
+Email & Password
+Google Login
+Password Reset
+Email Verification
+Multi-Factor Authentication (MFA) ready
+Secure Sessions
+Roles & Permissions
+
+Create a fully customizable Role-Based Access Control (RBAC) system.
+
+Default roles:
+
+Owner
+Administrator
+Manager
+Cashier
+Inventory Staff
+Accountant
+Employee
+
+Allow custom roles and custom permissions.
+
+Dashboard
+
+Display:
+
+Today's Sales
+Weekly Sales
+Monthly Sales
+Annual Revenue
+Profit
+Expenses
+Inventory Value
+Top Products
+Low Stock
+Customer Growth
+Sales Trends
+Recent Transactions
+Cash Drawer Status
+
+Include interactive charts and real-time updates.
+
+POS Module
+
+The POS interface must be optimized for both touchscreen and keyboard use.
+
+Features:
+
+Product Grid
+Category Navigation
+Search
+Barcode Scanner Support
+QR Code Support
+Favorites
+Quick Sale
+Hold Sale
+Resume Sale
+Split Payments
+Returns
+Refunds
+Exchanges
+Discounts
+Coupons
+Gift Cards
+Store Credit
+Layaway
+Receipt Preview
+Receipt Printing
+Email Receipts
+PDF Receipts
+Automatic Tax Calculation
+Change Calculation
+
+Support multiple payment methods:
+
+Cash
+Credit Card
+Debit Card
+Bank Transfer
+Store Credit
+Gift Cards
+Custom Payment Methods
+Inventory Management
+
+Unlimited:
+
+Products
+Categories
+Brands
+Suppliers
+Warehouses
+
+Track:
+
+SKU
+Barcode
+QR Code
+Serial Number
+Batch Number
+Expiry Date
+Cost Price
+Selling Price
+Wholesale Price
+Profit Margin
+Stock Levels
+Minimum Stock
+Maximum Stock
+
+Support:
+
+Purchase Orders
+Goods Received
+Stock Adjustments
+Stock Transfers
+Damaged Items
+Returns
+Inventory History
+Customer Management
+
+Each customer profile should include:
+
+Contact Information
+Purchase History
+Loyalty Points
+Store Credit
+Membership Level
+Notes
+Invoices
+Receipts
+Quotes
+Saved Carts
+Supplier Management
+
+Manage:
+
+Suppliers
+Purchase Orders
+Supplier Invoices
+Outstanding Balances
+Contacts
+Payment History
+Employee Management
+
+Manage:
+
+Employee Profiles
+Attendance
+Clock In/Out
+Sales Performance
+Commissions
+Payroll Export
+Scheduling
+Leave Requests
+Financial Management
+
+Include:
+
+Invoices
+Quotes
+Estimates
+Expenses
+Income
+Profit & Loss
+Cash Flow
+Tax Reports
+Daily Closings
+Cash Drawer Reconciliation
+Bank Deposits
+Reporting
+
+Generate reports for:
+
+Sales
+Inventory
+Profit
+Expenses
+Taxes
+Employees
+Customers
+Suppliers
+Cash Drawers
+Product Performance
+
+Allow export to:
+
+PDF
+Excel
+CSV
+Multi-Branch
+
+Support unlimited branches.
+
+Each branch has:
+
+Employees
+Inventory
+Cash Drawers
+Registers
+Managers
+Reports
+
+Allow inventory transfers between branches.
+
+Notification System
+
+Real-time notifications for:
+
+Sales
+Refunds
+Low Stock
+Purchase Orders
+Employee Activity
+Subscription Status
+System Alerts
+Settings
+
+Business Information
+
+Tax Rates
+
+Currencies
+
+Receipt Templates
+
+Email Settings
+
+Printer Settings
+
+Barcode Settings
+
+Notification Settings
+
+Roles
+
+Permissions
+
+Appearance
+
+Theme
+
+Licensing & Subscription Platform
+
+Violet itself is a SaaS product.
+
+Businesses subscribe to use Violet.
+
+Subscription Types
+
+Support:
+
+Free
+Monthly
+Annual
+Lifetime (One-Time Purchase)
+Enterprise (Custom)
+
+The system owner must be able to create unlimited custom subscription plans.
+
+No pricing or limits should be hardcoded—everything must be configurable from the Super Admin dashboard.
+
+Plan Configuration
+
+Each subscription plan should allow configuration of:
+
+Plan Name
+Description
+Monthly Price
+Annual Price
+Lifetime Price
+Trial Period (Days)
+Maximum Users
+Maximum Registers
+Maximum Branches
+Maximum Products
+Maximum Customers
+Maximum Suppliers
+Maximum Monthly Transactions
+Maximum Storage
+API Access
+Offline Mode
+Multi-Branch Support
+Advanced Reporting
+Employee Permissions
+AI Features
+Priority Support
+White Labeling
+Custom Branding
+
+The Super Admin can enable, disable, edit, or archive plans at any time.
+
+Default Plans
+Free
+1 Branch
+1 Register
+2 Users
+100 Products
+100 Customers
+Basic POS
+Basic Inventory
+Basic Reports
+Violet Branding
+Starter
+
+Configurable.
+
+Professional
+
+Configurable.
+
+Enterprise
+
+Unlimited resources.
+
+Lifetime
+
+One-time payment with lifetime access to purchased features.
+
+Billing
+
+Automatically handle:
+
+Monthly Billing
+Annual Billing
+One-Time Purchases
+Free Trials
+Grace Periods
+Renewals
+Upgrades
+Downgrades
+Coupons
+Promotions
+Taxes
+Refunds
+
+Generate invoices automatically.
+
+Maintain a complete billing history.
+
+License System
+
+Generate unique license keys for every business.
+
+Allow licenses to be:
+
+Activated
+Suspended
+Revoked
+Transferred
+Renewed
+
+Track registered devices and enforce plan limits.
+
+Device Management
+
+Allow Super Admin to define the maximum number of active devices per plan.
+
+View connected devices.
+
+Force logout remote devices.
+
+Super Admin Portal
+
+Create a dedicated Super Admin dashboard that is completely separate from tenant dashboards.
+
+Allow Super Admin to:
+
+Manage all businesses
+Manage all subscription plans
+Manage licenses
+View Monthly Recurring Revenue (MRR)
+View Annual Recurring Revenue (ARR)
+View churn rate
+View lifetime customers
+View active trials
+View expired accounts
+Suspend businesses
+Reactivate businesses
+Create coupons
+Send announcements
+View platform analytics
+Manage system settings
+View audit logs
+Database
+
+Design a normalized PostgreSQL database with UUID primary keys and timestamps.
+
+Core tables should include:
+
+tenants
+users
+roles
+permissions
+subscriptions
+subscription_plans
+licenses
+businesses
+branches
+registers
+products
+categories
+suppliers
+customers
+employees
+sales
+sale_items
+payments
+receipts
+invoices
+purchase_orders
+inventory
+inventory_movements
+expenses
+notifications
+settings
+activity_logs
+audit_logs
+
+Optimize with indexes and Row Level Security.
+
+UI & UX
+
+The interface should look and feel like premium business software.
+
+Design inspiration:
+
+Stripe
+Shopify
+Square
+Apple
+Notion
+Linear
+Arc Browser
+
+Use:
+
+Purple/violet brand identity
+Clean white backgrounds
+Dark mode
+Rounded corners
+Soft shadows
+Smooth animations
+Responsive layouts
+Keyboard shortcuts
+Skeleton loaders
+Toast notifications
+Drag-and-drop interactions
+Accessible design (WCAG-friendly)
+AI-Ready Architecture
+
+Design the system so AI modules can be added later for:
+
+Sales forecasting
+Inventory forecasting
+Purchase order recommendations
+Customer insights
+Natural language reporting
+Business health summaries
+Final Deliverables
+
+Deliver a complete, production-ready application with:
+
+Public landing page
+Tenant registration and onboarding
+Authentication
+POS module
+Inventory management
+Customer management
+Supplier management
+Employee management
+Financial tools
+Reporting engine
+Multi-branch support
+Standalone mode
+Client/Server mode
+Cloud deployment mode
+Offline support
+Real-time synchronization
+Subscription and licensing platform
+Super Admin portal
+REST API
+WebSocket synchronization
+Supabase schema and RLS policies
+Seed/demo data
+Installation wizard
+Documentation
+Deployment guide

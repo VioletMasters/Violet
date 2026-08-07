@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Violet Enterprise"
+description = "Violet Enterprise — a commercial cloud POS, inventory, and business management SaaS platform. Businesses can register, manage products, run point-of-sale transactions, track inventory and customers, view financial reports, and manage employees. Includes a Super Admin portal for managing tenants, subscriptions, and platform analytics. Built with multi-tenant architecture and tiered licensing."
+version = "1.0.0"
+id = "artifacts/violet"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24205
+
+[services.development]
+run = "pnpm --filter @workspace/violet run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/violet", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/violet/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24205"
+BASE_PATH = "/"

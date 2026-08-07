@@ -1,10 +1,11 @@
-# [Project name]
+# Violet Enterprise
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A commercial cloud POS, inventory, and business management SaaS platform. Businesses register, manage products, run point-of-sale transactions, track inventory and customers, view reports, and manage employees. Includes a Super Admin portal for managing tenants, subscriptions, and platform analytics.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/violet run dev` — run the frontend (uses PORT env)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,31 +15,48 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React + Vite, Tailwind CSS, shadcn/ui, Framer Motion, Recharts, wouter
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- Validation: Zod (v3), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Auth: Session token (scrypt password hashing, bearer token, sessions table)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — API contract (source of truth)
+- `lib/db/src/schema/` — DB tables (tenants, users, sessions, plans, products, categories, customers, sales, employees, suppliers, settings)
+- `artifacts/api-server/src/routes/` — Express route handlers
+- `artifacts/api-server/src/middlewares/auth.ts` — Bearer token auth middleware
+- `artifacts/api-server/src/lib/crypto.ts` — scrypt password hashing
+- `artifacts/violet/src/` — React frontend
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Multi-tenant: every DB record has a `tenant_id`; auth middleware enforces tenant isolation
+- Auth is session-token based (not JWT): sessions stored in `sessions` table, tokens sent as `Authorization: Bearer <token>`, stored in `localStorage` as `violet_token`
+- Orval v8 generates Zod v3 — **do not use `format: email` or `type: integer`** in the OpenAPI spec (generates Zod v4 syntax); use `type: string` and `type: number` instead
+- Free tier = one-time upfront purchase, no monthly fee, simple limits (500 products, 500 customers, 2 users, 1 branch)
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Public landing page with pricing tiers (Free one-time / Starter / Professional / Enterprise)
+- Business registration → dashboard → POS → inventory → customers → employees → suppliers → reports → settings
+- Super Admin portal at `/admin` (role: super_admin)
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Free tier: simple, for single small stores, one-time upfront cost (no monthly fee). Only basic POS + inventory + reports. Lock employees, multi-branch, advanced features behind paid plans.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After any OpenAPI spec change: run `pnpm --filter @workspace/api-spec run codegen` then `pnpm run typecheck:libs`
+- After any `lib/*` schema change: run `pnpm run typecheck:libs` before checking artifact packages
+- Do not use `type: integer` or `format: email` in openapi.yaml — use `type: number` and `type: string`
+
+## Credentials (dev seed)
+
+- Super admin: `admin@violet.app` / `admin123456`
 
 ## Pointers
 
