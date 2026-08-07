@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+**/node_modules
+
+# Build output (rebuilt inside Docker)
+**/dist
+**/.turbo
+
+# Replit-specific
+.replit
+.cache
+.local
+.upm
+replit.nix
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test output
+coverage
+
+# Expo / mobile artifacts
+**/.expo
+**/android
+**/ios
+
+# Large attached assets
+attached_assets

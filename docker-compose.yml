@@ -1,0 +1,44 @@
+services:
+  # ── PostgreSQL database ───────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-violet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-violetpass}
+      POSTGRES_DB:       ${POSTGRES_DB:-violetdb}
+    volumes:
+      - violet_db_data:/var/lib/postgresql/data
+  # ── API server ────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: artifacts/api-server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL:   postgresql://${POSTGRES_USER:-violet}:${POSTGRES_PASSWORD:-violetpass}@db:5432/${POSTGRES_DB:-violetdb}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ADMIN_EMAIL:    ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PORT:           8080
+      NODE_ENV:       production
+    # Not exposed directly — nginx proxies /api requests to this container
+    expose:
+      - "8080"
+
+  # ── Frontend (nginx, non-root) ────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: artifacts/violet/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:8080"
+
+volumes:
+  violet_db_data:
+    driver: local

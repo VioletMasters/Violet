@@ -1,0 +1,54 @@
+# ── Stage 1: build ───────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+
+WORKDIR /build
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace manifests (needed for workspace resolution)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY tsconfig.base.json tsconfig.json ./
+
+# Copy all lib packages and the api-server artifact
+COPY lib/ ./lib/
+COPY artifacts/api-server/ ./artifacts/api-server/
+
+# Install dependencies — skip lifecycle scripts to avoid ERR_PNPM_IGNORED_BUILDS
+# in a clean Docker layer, then rebuild esbuild (the one native dep we need).
+RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm rebuild esbuild
+
+# Build the API server (esbuild bundles ALL deps into dist/index.mjs)
+RUN pnpm --filter @workspace/api-server run build
+
+# ── Stage 2: production image ─────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+
+# Install postgresql-client for the schema init step in entrypoint.sh
+RUN apk add --no-cache postgresql16-client
+
+WORKDIR /app
+
+# The esbuild bundle is self-contained — only the dist folder is needed at runtime
+COPY --from=builder /build/artifacts/api-server/dist ./dist
+
+# Seed script (uses Node built-in crypto + pg, which is bundled into dist)
+# pg is NOT externalized in build.mjs, so node-postgres is inside the bundle.
+# The seed script needs pg separately — install it here as a single package.
+RUN npm install --no-save pg@8
+
+# Schema SQL and seed script
+COPY docker/schema.sql ./schema.sql
+COPY docker/seed.mjs   ./seed.mjs
+COPY docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+# Non-root user
+RUN addgroup -S violet && adduser -S violet -G violet
+RUN chown -R violet:violet /app
+USER violet
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/entrypoint.sh"]

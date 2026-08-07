@@ -12,6 +12,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // Verify token
   const { data: me, error } = useGetMe({
     query: {
+      queryKey: ["me", token],
       enabled: !!token,
       retry: false,
     }

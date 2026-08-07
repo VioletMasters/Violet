@@ -1,7 +1,10 @@
 import React from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2, Store, Terminal, BarChart3, Users } from "lucide-react";
+import {
+  ArrowRight, CheckCircle2, Store, Terminal, BarChart3, Users,
+  Download, Server, Wifi, ShieldCheck, Package
+} from "lucide-react";
 
 export default function LandingPage() {
   return (
@@ -14,6 +17,9 @@ export default function LandingPage() {
           <span className="font-display font-bold text-xl tracking-tight">Violet Enterprise</span>
         </div>
         <div className="flex gap-4 items-center">
+          <a href="#self-host" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden sm:block">
+            Self-Host
+          </a>
           <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
             Log in
           </Link>
@@ -41,9 +47,11 @@ export default function LandingPage() {
                 Create Account <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </Link>
-            <Button variant="outline" size="lg" className="h-14 px-8 text-base w-full sm:w-auto">
-              View Demo
-            </Button>
+            <a href="#self-host">
+              <Button variant="outline" size="lg" className="h-14 px-8 text-base w-full sm:w-auto">
+                <Download className="mr-2 w-4 h-4" /> Self-Host on Your LAN
+              </Button>
+            </a>
           </div>
         </section>
 
@@ -88,9 +96,8 @@ export default function LandingPage() {
               <h3 className="text-2xl font-bold mb-2">Free Forever</h3>
               <div className="text-4xl font-bold mb-2">$0 <span className="text-lg text-muted-foreground font-normal">/ month</span></div>
               <p className="text-sm text-primary font-medium mb-6">Buy once, own forever. No monthly fees.</p>
-              
               <ul className="space-y-4 mb-8 flex-1">
-                {["1 register, 1 branch", "2 users", "Up to 500 products", "Basic POS (cash & card)", "Basic inventory tracking", "Violet branding"].map(f => (
+                {["1 register, 1 branch", "2 users", "Up to 250 products", "Basic POS (cash & card)", "Basic inventory tracking", "Violet branding"].map(f => (
                   <li key={f} className="flex gap-3 text-muted-foreground">
                     <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
                     <span>{f}</span>
@@ -107,7 +114,6 @@ export default function LandingPage() {
               <div className="absolute top-0 right-8 -translate-y-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Most Popular</div>
               <h3 className="text-2xl font-bold mb-2">Starter</h3>
               <div className="text-4xl font-bold mb-6">$49 <span className="text-lg text-muted-foreground font-normal">/ month</span></div>
-              
               <ul className="space-y-4 mb-8 flex-1">
                 {["2 registers, 1 branch", "5 users", "Up to 2,000 products", "Advanced inventory", "Employee management", "Supplier management", "Detailed reports"].map(f => (
                   <li key={f} className="flex gap-3 text-muted-foreground">
@@ -124,8 +130,7 @@ export default function LandingPage() {
             {/* Pro Tier */}
             <div className="rounded-3xl border border-border/50 p-8 bg-card flex flex-col">
               <h3 className="text-2xl font-bold mb-2">Professional</h3>
-              <div className="text-4xl font-bold mb-6">$149 <span className="text-lg text-muted-foreground font-normal">/ month</span></div>
-              
+              <div className="text-4xl font-bold mb-6">$129 <span className="text-lg text-muted-foreground font-normal">/ month</span></div>
               <ul className="space-y-4 mb-8 flex-1">
                 {["Unlimited registers", "3 branches, 20 users", "Unlimited products", "Multi-branch support", "Advanced analytics", "White-label ready", "Priority support"].map(f => (
                   <li key={f} className="flex gap-3 text-muted-foreground">
@@ -137,6 +142,66 @@ export default function LandingPage() {
               <Link href="/register?plan=professional">
                 <Button variant="outline" className="w-full">Start Free Trial</Button>
               </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Self-Host Section */}
+        <section id="self-host" className="py-24 bg-card border-y border-border/50">
+          <div className="container mx-auto px-4">
+            <div className="text-center max-w-2xl mx-auto mb-16">
+              <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-6">
+                No internet required
+              </div>
+              <h2 className="text-4xl font-bold mb-4">Run it on your own network</h2>
+              <p className="text-lg text-muted-foreground">
+                Own your data completely. Install Violet Enterprise on any computer and every device
+                on your Wi-Fi — phones, tablets, PCs — connects through the browser. No cloud subscription needed.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-14">
+              <div className="text-center p-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Server className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-bold text-lg mb-2">One command to start</h3>
+                <p className="text-muted-foreground text-sm">Install Docker Desktop, fill in a config file, run <code className="bg-muted px-1 rounded text-xs">docker compose up</code>. Done.</p>
+              </div>
+              <div className="text-center p-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Wifi className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-bold text-lg mb-2">Any device on your LAN</h3>
+                <p className="text-muted-foreground text-sm">Cashiers open a browser on any phone or tablet connected to your Wi-Fi. No app install needed.</p>
+              </div>
+              <div className="text-center p-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <ShieldCheck className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-bold text-lg mb-2">Your data stays yours</h3>
+                <p className="text-muted-foreground text-sm">All data is stored on your own machine. Nothing leaves your network unless you choose to expose it.</p>
+              </div>
+            </div>
+
+            <div className="max-w-2xl mx-auto bg-background rounded-2xl border border-border p-8">
+              <h3 className="font-bold text-xl mb-4 flex items-center gap-2">
+                <Package className="w-5 h-5 text-primary" /> System requirements
+              </h3>
+              <ul className="space-y-3 text-muted-foreground mb-8">
+                <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Any modern computer</strong> — Windows 10/11, macOS 12+, or Linux. A basic desktop or mini PC works fine.</span></li>
+                <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Docker Desktop</strong> — free to download at docker.com. Handles everything automatically.</span></li>
+                <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">One-time internet</strong> — needed only for the initial download. Runs fully offline after that.</span></li>
+              </ul>
+              <p className="text-sm text-muted-foreground mb-6">
+                Full setup instructions including backup guide, HTTPS setup, and troubleshooting are included in <code className="bg-muted px-1 rounded text-xs">README-local.md</code> inside the download.
+              </p>
+              <a href="https://github.com/violet-enterprise/violet/releases/latest" target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="w-full">
+                  <Download className="mr-2 w-4 h-4" /> Download Violet Enterprise
+                </Button>
+              </a>
+              <p className="text-xs text-muted-foreground text-center mt-4">Includes all subscription tiers · Full admin panel · Docker Compose bundle</p>
             </div>
           </div>
         </section>
