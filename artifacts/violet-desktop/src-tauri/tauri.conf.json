@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Violet Enterprise",
+  "version": "0.1.0",
+  "identifier": "com.violetenterprise.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Violet Enterprise",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "category": "Business",
+    "copyright": "© 2026 Violet Enterprise",
+    "shortDescription": "Violet Enterprise POS & Business Management",
+    "longDescription": "Violet Enterprise is a professional point-of-sale and business management platform. This desktop app connects to your Violet server instance and provides a native Windows experience.",
+    "windows": {
+      "nsis": {
+        "installMode": "perUser",
+        "displayLanguageSelector": false
+      },
+      "msi": {
+        "enableElevatedUpdateTask": false
+      }
+    }
+  },
+  "plugins": {
+    "store": {}
+  }
+}

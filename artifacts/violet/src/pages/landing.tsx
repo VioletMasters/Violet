@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight, CheckCircle2, Store, Terminal, BarChart3, Users,
-  Download, Server, Wifi, ShieldCheck, Package
+  Download, Server, Wifi, ShieldCheck, Package, Monitor
 } from "lucide-react";
 
 export default function LandingPage() {
@@ -184,24 +184,60 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="max-w-2xl mx-auto bg-background rounded-2xl border border-border p-8">
-              <h3 className="font-bold text-xl mb-4 flex items-center gap-2">
-                <Package className="w-5 h-5 text-primary" /> System requirements
-              </h3>
-              <ul className="space-y-3 text-muted-foreground mb-8">
-                <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Any modern computer</strong> — Windows 10/11, macOS 12+, or Linux. A basic desktop or mini PC works fine.</span></li>
-                <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Docker Desktop</strong> — free to download at docker.com. Handles everything automatically.</span></li>
-                <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">One-time internet</strong> — needed only for the initial download. Runs fully offline after that.</span></li>
-              </ul>
-              <p className="text-sm text-muted-foreground mb-6">
-                Full setup instructions including backup guide, HTTPS setup, and troubleshooting are included in <code className="bg-muted px-1 rounded text-xs">README-local.md</code> inside the download.
-              </p>
-              <a href="/api/download">
-                <Button size="lg" className="w-full">
-                  <Download className="mr-2 w-4 h-4" /> Download Violet Enterprise
-                </Button>
-              </a>
-              <p className="text-xs text-muted-foreground text-center mt-4">Includes all subscription tiers · Full admin panel · Docker Compose bundle</p>
+            {/* Download options — two cards side by side on md+ */}
+            <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+
+              {/* Docker bundle */}
+              <div className="bg-background rounded-2xl border border-border p-8 flex flex-col">
+                <h3 className="font-bold text-xl mb-3 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" /> Docker Bundle
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6 flex-1">
+                  Run the full Violet stack (API + web UI + database) on any machine that has Docker Desktop installed — Windows, macOS, or Linux.
+                </p>
+                <ul className="space-y-3 text-muted-foreground mb-8 text-sm">
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Any modern computer</strong> — Windows 10/11, macOS 12+, or Linux.</span></li>
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Docker Desktop</strong> — free to download at docker.com.</span></li>
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">One-time internet</strong> — only needed for the initial download.</span></li>
+                </ul>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Full setup guide, backup instructions, and HTTPS config included in <code className="bg-muted px-1 rounded">README-local.md</code>.
+                </p>
+                <a href="/api/download">
+                  <Button size="lg" className="w-full">
+                    <Download className="mr-2 w-4 h-4" /> Download Docker Bundle
+                  </Button>
+                </a>
+                <p className="text-xs text-muted-foreground text-center mt-3">Includes all subscription tiers · Full admin panel · Docker Compose</p>
+              </div>
+
+              {/* Windows Desktop App */}
+              <div className="bg-background rounded-2xl border border-border p-8 flex flex-col">
+                <h3 className="font-bold text-xl mb-3 flex items-center gap-2">
+                  <Monitor className="w-5 h-5 text-primary" /> Windows Desktop App
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6 flex-1">
+                  Prefer a native Windows experience? Install Violet Enterprise as a proper desktop app — no browser required. It connects to your self-hosted or cloud Violet server.
+                </p>
+                <ul className="space-y-3 text-muted-foreground mb-8 text-sm">
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Native NSIS installer</strong> — installs like any Windows application.</span></li>
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Works with any server</strong> — point it at your LAN Docker instance or cloud URL.</span></li>
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Remembers your server</strong> — opens straight to your Violet instance every time.</span></li>
+                </ul>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Requires Windows 10 or later. You need a running Violet server to connect to.
+                </p>
+                <a
+                  href="https://github.com/violet-enterprise/violet-enterprise/releases/latest"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button size="lg" variant="outline" className="w-full">
+                    <Download className="mr-2 w-4 h-4" /> Download Windows Installer (.exe)
+                  </Button>
+                </a>
+                <p className="text-xs text-muted-foreground text-center mt-3">Built and signed via GitHub Actions · Windows 10 / 11</p>
+              </div>
             </div>
           </div>
         </section>

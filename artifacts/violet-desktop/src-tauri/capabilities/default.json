@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default desktop capabilities — core platform access plus persistent store",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "store:default"
+  ]
+}

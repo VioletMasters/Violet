@@ -36,6 +36,10 @@ minimumReleaseAgeExclude:
 
 packages:
   - artifacts/*
+  # violet-desktop is managed independently with npm (not pnpm workspace) so the
+  # workspace's platform-specific esbuild/rollup exclusion overrides don't break
+  # Windows CI builds. Tauri requires a real Windows runner anyway.
+  - '!artifacts/violet-desktop'
   - lib/*
   - lib/integrations/*
   - scripts
