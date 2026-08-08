@@ -30,11 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
 
   const setAuth = (user: UserProfile, tenant: Tenant, token: string) => {
-    setState({ user, tenant, token });
+    const next = { user, tenant, token };
+    // Write synchronously before the navigation redirect fires so that the
+    // next page's initializer finds a populated localStorage immediately.
+    localStorage.setItem('violet_auth', JSON.stringify(next));
+    setState(next);
   };
 
   const updateUser = (user: UserProfile) => {
-    setState((prev) => ({ ...prev, user }));
+    setState((prev) => {
+      const next = { ...prev, user };
+      localStorage.setItem('violet_auth', JSON.stringify(next));
+      return next;
+    });
   };
 
   const logout = () => {

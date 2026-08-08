@@ -7,7 +7,7 @@ import { Header } from "./header";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { token, logout, setAuth } = useAuth();
+  const { token, logout } = useAuth();
   
   // Verify token
   const { data: me, error } = useGetMe({
@@ -26,8 +26,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (error) {
-      logout();
-      setLocation("/login");
+      // Only treat a genuine 401 Unauthorized as a sign that the session is
+      // gone. Network failures, 5xx errors, and other transient problems should
+      // NOT clear the session — the user would lose their work for no reason.
+      const status = (error as { status?: number }).status;
+      if (status === 401) {
+        logout();
+        setLocation("/login");
+      }
     }
   }, [error, logout, setLocation]);
 
