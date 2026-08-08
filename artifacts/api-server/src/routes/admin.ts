@@ -1,9 +1,20 @@
 import { Router } from "express";
-import { db, tenantsTable, usersTable, plansTable, subscriptionsTable } from "@workspace/db";
-import { eq, ilike, and, sql } from "drizzle-orm";
+import {
+  db, tenantsTable, usersTable, plansTable,
+  subscriptionsTable, productsTable, customersTable,
+} from "@workspace/db";
+import { eq, ilike, and, sql, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
+
+// ─── Helper: resolve plan from subscription (authoritative) then tenant fallback
+async function resolvePlan(subscription: { planId: string } | null, tenant: { planId: string | null }) {
+  const planId = subscription?.planId ?? tenant.planId;
+  if (!planId) return null;
+  const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1);
+  return plan ?? null;
+}
 
 // GET /admin/stats
 router.get("/admin/stats", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -30,7 +41,6 @@ router.get("/admin/stats", requireSuperAdmin, async (req, res): Promise<void> =>
   const trialTenants = Number(stats?.trial ?? 0);
   const suspendedTenants = Number(stats?.suspended ?? 0);
 
-  // MRR calculation (monthly plans)
   const mrr = planStats.reduce((sum, p) => {
     if (p.billingType === "monthly") return sum + parseFloat(p.price) * Number(p.count);
     return sum;
@@ -67,6 +77,7 @@ router.get("/admin/tenants", requireSuperAdmin, async (req, res): Promise<void> 
   if (status) conditions.push(eq(tenantsTable.status, status) as any);
   if (search) conditions.push(ilike(tenantsTable.name, `%${search}%`) as any);
 
+  // 1. Fetch tenants page + total — 2 queries
   const [tenants, [{ total }]] = await Promise.all([
     db.select().from(tenantsTable)
       .where(conditions.length ? and(...conditions) : undefined)
@@ -75,30 +86,81 @@ router.get("/admin/tenants", requireSuperAdmin, async (req, res): Promise<void> 
       .where(conditions.length ? and(...conditions) : undefined),
   ]);
 
-  const result = await Promise.all(tenants.map(async (t) => {
-    const [plan] = t.planId
-      ? await db.select().from(plansTable).where(eq(plansTable.id, t.planId)).limit(1)
-      : [null];
-    const [{ userCount }] = await db.select({ userCount: sql<number>`COUNT(*)` })
-      .from(usersTable).where(eq(usersTable.tenantId, t.id));
+  if (tenants.length === 0) {
+    res.json({ data: [], total: Number(total), page: pageNum, limit: limitNum });
+    return;
+  }
+
+  const tenantIds = tenants.map(t => t.id);
+
+  // 2. Batch aggregate queries — 3 queries, all grouped by tenantId
+  const [userCounts, productCounts, customerCounts, subscriptions] = await Promise.all([
+    db.select({
+      tenantId: usersTable.tenantId,
+      count: sql<number>`COUNT(*)`,
+    }).from(usersTable).where(inArray(usersTable.tenantId, tenantIds))
+      .groupBy(usersTable.tenantId),
+    db.select({
+      tenantId: productsTable.tenantId,
+      count: sql<number>`COUNT(*)`,
+    }).from(productsTable).where(inArray(productsTable.tenantId, tenantIds))
+      .groupBy(productsTable.tenantId),
+    db.select({
+      tenantId: customersTable.tenantId,
+      count: sql<number>`COUNT(*)`,
+    }).from(customersTable).where(inArray(customersTable.tenantId, tenantIds))
+      .groupBy(customersTable.tenantId),
+    db.select().from(subscriptionsTable)
+      .where(inArray(subscriptionsTable.tenantId, tenantIds)),
+  ]);
+
+  // Build lookup maps
+  const userCountByTenant = new Map(userCounts.map(r => [r.tenantId, Number(r.count)]));
+  const productCountByTenant = new Map(productCounts.map(r => [r.tenantId, Number(r.count)]));
+  const customerCountByTenant = new Map(customerCounts.map(r => [r.tenantId, Number(r.count)]));
+  const subByTenant = new Map(subscriptions.map(s => [s.tenantId, s]));
+
+  // 3. Collect all unique planIds to fetch in one query
+  const planIdSet = new Set<string>();
+  for (const t of tenants) {
+    const sub = subByTenant.get(t.id);
+    const planId = sub?.planId ?? t.planId;
+    if (planId) planIdSet.add(planId);
+  }
+
+  const plans = planIdSet.size > 0
+    ? await db.select().from(plansTable).where(inArray(plansTable.id, [...planIdSet]))
+    : [];
+  const planById = new Map(plans.map(p => [p.id, p]));
+
+  // 4. Assemble response in memory — no further DB calls
+  const result = tenants.map(t => {
+    const sub = subByTenant.get(t.id) ?? null;
+    const planId = sub?.planId ?? t.planId;
+    const plan = planId ? planById.get(planId) ?? null : null;
 
     return {
       id: t.id,
       name: t.name,
       email: t.email,
       status: t.status,
-      planId: t.planId ?? "",
+      planId: plan?.id ?? t.planId ?? "",
       planName: plan?.name ?? "Free",
-      userCount: Number(userCount),
-      productCount: 0,
+      planTier: plan?.tier ?? "free",
+      billingType: plan?.billingType ?? "one_time",
+      userCount: userCountByTenant.get(t.id) ?? 0,
+      productCount: productCountByTenant.get(t.id) ?? 0,
+      customerCount: customerCountByTenant.get(t.id) ?? 0,
+      subscriptionStatus: sub?.status ?? null,
+      subscriptionStart: sub?.currentPeriodStart?.toISOString() ?? null,
       createdAt: t.createdAt.toISOString(),
     };
-  }));
+  });
 
   res.json({ data: result, total: Number(total), page: pageNum, limit: limitNum });
 });
 
-// GET /admin/tenants/:id
+// GET /admin/tenants/:id  — full detail with plan limits and usage
 router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, id)).limit(1);
@@ -106,21 +168,46 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
     res.status(404).json({ error: "Tenant not found" });
     return;
   }
-  const [plan] = tenant.planId
-    ? await db.select().from(plansTable).where(eq(plansTable.id, tenant.planId)).limit(1)
-    : [null];
-  const [{ userCount }] = await db.select({ userCount: sql<number>`COUNT(*)` })
-    .from(usersTable).where(eq(usersTable.tenantId, tenant.id));
+
+  const [
+    [{ userCount }],
+    [{ productCount }],
+    [{ customerCount }],
+    subscription,
+  ] = await Promise.all([
+    db.select({ userCount: sql<number>`COUNT(*)` })
+      .from(usersTable).where(eq(usersTable.tenantId, tenant.id)),
+    db.select({ productCount: sql<number>`COUNT(*)` })
+      .from(productsTable).where(eq(productsTable.tenantId, tenant.id)),
+    db.select({ customerCount: sql<number>`COUNT(*)` })
+      .from(customersTable).where(eq(customersTable.tenantId, tenant.id)),
+    db.select().from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, tenant.id)).limit(1)
+      .then(r => r[0] ?? null),
+  ]);
+
+  // Subscription is authoritative for plan — fall back to tenant.planId for legacy rows
+  const plan = await resolvePlan(subscription, tenant);
 
   res.json({
     id: tenant.id,
     name: tenant.name,
     email: tenant.email,
     status: tenant.status,
-    planId: tenant.planId ?? "",
+    planId: plan?.id ?? tenant.planId ?? "",
     planName: plan?.name ?? "Free",
+    planTier: plan?.tier ?? "free",
+    billingType: plan?.billingType ?? "one_time",
     userCount: Number(userCount),
-    productCount: 0,
+    productCount: Number(productCount),
+    customerCount: Number(customerCount),
+    subscriptionStatus: subscription?.status ?? null,
+    subscriptionStart: subscription?.currentPeriodStart?.toISOString() ?? null,
+    subscriptionEnd: subscription?.currentPeriodEnd?.toISOString() ?? null,
+    maxUsers: plan?.maxUsers ?? 2,
+    maxProducts: plan?.maxProducts ?? 250,
+    maxCustomers: plan?.maxCustomers ?? 500,
+    maxBranches: plan?.maxBranches ?? 1,
     createdAt: tenant.createdAt.toISOString(),
   });
 });
@@ -140,19 +227,26 @@ router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<
     return;
   }
 
-  const [plan] = tenant.planId
-    ? await db.select().from(plansTable).where(eq(plansTable.id, tenant.planId)).limit(1)
-    : [null];
+  // Fetch subscription to use as authoritative plan source
+  const subscription = await db.select().from(subscriptionsTable)
+    .where(eq(subscriptionsTable.tenantId, tenant.id)).limit(1)
+    .then(r => r[0] ?? null);
+  const plan = await resolvePlan(subscription, tenant);
 
   res.json({
     id: tenant.id,
     name: tenant.name,
     email: tenant.email,
     status: tenant.status,
-    planId: tenant.planId ?? "",
+    planId: plan?.id ?? tenant.planId ?? "",
     planName: plan?.name ?? "Free",
+    planTier: plan?.tier ?? "free",
+    billingType: plan?.billingType ?? "one_time",
     userCount: 0,
     productCount: 0,
+    customerCount: 0,
+    subscriptionStatus: subscription?.status ?? null,
+    subscriptionStart: subscription?.currentPeriodStart?.toISOString() ?? null,
     createdAt: tenant.createdAt.toISOString(),
   });
 });

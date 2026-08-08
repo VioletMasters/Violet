@@ -75,8 +75,14 @@ export interface Tenant {
   status: TenantStatus;
   planId: string;
   planName?: string;
+  planTier?: string;
+  billingType?: string;
   userCount?: number;
   productCount?: number;
+  customerCount?: number;
+  subscriptionStatus?: string;
+  /** @nullable */
+  subscriptionStart?: string | null;
   createdAt: string;
 }
 
@@ -84,6 +90,40 @@ export interface AuthResponse {
   user: UserProfile;
   tenant: Tenant;
   token: string;
+}
+
+export type TenantDetailStatus = typeof TenantDetailStatus[keyof typeof TenantDetailStatus];
+
+
+export const TenantDetailStatus = {
+  active: 'active',
+  suspended: 'suspended',
+  trial: 'trial',
+  expired: 'expired',
+} as const;
+
+export interface TenantDetail {
+  id: string;
+  name: string;
+  email?: string;
+  status: TenantDetailStatus;
+  planId: string;
+  planName?: string;
+  planTier?: string;
+  billingType?: string;
+  userCount?: number;
+  productCount?: number;
+  customerCount?: number;
+  subscriptionStatus?: string;
+  /** @nullable */
+  subscriptionStart?: string | null;
+  /** @nullable */
+  subscriptionEnd?: string | null;
+  maxUsers?: number;
+  maxProducts?: number;
+  maxCustomers?: number;
+  maxBranches?: number;
+  createdAt: string;
 }
 
 export type TenantUpdateStatus = typeof TenantUpdateStatus[keyof typeof TenantUpdateStatus];

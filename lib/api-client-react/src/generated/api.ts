@@ -68,6 +68,7 @@ import type {
   SupplierInput,
   SupplierUpdate,
   Tenant,
+  TenantDetail,
   TenantUpdate,
   TenantsPage,
   TopProduct,
@@ -3497,11 +3498,11 @@ export const getGetAdminTenantUrl = (id: string,) => {
 }
 
 /**
- * @summary Get a tenant
+ * @summary Get a tenant with full subscription and usage detail
  */
-export const getAdminTenant = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Tenant> => {
+export const getAdminTenant = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<TenantDetail> => {
 
-  return customFetch<Tenant>(getGetAdminTenantUrl(id),
+  return customFetch<TenantDetail>(getGetAdminTenantUrl(id),
   {
     ...options,
     method: 'GET'
@@ -3544,7 +3545,7 @@ export type GetAdminTenantQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get a tenant
+ * @summary Get a tenant with full subscription and usage detail
  */
 
 export function useGetAdminTenant<TData = Awaited<ReturnType<typeof getAdminTenant>>, TError = ErrorType<unknown>>(

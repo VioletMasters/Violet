@@ -73,6 +73,8 @@ export * from './supplier';
 export * from './supplierInput';
 export * from './supplierUpdate';
 export * from './tenant';
+export * from './tenantDetail';
+export * from './tenantDetailStatus';
 export * from './tenantsPage';
 export * from './tenantStatus';
 export * from './tenantUpdate';

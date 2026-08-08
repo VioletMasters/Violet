@@ -51,8 +51,13 @@ export const RegisterResponse = zod.object({
   "status": zod.enum(['active', 'suspended', 'trial', 'expired']),
   "planId": zod.string(),
   "planName": zod.string().optional(),
+  "planTier": zod.string().optional(),
+  "billingType": zod.string().optional(),
   "userCount": zod.number().optional(),
   "productCount": zod.number().optional(),
+  "customerCount": zod.number().optional(),
+  "subscriptionStatus": zod.string().optional(),
+  "subscriptionStart": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -85,8 +90,13 @@ export const LoginResponse = zod.object({
   "status": zod.enum(['active', 'suspended', 'trial', 'expired']),
   "planId": zod.string(),
   "planName": zod.string().optional(),
+  "planTier": zod.string().optional(),
+  "billingType": zod.string().optional(),
   "userCount": zod.number().optional(),
   "productCount": zod.number().optional(),
+  "customerCount": zod.number().optional(),
+  "subscriptionStatus": zod.string().optional(),
+  "subscriptionStart": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -1151,8 +1161,13 @@ export const ListTenantsResponse = zod.object({
   "status": zod.enum(['active', 'suspended', 'trial', 'expired']),
   "planId": zod.string(),
   "planName": zod.string().optional(),
+  "planTier": zod.string().optional(),
+  "billingType": zod.string().optional(),
   "userCount": zod.number().optional(),
   "productCount": zod.number().optional(),
+  "customerCount": zod.number().optional(),
+  "subscriptionStatus": zod.string().optional(),
+  "subscriptionStart": zod.string().nullish(),
   "createdAt": zod.string()
 })),
   "total": zod.number(),
@@ -1162,7 +1177,7 @@ export const ListTenantsResponse = zod.object({
 
 
 /**
- * @summary Get a tenant
+ * @summary Get a tenant with full subscription and usage detail
  */
 export const GetAdminTenantParams = zod.object({
   "id": zod.coerce.string()
@@ -1175,8 +1190,18 @@ export const GetAdminTenantResponse = zod.object({
   "status": zod.enum(['active', 'suspended', 'trial', 'expired']),
   "planId": zod.string(),
   "planName": zod.string().optional(),
+  "planTier": zod.string().optional(),
+  "billingType": zod.string().optional(),
   "userCount": zod.number().optional(),
   "productCount": zod.number().optional(),
+  "customerCount": zod.number().optional(),
+  "subscriptionStatus": zod.string().optional(),
+  "subscriptionStart": zod.string().nullish(),
+  "subscriptionEnd": zod.string().nullish(),
+  "maxUsers": zod.number().optional(),
+  "maxProducts": zod.number().optional(),
+  "maxCustomers": zod.number().optional(),
+  "maxBranches": zod.number().optional(),
   "createdAt": zod.string()
 })
 
@@ -1200,8 +1225,13 @@ export const UpdateAdminTenantResponse = zod.object({
   "status": zod.enum(['active', 'suspended', 'trial', 'expired']),
   "planId": zod.string(),
   "planName": zod.string().optional(),
+  "planTier": zod.string().optional(),
+  "billingType": zod.string().optional(),
   "userCount": zod.number().optional(),
   "productCount": zod.number().optional(),
+  "customerCount": zod.number().optional(),
+  "subscriptionStatus": zod.string().optional(),
+  "subscriptionStart": zod.string().nullish(),
   "createdAt": zod.string()
 })
 

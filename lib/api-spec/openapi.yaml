@@ -945,7 +945,7 @@ paths:
     get:
       operationId: getAdminTenant
       tags: [admin]
-      summary: Get a tenant
+      summary: Get a tenant with full subscription and usage detail
       parameters:
         - name: id
           in: path
@@ -954,11 +954,11 @@ paths:
             type: string
       responses:
         "200":
-          description: Tenant
+          description: Tenant detail
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Tenant"
+                $ref: "#/components/schemas/TenantDetail"
     patch:
       operationId: updateAdminTenant
       tags: [admin]
@@ -1144,9 +1144,63 @@ components:
           type: string
         planName:
           type: string
+        planTier:
+          type: string
+        billingType:
+          type: string
         userCount:
           type: number
         productCount:
+          type: number
+        customerCount:
+          type: number
+        subscriptionStatus:
+          type: string
+        subscriptionStart:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    TenantDetail:
+      type: object
+      required: [id, name, status, planId, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended, trial, expired]
+        planId:
+          type: string
+        planName:
+          type: string
+        planTier:
+          type: string
+        billingType:
+          type: string
+        userCount:
+          type: number
+        productCount:
+          type: number
+        customerCount:
+          type: number
+        subscriptionStatus:
+          type: string
+        subscriptionStart:
+          type: ["string", "null"]
+        subscriptionEnd:
+          type: ["string", "null"]
+        maxUsers:
+          type: number
+        maxProducts:
+          type: number
+        maxCustomers:
+          type: number
+        maxBranches:
           type: number
         createdAt:
           type: string
