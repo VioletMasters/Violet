@@ -7,13 +7,13 @@ the desktop app at that server address.
 
 ## Download a release
 
-Desktop installers will be linked here once the first verified public release
-has been published. Until then, build the package locally or run the GitHub
-Actions workflow from the repository's intended public destination.
+Desktop installers will appear on the
+[Violet Enterprise Releases](https://github.com/VioletMasters/Violet/releases)
+page after the first tagged release is published.
 
-After a public release is available:
+After a release is available:
 
-1. Open the project's GitHub Releases page.
+1. Open the Violet Enterprise Releases page.
 2. On Windows, download the `.exe` setup installer. The `.msi` is available as
    an alternative package for managed Windows environments.
 3. On macOS, download the `.dmg` matching the Mac's processor:

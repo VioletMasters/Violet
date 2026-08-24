@@ -225,7 +225,7 @@ export default function LandingPage() {
                   <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Remembers your server</strong> — opens straight to your Violet instance every time.</span></li>
                 </ul>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Installer downloads will appear after the first verified public release. You need a running Violet server to connect to.
+                  Installer downloads will appear after the first tagged release. You need a running Violet server to connect to.
                 </p>
                 <Button size="lg" variant="outline" className="w-full" disabled>
                   <Download className="mr-2 w-4 h-4" /> Desktop Installer Coming Soon
