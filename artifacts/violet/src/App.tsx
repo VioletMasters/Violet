@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { Redirect, Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppLayout } from './components/layout/app-layout';
-import { AuthProvider } from './hooks/use-auth';
+import { AuthProvider, useAuth } from './hooks/use-auth';
 
 import LandingPage from './pages/landing';
 import LoginPage from './pages/auth/login';
@@ -21,6 +21,12 @@ import Admin from './pages/admin';
 import Suppliers from './pages/suppliers';
 
 const DefaultAppRoute = () => <Redirect to="/pos" />;
+
+function RootRoute() {
+  const { token } = useAuth();
+
+  return token ? <Redirect to="/pos" /> : <LandingPage />;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,7 +62,7 @@ function Router() {
   return (
     <Switch>
       {/* Public Routes */}
-      <Route path="/" component={LandingPage} />
+      <Route path="/" component={RootRoute} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       

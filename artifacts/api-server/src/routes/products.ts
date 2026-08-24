@@ -5,8 +5,56 @@ import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
+// GET /pos/products — checkout lookup with only the fields a cashier needs.
+router.get("/pos/products", requireAuth, async (req, res): Promise<void> => {
+  const tenantId = req.tenantId!;
+  const { search, page = "1", limit = "50" } = req.query as Record<string, string>;
+  const pageNum = Math.max(1, parseInt(page, 10));
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
+  const offset = (pageNum - 1) * limitNum;
+
+  const conditions = [
+    eq(productsTable.tenantId, tenantId),
+    eq(productsTable.isActive, true),
+  ];
+  const searchTerm = search?.replace(/[\r\n]+/g, "").trim();
+  if (searchTerm) {
+    const searchCondition = or(
+      ilike(productsTable.name, `%${searchTerm}%`),
+      ilike(productsTable.sku, `%${searchTerm}%`),
+      ilike(productsTable.barcode, `%${searchTerm}%`),
+    );
+    if (searchCondition) conditions.push(searchCondition);
+  }
+
+  const [products, [{ total }]] = await Promise.all([
+    db.select()
+      .from(productsTable)
+      .where(and(...conditions))
+      .orderBy(desc(productsTable.createdAt))
+      .limit(limitNum)
+      .offset(offset),
+    db.select({ total: sql<number>`COUNT(*)` }).from(productsTable).where(and(...conditions)),
+  ]);
+
+  res.json({
+    data: products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode ?? null,
+      price: parseFloat(product.price),
+      stock: product.stock,
+      imageUrl: product.imageUrl ?? null,
+    })),
+    total: Number(total),
+    page: pageNum,
+    limit: limitNum,
+  });
+});
+
 // GET /products
-router.get("/products", requireAuth, async (req, res): Promise<void> => {
+router.get("/products", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { search, categoryId, page = "1", limit = "50" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page, 10));
@@ -108,7 +156,7 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
 });
 
 // GET /products/:id
-router.get("/products/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 

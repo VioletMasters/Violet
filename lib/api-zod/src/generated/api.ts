@@ -214,7 +214,35 @@ export const GetSalesTrendResponse = zod.array(GetSalesTrendResponseItem)
 
 
 /**
- * @summary List all products
+ * @summary List active products available for checkout
+ */
+export const listPosProductsQueryPageDefault = 1;
+export const listPosProductsQueryLimitDefault = 50;
+
+export const ListPosProductsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listPosProductsQueryPageDefault),
+  "limit": zod.coerce.number().default(listPosProductsQueryLimitDefault)
+})
+
+export const ListPosProductsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "sku": zod.string(),
+  "barcode": zod.string().nullish(),
+  "price": zod.number(),
+  "stock": zod.number(),
+  "imageUrl": zod.string().nullish()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary List all products for business management
  */
 export const listProductsQueryPageDefault = 1;
 export const listProductsQueryLimitDefault = 50;

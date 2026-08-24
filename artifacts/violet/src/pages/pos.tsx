@@ -6,12 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useListProducts, useCreateSale, useGetPosTaxSettings } from "@workspace/api-client-react";
+import { useListPosProducts, useCreateSale, useGetPosTaxSettings } from "@workspace/api-client-react";
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package } from "lucide-react";
 import { toast } from "sonner";
-import type { Product, SaleInputPaymentMethod } from "@workspace/api-client-react";
+import type { PosProduct, SaleInputPaymentMethod } from "@workspace/api-client-react";
 
-interface CartItem extends Product {
+interface CartItem extends PosProduct {
   cartQuantity: number;
 }
 
@@ -23,7 +23,7 @@ export default function POSPage() {
   const [cashTendered, setCashTendered] = useState<string>("");
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
-  const { data: productsData, isLoading } = useListProducts({ search: normalizedSearch, limit: 50 });
+  const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
   const {
     data: posTaxSettings,
     isLoading: isLoadingTaxSettings,
@@ -46,7 +46,7 @@ export default function POSPage() {
     }
   });
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: PosProduct) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {

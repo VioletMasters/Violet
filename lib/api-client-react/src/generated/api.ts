@@ -42,6 +42,7 @@ import type {
   InventoryReport,
   ListCustomersParams,
   ListInventoryParams,
+  ListPosProductsParams,
   ListProductsParams,
   ListSalesParams,
   ListTenantsParams,
@@ -51,6 +52,7 @@ import type {
   Plan,
   PlanInput,
   PlanUpdate,
+  PosProductsPage,
   PosTaxSettings,
   Product,
   ProductInput,
@@ -851,6 +853,90 @@ export function useGetSalesTrend<TData = Awaited<ReturnType<typeof getSalesTrend
 
 
 
+export const getListPosProductsUrl = (params?: ListPosProductsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pos/products?${stringifiedParams}` : `/api/pos/products`
+}
+
+/**
+ * @summary List active products available for checkout
+ */
+export const listPosProducts = async (params?: ListPosProductsParams, options?: Parameters<typeof customFetch>[1]): Promise<PosProductsPage> => {
+
+  return customFetch<PosProductsPage>(getListPosProductsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPosProductsQueryKey = (params?: ListPosProductsParams,) => {
+    return [
+    `/api/pos/products`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPosProductsQueryOptions = <TData = Awaited<ReturnType<typeof listPosProducts>>, TError = ErrorType<unknown>>(params?: ListPosProductsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPosProducts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPosProductsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPosProducts>>> = ({ signal }) => listPosProducts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPosProducts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPosProductsQueryResult = NonNullable<Awaited<ReturnType<typeof listPosProducts>>>
+export type ListPosProductsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List active products available for checkout
+ */
+
+export function useListPosProducts<TData = Awaited<ReturnType<typeof listPosProducts>>, TError = ErrorType<unknown>>(
+ params?: ListPosProductsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPosProducts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPosProductsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListProductsUrl = (params?: ListProductsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -867,7 +953,7 @@ export const getListProductsUrl = (params?: ListProductsParams,) => {
 }
 
 /**
- * @summary List all products
+ * @summary List all products for business management
  */
 export const listProducts = async (params?: ListProductsParams, options?: Parameters<typeof customFetch>[1]): Promise<ProductsPage> => {
 
@@ -914,7 +1000,7 @@ export type ListProductsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List all products
+ * @summary List all products for business management
  */
 
 export function useListProducts<TData = Awaited<ReturnType<typeof listProducts>>, TError = ErrorType<unknown>>(

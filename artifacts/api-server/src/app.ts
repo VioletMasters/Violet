@@ -18,6 +18,10 @@ if (!sessionSecret || sessionSecret === "changeme" || sessionSecret === "secret"
 
 const app: Express = express();
 
+// Violet is served through one managed reverse-proxy hop. Trust that proxy so
+// rate limits use the caller's forwarded address instead of one shared proxy IP.
+app.set("trust proxy", 1);
+
 // Security headers
 app.use(
   helmet({

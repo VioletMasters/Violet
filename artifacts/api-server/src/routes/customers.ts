@@ -6,7 +6,7 @@ import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 const router = Router();
 
 // GET /customers
-router.get("/customers", requireAuth, async (req, res): Promise<void> => {
+router.get("/customers", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { search, page = "1", limit = "50" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page, 10));
@@ -70,7 +70,7 @@ router.post("/customers", requireManagerAccess, async (req, res): Promise<void> 
 });
 
 // GET /customers/:id
-router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/customers/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const [customer] = await db.select().from(customersTable)

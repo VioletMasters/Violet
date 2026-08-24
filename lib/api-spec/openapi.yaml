@@ -224,12 +224,41 @@ paths:
                 items:
                   $ref: "#/components/schemas/SalesTrendPoint"
 
+  # ─── POS product lookup ─────────────────────────────────────────────────────
+  /pos/products:
+    get:
+      operationId: listPosProducts
+      tags: [sales]
+      summary: List active products available for checkout
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 50
+      responses:
+        "200":
+          description: POS product lookup results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosProductsPage"
+
   # ─── Products ───────────────────────────────────────────────────────────────
   /products:
     get:
       operationId: listProducts
       tags: [products]
-      summary: List all products
+      summary: List all products for business management
       parameters:
         - name: search
           in: query
@@ -1422,6 +1451,25 @@ components:
         createdAt:
           type: string
 
+    PosProduct:
+      type: object
+      required: [id, name, sku, price, stock]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        sku:
+          type: string
+        barcode:
+          type: ["string", "null"]
+        price:
+          type: number
+        stock:
+          type: number
+        imageUrl:
+          type: ["string", "null"]
+
     ProductInput:
       type: object
       required: [name, sku, price]
@@ -1489,6 +1537,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Product"
+        total:
+          type: number
+        page:
+          type: number
+        limit:
+          type: number
+
+    PosProductsPage:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PosProduct"
         total:
           type: number
         page:

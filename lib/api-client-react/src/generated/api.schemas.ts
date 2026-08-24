@@ -236,6 +236,18 @@ export interface Product {
   createdAt?: string;
 }
 
+export interface PosProduct {
+  id: string;
+  name: string;
+  sku: string;
+  /** @nullable */
+  barcode?: string | null;
+  price: number;
+  stock: number;
+  /** @nullable */
+  imageUrl?: string | null;
+}
+
 export interface ProductInput {
   /** @minLength 1 */
   name: string;
@@ -271,6 +283,13 @@ export interface ProductUpdate {
 
 export interface ProductsPage {
   data: Product[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface PosProductsPage {
+  data: PosProduct[];
   total: number;
   page: number;
   limit: number;
@@ -749,6 +768,12 @@ export interface AdminStats {
   totalRevenue?: number;
   revenueByPlan?: AdminStatsRevenueByPlanItem[];
 }
+
+export type ListPosProductsParams = {
+search?: string;
+page?: number;
+limit?: number;
+};
 
 export type ListProductsParams = {
 search?: string;
