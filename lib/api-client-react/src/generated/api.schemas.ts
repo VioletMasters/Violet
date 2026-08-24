@@ -212,6 +212,28 @@ export interface CategoryUpdate {
   color?: string;
 }
 
+export interface Brand {
+  id: string;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  tenantId: string;
+  productCount: number;
+  createdAt: string;
+}
+
+export interface BrandInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+}
+
+export interface BrandUpdate {
+  /** @minLength 1 */
+  name?: string;
+  description?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -229,6 +251,10 @@ export interface Product {
   categoryId?: string | null;
   /** @nullable */
   categoryName?: string | null;
+  /** @nullable */
+  brandId?: string | null;
+  /** @nullable */
+  brandName?: string | null;
   /** @nullable */
   imageUrl?: string | null;
   tenantId: string;
@@ -260,7 +286,10 @@ export interface ProductInput {
   costPrice?: number;
   stock?: number;
   minStock?: number;
-  categoryId?: string;
+  /** @nullable */
+  categoryId?: string | null;
+  /** @nullable */
+  brandId?: string | null;
   imageUrl?: string;
 }
 
@@ -276,7 +305,10 @@ export interface ProductUpdate {
   costPrice?: number;
   stock?: number;
   minStock?: number;
-  categoryId?: string;
+  /** @nullable */
+  categoryId?: string | null;
+  /** @nullable */
+  brandId?: string | null;
   imageUrl?: string;
   isActive?: boolean;
 }
@@ -729,11 +761,13 @@ export interface Settings {
   /** @nullable */
   logoUrl?: string | null;
   timezone?: string;
+  requireManagerPasswordForCartRemoval?: boolean;
 }
 
 export interface PosTaxSettings {
   taxRate: number;
   taxName: string;
+  requireManagerPasswordForCartRemoval: boolean;
 }
 
 export interface SettingsUpdate {
@@ -748,6 +782,7 @@ export interface SettingsUpdate {
   receiptFooter?: string;
   logoUrl?: string;
   timezone?: string;
+  requireManagerPasswordForCartRemoval?: boolean;
 }
 
 export type AdminStatsRevenueByPlanItem = {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,21 +6,38 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useListPosProducts, useCreateSale, useGetPosTaxSettings } from "@workspace/api-client-react";
+import {
+  listPosProducts,
+  useConfirmManagerPassword,
+  useCreateSale,
+  useGetPosTaxSettings,
+  useListPosProducts,
+} from "@workspace/api-client-react";
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package } from "lucide-react";
 import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod } from "@workspace/api-client-react";
+import { useAuth } from "@/hooks/use-auth";
 
 interface CartItem extends PosProduct {
   cartQuantity: number;
 }
 
+type PendingCartRemoval = {
+  productId: string;
+  action: "remove" | "decrement";
+};
+
 export default function POSPage() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<SaleInputPaymentMethod>("cash");
   const [cashTendered, setCashTendered] = useState<string>("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [pendingCartRemoval, setPendingCartRemoval] = useState<PendingCartRemoval | null>(null);
+  const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
+  const [managerPassword, setManagerPassword] = useState("");
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
@@ -45,6 +62,8 @@ export default function POSPage() {
       }
     }
   });
+
+  const managerConfirmation = useConfirmManagerPassword();
 
   const addToCart = (product: PosProduct) => {
     setCart((prev) => {
@@ -87,6 +106,74 @@ export default function POSPage() {
     );
   };
 
+  const applyCartRemoval = (removal: PendingCartRemoval) => {
+    if (removal.action === "remove") {
+      removeFromCart(removal.productId);
+      return;
+    }
+    updateQuantity(removal.productId, -1);
+  };
+
+  const requestCartRemoval = (removal: PendingCartRemoval) => {
+    if (!posTaxSettings?.requireManagerPasswordForCartRemoval) {
+      applyCartRemoval(removal);
+      return;
+    }
+    setManagerEmail(user?.email ?? "");
+    setManagerPassword("");
+    setPendingCartRemoval(removal);
+  };
+
+  const confirmCartRemoval = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pendingCartRemoval) return;
+
+    const removal = pendingCartRemoval;
+    managerConfirmation.mutate(
+      { data: { email: managerEmail.trim(), password: managerPassword } },
+      {
+        onSuccess: () => {
+          applyCartRemoval(removal);
+          setPendingCartRemoval(null);
+          setManagerPassword("");
+          toast.success("Manager approval confirmed.");
+        },
+        onError: () => {
+          toast.error("Those manager credentials could not be verified.");
+        },
+      },
+    );
+  };
+
+  const handleSearchKeyDown = async (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter" || !normalizedSearch || isScanning) return;
+    event.preventDefault();
+    setIsScanning(true);
+
+    try {
+      const results = await listPosProducts({ search: normalizedSearch, limit: 50 });
+      const exactTerm = normalizedSearch.toLocaleLowerCase();
+      const exactMatches = results.data.filter((product) => (
+        product.sku.trim().toLocaleLowerCase() === exactTerm ||
+        product.barcode?.trim().toLocaleLowerCase() === exactTerm ||
+        product.name.trim().toLocaleLowerCase() === exactTerm
+      ));
+
+      if (exactMatches.length === 1) {
+        addToCart(exactMatches[0]);
+        setSearch("");
+      } else if (exactMatches.length > 1) {
+        toast.error("More than one product matches exactly. Select the item from the results.");
+      } else {
+        toast.error("No exact product match found.");
+      }
+    } catch {
+      toast.error("Unable to look up that product. Try again.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.cartQuantity, 0), [cart]);
   const taxRate = posTaxSettings?.taxRate ?? 0;
   const tax = subtotal * (taxRate / 100);
@@ -121,6 +208,7 @@ export default function POSPage() {
               className="pl-9 h-11 bg-background"
               value={search}
               onChange={(e) => setSearch(e.target.value.replace(/[\r\n]+/g, ""))}
+              onKeyDown={handleSearchKeyDown}
             />
           </div>
         </div>
@@ -192,7 +280,7 @@ export default function POSPage() {
                     <div className="flex items-center border border-border/80 rounded-md bg-secondary/50">
                       <button 
                         onClick={() => {
-                          if (item.cartQuantity <= 1) removeFromCart(item.id);
+                          if (item.cartQuantity <= 1) requestCartRemoval({ productId: item.id, action: "remove" });
                           else updateQuantity(item.id, -1);
                         }}
                         className="w-8 h-8 flex items-center justify-center hover:bg-background rounded-l-md transition-colors"
@@ -209,7 +297,7 @@ export default function POSPage() {
                       </button>
                     </div>
                     <button 
-                      onClick={() => removeFromCart(item.id)}
+                      onClick={() => requestCartRemoval({ productId: item.id, action: "remove" })}
                       className="text-muted-foreground hover:text-destructive p-2"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -255,12 +343,12 @@ export default function POSPage() {
 
       {/* Payment Modal */}
       <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="shrink-0 px-6 pb-3 pt-6">
             <DialogTitle className="text-2xl text-center">Complete Payment</DialogTitle>
           </DialogHeader>
           
-          <div className="py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
             <div className="text-center mb-8">
               <div className="text-sm text-muted-foreground uppercase tracking-widest font-bold mb-1">Total Due</div>
               <div className="text-5xl font-display font-bold text-primary">{formatCurrency(total)}</div>
@@ -309,18 +397,74 @@ export default function POSPage() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentModalOpen(false)} className="w-full">
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
+            <Button variant="outline" onClick={() => setPaymentModalOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button 
-              className="w-full" 
+              className="w-full sm:w-auto"
               onClick={handleCheckout}
               disabled={checkoutUnavailable || createSale.isPending || (paymentMethod === "cash" && !!cashTendered && parseFloat(cashTendered) < total)}
             >
               {createSale.isPending ? "Processing..." : "Complete Sale"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!pendingCartRemoval}
+        onOpenChange={(open) => {
+          if (!open && !managerConfirmation.isPending) {
+            setPendingCartRemoval(null);
+            setManagerPassword("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manager approval required</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={confirmCartRemoval}>
+            <p className="text-sm text-muted-foreground">
+              A manager must confirm their password before this cart item can be removed. This approval only applies to the current action.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="pos-manager-email" className="text-sm font-medium">Manager email</label>
+              <Input
+                id="pos-manager-email"
+                type="email"
+                autoComplete="username"
+                value={managerEmail}
+                onChange={(event) => setManagerEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="pos-manager-password" className="text-sm font-medium">Manager password</label>
+              <Input
+                id="pos-manager-password"
+                type="password"
+                autoComplete="current-password"
+                value={managerPassword}
+                onChange={(event) => setManagerPassword(event.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPendingCartRemoval(null)}
+                disabled={managerConfirmation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={managerConfirmation.isPending}>
+                {managerConfirmation.isPending ? "Verifying..." : "Approve removal"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

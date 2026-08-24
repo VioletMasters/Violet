@@ -18,6 +18,8 @@ tags:
     description: Product catalog
   - name: categories
     description: Categories
+  - name: brands
+    description: Product brands
   - name: customers
     description: Customer management
   - name: sales
@@ -120,6 +122,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ManagerAccessGrant"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Manager credentials were not accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/manager-confirmation:
+    post:
+      operationId: confirmManagerPassword
+      tags: [auth]
+      summary: Confirm manager credentials for a protected POS action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagerAccessInput"
+      responses:
+        "200":
+          description: Manager credentials confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
         "400":
           description: Invalid request
           content:
@@ -429,6 +462,81 @@ paths:
       operationId: deleteCategory
       tags: [categories]
       summary: Delete a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── Brands ─────────────────────────────────────────────────────────────────
+  /brands:
+    get:
+      operationId: listBrands
+      tags: [brands]
+      summary: List all product brands
+      responses:
+        "200":
+          description: Brands
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Brand"
+    post:
+      operationId: createBrand
+      tags: [brands]
+      summary: Create a brand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+
+  /brands/{id}:
+    patch:
+      operationId: updateBrand
+      tags: [brands]
+      summary: Update a brand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+    delete:
+      operationId: deleteBrand
+      tags: [brands]
+      summary: Delete a brand
       parameters:
         - name: id
           in: path
@@ -1415,6 +1523,43 @@ components:
         color:
           type: string
 
+    # ── Brand ──────────────────────────────────────────────────────────────────
+    Brand:
+      type: object
+      required: [id, name, tenantId, productCount, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        tenantId:
+          type: string
+        productCount:
+          type: number
+        createdAt:
+          type: string
+
+    BrandInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
+    BrandUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
     # ── Product ────────────────────────────────────────────────────────────────
     Product:
       type: object
@@ -1441,6 +1586,10 @@ components:
         categoryId:
           type: ["string", "null"]
         categoryName:
+          type: ["string", "null"]
+        brandId:
+          type: ["string", "null"]
+        brandName:
           type: ["string", "null"]
         imageUrl:
           type: ["string", "null"]
@@ -1496,7 +1645,9 @@ components:
           type: number
           default: 5
         categoryId:
-          type: string
+          type: ["string", "null"]
+        brandId:
+          type: ["string", "null"]
         imageUrl:
           type: string
 
@@ -1523,7 +1674,9 @@ components:
         minStock:
           type: number
         categoryId:
-          type: string
+          type: ["string", "null"]
+        brandId:
+          type: ["string", "null"]
         imageUrl:
           type: string
         isActive:
@@ -2142,15 +2295,19 @@ components:
           type: ["string", "null"]
         timezone:
           type: string
+        requireManagerPasswordForCartRemoval:
+          type: boolean
 
     PosTaxSettings:
       type: object
-      required: [taxRate, taxName]
+      required: [taxRate, taxName, requireManagerPasswordForCartRemoval]
       properties:
         taxRate:
           type: number
         taxName:
           type: string
+        requireManagerPasswordForCartRemoval:
+          type: boolean
 
     SettingsUpdate:
       type: object
@@ -2177,6 +2334,8 @@ components:
           type: string
         timezone:
           type: string
+        requireManagerPasswordForCartRemoval:
+          type: boolean
 
     # ── Admin ──────────────────────────────────────────────────────────────────
     AdminStats:

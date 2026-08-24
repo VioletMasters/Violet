@@ -121,6 +121,22 @@ export const UnlockManagerAccessResponse = zod.object({
 
 
 /**
+ * @summary Confirm manager credentials for a protected POS action
+ */
+
+
+
+export const ConfirmManagerPasswordBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string().min(1)
+})
+
+export const ConfirmManagerPasswordResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Logout
  */
 export const LogoutResponse = zod.object({
@@ -267,6 +283,8 @@ export const ListProductsResponse = zod.object({
   "minStock": zod.number().optional(),
   "categoryId": zod.string().nullish(),
   "categoryName": zod.string().nullish(),
+  "brandId": zod.string().nullish(),
+  "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
@@ -298,7 +316,8 @@ export const CreateProductBody = zod.object({
   "costPrice": zod.number().min(createProductBodyCostPriceMin).optional(),
   "stock": zod.number().default(createProductBodyStockDefault),
   "minStock": zod.number().default(createProductBodyMinStockDefault),
-  "categoryId": zod.string().optional(),
+  "categoryId": zod.string().nullish(),
+  "brandId": zod.string().nullish(),
   "imageUrl": zod.string().optional()
 })
 
@@ -314,6 +333,8 @@ export const CreateProductResponse = zod.object({
   "minStock": zod.number().optional(),
   "categoryId": zod.string().nullish(),
   "categoryName": zod.string().nullish(),
+  "brandId": zod.string().nullish(),
+  "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
@@ -340,6 +361,8 @@ export const GetProductResponse = zod.object({
   "minStock": zod.number().optional(),
   "categoryId": zod.string().nullish(),
   "categoryName": zod.string().nullish(),
+  "brandId": zod.string().nullish(),
+  "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
@@ -370,7 +393,8 @@ export const UpdateProductBody = zod.object({
   "costPrice": zod.number().min(updateProductBodyCostPriceMin).optional(),
   "stock": zod.number().optional(),
   "minStock": zod.number().optional(),
-  "categoryId": zod.string().optional(),
+  "categoryId": zod.string().nullish(),
+  "brandId": zod.string().nullish(),
   "imageUrl": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
@@ -387,6 +411,8 @@ export const UpdateProductResponse = zod.object({
   "minStock": zod.number().optional(),
   "categoryId": zod.string().nullish(),
   "categoryName": zod.string().nullish(),
+  "brandId": zod.string().nullish(),
+  "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
@@ -479,6 +505,78 @@ export const DeleteCategoryParams = zod.object({
 })
 
 export const DeleteCategoryResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List all product brands
+ */
+export const ListBrandsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "tenantId": zod.string(),
+  "productCount": zod.number(),
+  "createdAt": zod.string()
+})
+export const ListBrandsResponse = zod.array(ListBrandsResponseItem)
+
+
+/**
+ * @summary Create a brand
+ */
+
+
+
+export const CreateBrandBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().optional()
+})
+
+export const CreateBrandResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "tenantId": zod.string(),
+  "productCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a brand
+ */
+export const UpdateBrandParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+
+
+export const UpdateBrandBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().optional()
+})
+
+export const UpdateBrandResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "tenantId": zod.string(),
+  "productCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a brand
+ */
+export const DeleteBrandParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteBrandResponse = zod.object({
   "success": zod.boolean()
 })
 
@@ -1114,7 +1212,8 @@ export const GetInventoryReportResponse = zod.object({
  */
 export const GetPosTaxSettingsResponse = zod.object({
   "taxRate": zod.number(),
-  "taxName": zod.string()
+  "taxName": zod.string(),
+  "requireManagerPasswordForCartRemoval": zod.boolean()
 })
 
 
@@ -1132,7 +1231,8 @@ export const GetSettingsResponse = zod.object({
   "taxName": zod.string().optional(),
   "receiptFooter": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
-  "timezone": zod.string().optional()
+  "timezone": zod.string().optional(),
+  "requireManagerPasswordForCartRemoval": zod.boolean().optional()
 })
 
 
@@ -1150,7 +1250,8 @@ export const UpdateSettingsBody = zod.object({
   "taxName": zod.string().optional(),
   "receiptFooter": zod.string().optional(),
   "logoUrl": zod.string().optional(),
-  "timezone": zod.string().optional()
+  "timezone": zod.string().optional(),
+  "requireManagerPasswordForCartRemoval": zod.boolean().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -1164,7 +1265,8 @@ export const UpdateSettingsResponse = zod.object({
   "taxName": zod.string().optional(),
   "receiptFooter": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
-  "timezone": zod.string().optional()
+  "timezone": zod.string().optional(),
+  "requireManagerPasswordForCartRemoval": zod.boolean().optional()
 })
 
 

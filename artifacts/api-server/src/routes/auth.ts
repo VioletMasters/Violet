@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { db, tenantsTable, usersTable, sessionsTable, plansTable, subscriptionsTable, settingsTable } from "@workspace/db";
-import { UnlockManagerAccessBody, UnlockManagerAccessResponse } from "@workspace/api-zod";
+import {
+  ConfirmManagerPasswordBody,
+  ConfirmManagerPasswordResponse,
+  UnlockManagerAccessBody,
+  UnlockManagerAccessResponse,
+} from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
 import { isManagerRole, requireAuth } from "../middlewares/auth";
@@ -165,6 +170,28 @@ router.post("/auth/manager-unlock", requireAuth, async (req, res): Promise<void>
     accessToken: grant.accessToken,
     expiresAt: grant.expiresAt.toISOString(),
   }));
+});
+
+// POST /auth/manager-confirmation — one-time manager password check for protected POS actions.
+router.post("/auth/manager-confirmation", requireAuth, async (req, res): Promise<void> => {
+  const body = ConfirmManagerPasswordBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Email and password required" });
+    return;
+  }
+
+  const [manager] = await db
+    .select()
+    .from(usersTable)
+    .where(and(eq(usersTable.tenantId, req.tenantId!), eq(usersTable.email, body.data.email.trim())))
+    .limit(1);
+
+  if (!manager || !isManagerRole(manager.role) || !verifyPassword(body.data.password, manager.passwordHash)) {
+    res.status(401).json({ error: "Manager credentials were not accepted" });
+    return;
+  }
+
+  res.json(ConfirmManagerPasswordResponse.parse({ success: true }));
 });
 
 // POST /auth/logout

@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
     receipt_footer text,
     logo_url text,
     timezone text DEFAULT 'UTC'::text NOT NULL,
+    require_manager_password_for_cart_removal boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -93,10 +94,20 @@ CREATE TABLE IF NOT EXISTS public.categories (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.brands (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    description text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.products (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     category_id uuid,
+    brand_id uuid,
     name text NOT NULL,
     description text,
     sku text NOT NULL,
@@ -110,6 +121,10 @@ CREATE TABLE IF NOT EXISTS public.products (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+-- Keep existing self-hosted databases compatible with newer app versions.
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS require_manager_password_for_cart_removal boolean DEFAULT false NOT NULL;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS brand_id uuid;
 
 CREATE TABLE IF NOT EXISTS public.customers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -206,6 +221,7 @@ DO $$ BEGIN ALTER TABLE ONLY public.sessions ADD CONSTRAINT sessions_token_uniqu
 DO $$ BEGIN ALTER TABLE ONLY public.settings ADD CONSTRAINT settings_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE ONLY public.settings ADD CONSTRAINT settings_tenant_id_unique UNIQUE (tenant_id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE ONLY public.categories ADD CONSTRAINT categories_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.brands ADD CONSTRAINT brands_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE ONLY public.products ADD CONSTRAINT products_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE ONLY public.customers ADD CONSTRAINT customers_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE ONLY public.sales ADD CONSTRAINT sales_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;

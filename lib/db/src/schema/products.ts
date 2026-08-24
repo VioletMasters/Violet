@@ -14,6 +14,7 @@ export const productsTable = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
   categoryId: uuid("category_id"),
+  brandId: uuid("brand_id"),
   name: text("name").notNull(),
   description: text("description"),
   sku: text("sku").notNull(),

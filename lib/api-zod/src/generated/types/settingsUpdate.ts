@@ -18,4 +18,5 @@ export interface SettingsUpdate {
   receiptFooter?: string;
   logoUrl?: string;
   timezone?: string;
+  requireManagerPasswordForCartRemoval?: boolean;
 }

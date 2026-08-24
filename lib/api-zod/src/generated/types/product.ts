@@ -24,6 +24,10 @@ export interface Product {
   /** @nullable */
   categoryName?: string | null;
   /** @nullable */
+  brandId?: string | null;
+  /** @nullable */
+  brandName?: string | null;
+  /** @nullable */
   imageUrl?: string | null;
   tenantId: string;
   isActive?: boolean;

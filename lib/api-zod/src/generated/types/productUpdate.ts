@@ -18,7 +18,10 @@ export interface ProductUpdate {
   costPrice?: number;
   stock?: number;
   minStock?: number;
-  categoryId?: string;
+  /** @nullable */
+  categoryId?: string | null;
+  /** @nullable */
+  brandId?: string | null;
   imageUrl?: string;
   isActive?: boolean;
 }

@@ -83,6 +83,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/manager-unlock", authLimiter);
+app.use("/api/auth/manager-confirmation", authLimiter);
 
 app.use("/api", router);
 

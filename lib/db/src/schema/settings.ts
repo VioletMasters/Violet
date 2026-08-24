@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, numeric, boolean } from "drizzle-orm/pg-core";
 
 export const settingsTable = pgTable("settings", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -14,6 +14,7 @@ export const settingsTable = pgTable("settings", {
   receiptFooter: text("receipt_footer"),
   logoUrl: text("logo_url"),
   timezone: text("timezone").notNull().default("America/New_York"),
+  requireManagerPasswordForCartRemoval: boolean("require_manager_password_for_cart_removal").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

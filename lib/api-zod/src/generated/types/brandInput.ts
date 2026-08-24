@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PosTaxSettings {
-  taxRate: number;
-  taxName: string;
-  requireManagerPasswordForCartRemoval: boolean;
+export interface BrandInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
 }

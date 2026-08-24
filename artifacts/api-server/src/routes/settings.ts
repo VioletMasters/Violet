@@ -19,6 +19,7 @@ router.get("/settings/pos-tax", requireAuth, async (req, res): Promise<void> => 
   res.json({
     taxRate: Number.isFinite(taxRate) ? taxRate : 0,
     taxName: settings.taxName,
+    requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
   });
 });
 
@@ -42,13 +43,14 @@ router.get("/settings", requireManagerAccess, async (req, res): Promise<void> =>
     receiptFooter: settings.receiptFooter ?? null,
     logoUrl: settings.logoUrl ?? null,
     timezone: settings.timezone,
+    requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
   });
 });
 
 // PATCH /settings
 router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const { businessName, businessEmail, businessPhone, address, currency, currencySymbol, taxRate, taxName, receiptFooter, logoUrl, timezone } = req.body;
+  const { businessName, businessEmail, businessPhone, address, currency, currencySymbol, taxRate, taxName, receiptFooter, logoUrl, timezone, requireManagerPasswordForCartRemoval } = req.body;
 
   const updates: Record<string, unknown> = {};
   if (businessName !== undefined) updates.businessName = businessName;
@@ -62,6 +64,9 @@ router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> 
   if (receiptFooter !== undefined) updates.receiptFooter = receiptFooter;
   if (logoUrl !== undefined) updates.logoUrl = logoUrl;
   if (timezone !== undefined) updates.timezone = timezone;
+  if (requireManagerPasswordForCartRemoval !== undefined) {
+    updates.requireManagerPasswordForCartRemoval = requireManagerPasswordForCartRemoval;
+  }
 
   const [settings] = await db.update(settingsTable).set(updates)
     .where(eq(settingsTable.tenantId, tenantId)).returning();
@@ -83,6 +88,7 @@ router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> 
     receiptFooter: settings.receiptFooter ?? null,
     logoUrl: settings.logoUrl ?? null,
     timezone: settings.timezone,
+    requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
   });
 });
 

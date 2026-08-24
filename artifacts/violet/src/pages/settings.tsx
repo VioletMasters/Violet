@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,6 +36,7 @@ const settingsSchema = z.object({
   taxRate: z.coerce.number().min(0).max(100),
   taxName: z.string().optional().or(z.literal("")),
   receiptFooter: z.string().optional().or(z.literal("")),
+  requireManagerPasswordForCartRemoval: z.boolean(),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
@@ -71,8 +73,9 @@ export default function SettingsPage() {
     },
   });
   
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<SettingsForm>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
+    defaultValues: { requireManagerPasswordForCartRemoval: false },
   });
 
   useEffect(() => {
@@ -86,6 +89,7 @@ export default function SettingsPage() {
         taxRate: settings.taxRate || 0,
         taxName: settings.taxName || "Tax",
         receiptFooter: settings.receiptFooter || "",
+        requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
       });
     }
   }, [settings, reset]);
@@ -264,6 +268,30 @@ export default function SettingsPage() {
                   <Input type="number" step="0.01" {...register("taxRate")} />
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /> POS Permissions</CardTitle>
+            <CardDescription>Control whether cashiers can change a sale after an item has been added to the cart.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between gap-6 rounded-lg border bg-secondary/20 p-4">
+              <div className="space-y-1">
+                <Label htmlFor="require-manager-cart-removal" className="text-sm font-medium">
+                  Require manager password to remove cart items
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, a manager must confirm their password before a cashier can remove an item or reduce its quantity to zero.
+                </p>
+              </div>
+              <Switch
+                id="require-manager-cart-removal"
+                checked={watch("requireManagerPasswordForCartRemoval")}
+                onCheckedChange={(checked) => setValue("requireManagerPasswordForCartRemoval", checked, { shouldDirty: true })}
+              />
             </div>
           </CardContent>
         </Card>

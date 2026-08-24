@@ -22,4 +22,5 @@ export interface Settings {
   /** @nullable */
   logoUrl?: string | null;
   timezone?: string;
+  requireManagerPasswordForCartRemoval?: boolean;
 }

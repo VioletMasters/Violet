@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, productsTable, categoriesTable } from "@workspace/db";
+import { brandsTable, db, productsTable, categoriesTable } from "@workspace/db";
 import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
@@ -74,9 +74,14 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
   if (categoryId) conditions.push(eq(productsTable.categoryId, categoryId));
 
   const [products, [{ total }]] = await Promise.all([
-    db.select({ p: productsTable, catName: categoriesTable.name })
+    db.select({
+      p: productsTable,
+      catName: categoriesTable.name,
+      brandName: brandsTable.name,
+    })
       .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .leftJoin(categoriesTable, and(eq(productsTable.categoryId, categoriesTable.id), eq(categoriesTable.tenantId, tenantId)))
+      .leftJoin(brandsTable, and(eq(productsTable.brandId, brandsTable.id), eq(brandsTable.tenantId, tenantId)))
       .where(and(...conditions))
       .orderBy(desc(productsTable.createdAt))
       .limit(limitNum)
@@ -85,7 +90,7 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
   ]);
 
   res.json({
-    data: products.map(({ p, catName }) => ({
+    data: products.map(({ p, catName, brandName }) => ({
       id: p.id,
       name: p.name,
       description: p.description ?? null,
@@ -97,6 +102,8 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
       minStock: p.minStock,
       categoryId: p.categoryId ?? null,
       categoryName: catName ?? null,
+      brandId: p.brandId ?? null,
+      brandName: brandName ?? null,
       imageUrl: p.imageUrl ?? null,
       tenantId: p.tenantId,
       isActive: p.isActive,
@@ -111,10 +118,27 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
 // POST /products
 router.post("/products", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const { name, description, sku, barcode, price, costPrice, stock = 0, minStock = 5, categoryId, imageUrl } = req.body;
+  const { name, description, sku, barcode, price, costPrice, stock = 0, minStock = 5, categoryId, brandId, imageUrl } = req.body;
 
   if (!name || !sku || price === undefined) {
     res.status(400).json({ error: "name, sku, and price are required" });
+    return;
+  }
+
+  const [[category], [brand]] = await Promise.all([
+    categoryId
+      ? db.select().from(categoriesTable).where(and(eq(categoriesTable.id, categoryId), eq(categoriesTable.tenantId, tenantId))).limit(1)
+      : Promise.resolve([]),
+    brandId
+      ? db.select().from(brandsTable).where(and(eq(brandsTable.id, brandId), eq(brandsTable.tenantId, tenantId))).limit(1)
+      : Promise.resolve([]),
+  ]);
+  if (categoryId && !category) {
+    res.status(400).json({ error: "Category not found for this business" });
+    return;
+  }
+  if (brandId && !brand) {
+    res.status(400).json({ error: "Brand not found for this business" });
     return;
   }
 
@@ -129,12 +153,9 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
     stock: Number(stock),
     minStock: Number(minStock),
     categoryId: categoryId || undefined,
+    brandId: brandId || undefined,
     imageUrl,
   }).returning();
-
-  const [cat] = categoryId
-    ? await db.select().from(categoriesTable).where(eq(categoriesTable.id, categoryId)).limit(1)
-    : [];
 
   res.status(201).json({
     id: product.id,
@@ -147,7 +168,9 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
     stock: product.stock,
     minStock: product.minStock,
     categoryId: product.categoryId ?? null,
-    categoryName: cat?.name ?? null,
+    categoryName: category?.name ?? null,
+    brandId: product.brandId ?? null,
+    brandName: brand?.name ?? null,
     imageUrl: product.imageUrl ?? null,
     tenantId: product.tenantId,
     isActive: product.isActive,
@@ -160,9 +183,14 @@ router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-  const [row] = await db.select({ p: productsTable, catName: categoriesTable.name })
+  const [row] = await db.select({
+    p: productsTable,
+    catName: categoriesTable.name,
+    brandName: brandsTable.name,
+  })
     .from(productsTable)
-    .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+    .leftJoin(categoriesTable, and(eq(productsTable.categoryId, categoriesTable.id), eq(categoriesTable.tenantId, tenantId)))
+    .leftJoin(brandsTable, and(eq(productsTable.brandId, brandsTable.id), eq(brandsTable.tenantId, tenantId)))
     .where(and(eq(productsTable.id, id), eq(productsTable.tenantId, tenantId)))
     .limit(1);
 
@@ -171,7 +199,7 @@ router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void
     return;
   }
 
-  const { p, catName } = row;
+  const { p, catName, brandName } = row;
   res.json({
     id: p.id,
     name: p.name,
@@ -184,6 +212,8 @@ router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void
     minStock: p.minStock,
     categoryId: p.categoryId ?? null,
     categoryName: catName ?? null,
+    brandId: p.brandId ?? null,
+    brandName: brandName ?? null,
     imageUrl: p.imageUrl ?? null,
     tenantId: p.tenantId,
     isActive: p.isActive,
@@ -195,7 +225,7 @@ router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void
 router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const { name, description, sku, barcode, price, costPrice, stock, minStock, categoryId, imageUrl, isActive } = req.body;
+  const { name, description, sku, barcode, price, costPrice, stock, minStock, categoryId, brandId, imageUrl, isActive } = req.body;
 
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
@@ -207,8 +237,26 @@ router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<vo
   if (stock !== undefined) updates.stock = Number(stock);
   if (minStock !== undefined) updates.minStock = Number(minStock);
   if (categoryId !== undefined) updates.categoryId = categoryId || null;
+  if (brandId !== undefined) updates.brandId = brandId || null;
   if (imageUrl !== undefined) updates.imageUrl = imageUrl;
   if (isActive !== undefined) updates.isActive = isActive;
+
+  const [[category], [brand]] = await Promise.all([
+    categoryId
+      ? db.select().from(categoriesTable).where(and(eq(categoriesTable.id, categoryId), eq(categoriesTable.tenantId, tenantId))).limit(1)
+      : Promise.resolve([]),
+    brandId
+      ? db.select().from(brandsTable).where(and(eq(brandsTable.id, brandId), eq(brandsTable.tenantId, tenantId))).limit(1)
+      : Promise.resolve([]),
+  ]);
+  if (categoryId && !category) {
+    res.status(400).json({ error: "Category not found for this business" });
+    return;
+  }
+  if (brandId && !brand) {
+    res.status(400).json({ error: "Brand not found for this business" });
+    return;
+  }
 
   const [product] = await db.update(productsTable)
     .set(updates)
@@ -220,9 +268,15 @@ router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<vo
     return;
   }
 
-  const [cat] = product.categoryId
-    ? await db.select().from(categoriesTable).where(eq(categoriesTable.id, product.categoryId)).limit(1)
-    : [];
+  const [catalogDetails] = await db.select({
+    categoryName: categoriesTable.name,
+    brandName: brandsTable.name,
+  })
+    .from(productsTable)
+    .leftJoin(categoriesTable, and(eq(productsTable.categoryId, categoriesTable.id), eq(categoriesTable.tenantId, tenantId)))
+    .leftJoin(brandsTable, and(eq(productsTable.brandId, brandsTable.id), eq(brandsTable.tenantId, tenantId)))
+    .where(and(eq(productsTable.id, product.id), eq(productsTable.tenantId, tenantId)))
+    .limit(1);
 
   res.json({
     id: product.id,
@@ -235,7 +289,9 @@ router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<vo
     stock: product.stock,
     minStock: product.minStock,
     categoryId: product.categoryId ?? null,
-    categoryName: cat?.name ?? null,
+    categoryName: catalogDetails?.categoryName ?? null,
+    brandId: product.brandId ?? null,
+    brandName: catalogDetails?.brandName ?? null,
     imageUrl: product.imageUrl ?? null,
     tenantId: product.tenantId,
     isActive: product.isActive,
