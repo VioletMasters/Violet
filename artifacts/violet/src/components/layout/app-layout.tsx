@@ -7,7 +7,7 @@ import { Header } from "./header";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { token, logout } = useAuth();
+  const { token, logout, isManagerAccessActive } = useAuth();
   
   // Verify token
   const { data: me, error } = useGetMe({
@@ -37,7 +37,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [error, logout, setLocation]);
 
+  const isManagementRoute = [
+    "/dashboard",
+    "/products",
+    "/inventory",
+    "/customers",
+    "/employees",
+    "/suppliers",
+    "/reports",
+    "/subscription",
+  ].some((route) => location === route || location.startsWith(`${route}/`));
+
+  useEffect(() => {
+    if (token && isManagementRoute && !isManagerAccessActive) {
+      setLocation("/settings");
+    }
+  }, [isManagementRoute, isManagerAccessActive, setLocation, token]);
+
   if (!token) return null;
+  if (isManagementRoute && !isManagerAccessActive) return null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">

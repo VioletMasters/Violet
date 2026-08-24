@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db, suppliersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
 // GET /suppliers
-router.get("/suppliers", requireAuth, async (req, res): Promise<void> => {
+router.get("/suppliers", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const suppliers = await db.select().from(suppliersTable).where(eq(suppliersTable.tenantId, tenantId));
   res.json(suppliers.map(s => ({
@@ -23,7 +23,7 @@ router.get("/suppliers", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /suppliers
-router.post("/suppliers", requireAuth, async (req, res): Promise<void> => {
+router.post("/suppliers", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { name, contactName, email, phone, address, notes } = req.body;
   if (!name) {
@@ -45,7 +45,7 @@ router.post("/suppliers", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /suppliers/:id
-router.patch("/suppliers/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/suppliers/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { name, contactName, email, phone, address, notes } = req.body;

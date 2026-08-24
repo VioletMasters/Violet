@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, productsTable, categoriesTable } from "@workspace/db";
-import { eq, and, ilike, sql, desc } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
+import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
@@ -14,7 +14,15 @@ router.get("/products", requireAuth, async (req, res): Promise<void> => {
   const offset = (pageNum - 1) * limitNum;
 
   const conditions = [eq(productsTable.tenantId, tenantId)];
-  if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
+  const searchTerm = search?.replace(/[\r\n]+/g, "").trim();
+  if (searchTerm) {
+    const searchCondition = or(
+      ilike(productsTable.name, `%${searchTerm}%`),
+      ilike(productsTable.sku, `%${searchTerm}%`),
+      ilike(productsTable.barcode, `%${searchTerm}%`),
+    );
+    if (searchCondition) conditions.push(searchCondition);
+  }
   if (categoryId) conditions.push(eq(productsTable.categoryId, categoryId));
 
   const [products, [{ total }]] = await Promise.all([
@@ -53,7 +61,7 @@ router.get("/products", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /products
-router.post("/products", requireAuth, async (req, res): Promise<void> => {
+router.post("/products", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { name, description, sku, barcode, price, costPrice, stock = 0, minStock = 5, categoryId, imageUrl } = req.body;
 
@@ -136,7 +144,7 @@ router.get("/products/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /products/:id
-router.patch("/products/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { name, description, sku, barcode, price, costPrice, stock, minStock, categoryId, imageUrl, isActive } = req.body;
@@ -188,7 +196,7 @@ router.patch("/products/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // DELETE /products/:id
-router.delete("/products/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/products/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.delete(productsTable).where(and(eq(productsTable.id, id), eq(productsTable.tenantId, tenantId)));

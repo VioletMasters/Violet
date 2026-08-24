@@ -102,6 +102,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/manager-unlock:
+    post:
+      operationId: unlockManagerAccess
+      tags: [auth]
+      summary: Verify manager credentials for protected business management access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagerAccessInput"
+      responses:
+        "200":
+          description: Manager access granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagerAccessGrant"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Manager credentials were not accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/logout:
     post:
       operationId: logout
@@ -1093,6 +1124,26 @@ components:
         password:
           type: string
 
+    ManagerAccessInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 1
+
+    ManagerAccessGrant:
+      type: object
+      required: [accessToken, expiresAt]
+      properties:
+        accessToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
     AuthResponse:
       type: object
       required: [user, tenant, token]
@@ -1567,22 +1618,20 @@ components:
 
     SaleItemInput:
       type: object
-      required: [productId, quantity, unitPrice]
+      required: [productId, quantity]
       properties:
         productId:
           type: string
         quantity:
           type: number
           minimum: 1
-        unitPrice:
-          type: number
         discount:
           type: number
           default: 0
 
     SaleInput:
       type: object
-      required: [items, paymentMethod, totalAmount]
+      required: [items, paymentMethod]
       properties:
         customerId:
           type: string
@@ -1594,14 +1643,6 @@ components:
         paymentMethod:
           type: string
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
-        discountAmount:
-          type: number
-          default: 0
-        taxAmount:
-          type: number
-          default: 0
-        totalAmount:
-          type: number
         cashTendered:
           type: number
         note:

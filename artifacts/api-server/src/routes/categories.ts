@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db, categoriesTable, productsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
 // GET /categories
-router.get("/categories", requireAuth, async (req, res): Promise<void> => {
+router.get("/categories", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const cats = await db
     .select({
@@ -30,7 +30,7 @@ router.get("/categories", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /categories
-router.post("/categories", requireAuth, async (req, res): Promise<void> => {
+router.post("/categories", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { name, description, color } = req.body;
   if (!name) {
@@ -50,7 +50,7 @@ router.post("/categories", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /categories/:id
-router.patch("/categories/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/categories/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { name, description, color } = req.body;
@@ -80,7 +80,7 @@ router.patch("/categories/:id", requireAuth, async (req, res): Promise<void> => 
 });
 
 // DELETE /categories/:id
-router.delete("/categories/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/categories/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.delete(categoriesTable).where(and(eq(categoriesTable.id, id), eq(categoriesTable.tenantId, tenantId)));

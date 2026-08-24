@@ -46,6 +46,8 @@ import type {
   ListSalesParams,
   ListTenantsParams,
   LoginInput,
+  ManagerAccessGrant,
+  ManagerAccessInput,
   Plan,
   PlanInput,
   PlanUpdate,
@@ -319,6 +321,77 @@ export const useLogin = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getUnlockManagerAccessUrl = () => {
+
+
+
+
+  return `/api/auth/manager-unlock`
+}
+
+/**
+ * @summary Verify manager credentials for protected business management access
+ */
+export const unlockManagerAccess = async (managerAccessInput: ManagerAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<ManagerAccessGrant> => {
+
+  return customFetch<ManagerAccessGrant>(getUnlockManagerAccessUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(managerAccessInput)
+  }
+);}
+
+
+
+
+
+export const getUnlockManagerAccessMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockManagerAccess>>, TError,{data: BodyType<ManagerAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlockManagerAccess>>, TError,{data: BodyType<ManagerAccessInput>}, TContext> => {
+
+const mutationKey = ['unlockManagerAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlockManagerAccess>>, {data: BodyType<ManagerAccessInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  unlockManagerAccess(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlockManagerAccessMutationResult = NonNullable<Awaited<ReturnType<typeof unlockManagerAccess>>>
+    export type UnlockManagerAccessMutationBody = BodyType<ManagerAccessInput>
+    export type UnlockManagerAccessMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Verify manager credentials for protected business management access
+ */
+export const useUnlockManagerAccess = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockManagerAccess>>, TError,{data: BodyType<ManagerAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlockManagerAccess>>,
+        TError,
+        {data: BodyType<ManagerAccessInput>},
+        TContext
+      > => {
+      return useMutation(getUnlockManagerAccessMutationOptions(options));
     }
 
 export const getLogoutUrl = () => {

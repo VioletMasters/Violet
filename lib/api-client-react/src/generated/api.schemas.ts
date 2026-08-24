@@ -32,6 +32,17 @@ export interface LoginInput {
   password: string;
 }
 
+export interface ManagerAccessInput {
+  email: string;
+  /** @minLength 1 */
+  password: string;
+}
+
+export interface ManagerAccessGrant {
+  accessToken: string;
+  expiresAt: string;
+}
+
 export type UserProfileRole = typeof UserProfileRole[keyof typeof UserProfileRole];
 
 
@@ -362,7 +373,6 @@ export interface SaleItemInput {
   productId: string;
   /** @minimum 1 */
   quantity: number;
-  unitPrice: number;
   discount?: number;
 }
 
@@ -383,9 +393,6 @@ export interface SaleInput {
   /** @minItems 1 */
   items: SaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
-  discountAmount?: number;
-  taxAmount?: number;
-  totalAmount: number;
   cashTendered?: number;
   note?: string;
 }

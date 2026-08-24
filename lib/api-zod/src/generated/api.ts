@@ -104,6 +104,23 @@ export const LoginResponse = zod.object({
 
 
 /**
+ * @summary Verify manager credentials for protected business management access
+ */
+
+
+
+export const UnlockManagerAccessBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string().min(1)
+})
+
+export const UnlockManagerAccessResponse = zod.object({
+  "accessToken": zod.string(),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Logout
  */
 export const LogoutResponse = zod.object({
@@ -616,21 +633,16 @@ export const ListSalesResponse = zod.object({
  */
 
 export const createSaleBodyItemsItemDiscountDefault = 0;
-export const createSaleBodyDiscountAmountDefault = 0;
-export const createSaleBodyTaxAmountDefault = 0;
+
 
 export const CreateSaleBody = zod.object({
   "customerId": zod.string().optional(),
   "items": zod.array(zod.object({
   "productId": zod.string(),
   "quantity": zod.number().min(1),
-  "unitPrice": zod.number(),
   "discount": zod.number().default(createSaleBodyItemsItemDiscountDefault)
 })).min(1),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
-  "discountAmount": zod.number().default(createSaleBodyDiscountAmountDefault),
-  "taxAmount": zod.number().default(createSaleBodyTaxAmountDefault),
-  "totalAmount": zod.number(),
   "cashTendered": zod.number().optional(),
   "note": zod.string().optional()
 })

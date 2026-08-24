@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, usersTable } from "@workspace/db";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, settingsTable, usersTable } from "@workspace/db";
+import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
+import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
@@ -40,7 +40,7 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect) {
 }
 
 // GET /sales
-router.get("/sales", requireAuth, async (req, res): Promise<void> => {
+router.get("/sales", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { startDate, endDate, page = "1", limit = "50" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page, 10));
@@ -66,20 +66,87 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
 router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const cashierId = req.user!.id;
-  const { customerId, items, paymentMethod, discountAmount = 0, taxAmount = 0, totalAmount, cashTendered, note } = req.body;
+  const { customerId, items, paymentMethod, cashTendered, note } = req.body;
 
-  if (!items?.length || !paymentMethod || totalAmount === undefined) {
-    res.status(400).json({ error: "items, paymentMethod, and totalAmount are required" });
+  if (!Array.isArray(items) || items.length === 0 || typeof paymentMethod !== "string") {
+    res.status(400).json({ error: "items and paymentMethod are required" });
     return;
   }
 
-  const subtotal = items.reduce((sum: number, item: { unitPrice: number; quantity: number; discount?: number }) =>
-    sum + (item.unitPrice * item.quantity - (item.discount ?? 0)), 0);
+  const paymentMethods = new Set(["cash", "card", "bank_transfer", "store_credit", "gift_card", "mixed"]);
+  if (!paymentMethods.has(paymentMethod)) {
+    res.status(400).json({ error: "Unsupported payment method" });
+    return;
+  }
+
+  const inputItems = items as Array<{ productId?: unknown; quantity?: unknown; discount?: unknown }>;
+  if (inputItems.some((item) => typeof item.productId !== "string" || !Number.isInteger(item.quantity) || Number(item.quantity) <= 0)) {
+    res.status(400).json({ error: "Each item requires a productId and a positive whole-number quantity" });
+    return;
+  }
+
+  const productIds = inputItems.map((item) => item.productId as string);
+  if (new Set(productIds).size !== productIds.length) {
+    res.status(400).json({ error: "Each product can only appear once in a sale" });
+    return;
+  }
+
+  const [products, settings, customer] = await Promise.all([
+    db.select().from(productsTable)
+      .where(and(eq(productsTable.tenantId, tenantId), inArray(productsTable.id, productIds))),
+    db.select().from(settingsTable).where(eq(settingsTable.tenantId, tenantId)).limit(1),
+    typeof customerId === "string" && customerId
+      ? db.select().from(customersTable)
+        .where(and(eq(customersTable.id, customerId), eq(customersTable.tenantId, tenantId))).limit(1)
+      : Promise.resolve([]),
+  ]);
+
+  if (products.length !== productIds.length) {
+    res.status(400).json({ error: "One or more products are unavailable for this business" });
+    return;
+  }
+
+  if (customerId && !customer[0]) {
+    res.status(400).json({ error: "Customer is unavailable for this business" });
+    return;
+  }
+
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  const lineItems = inputItems.map((item) => {
+    const product = productsById.get(item.productId as string)!;
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(product.price);
+    const discount = Number(item.discount ?? 0);
+
+    if (!Number.isFinite(discount) || discount < 0 || discount > unitPrice * quantity || quantity > product.stock) {
+      return null;
+    }
+
+    return {
+      product,
+      quantity,
+      unitPrice,
+      discount,
+      totalPrice: unitPrice * quantity - discount,
+    };
+  });
+
+  if (lineItems.some((item) => item === null)) {
+    res.status(400).json({ error: "One or more sale items have an invalid discount or unavailable quantity" });
+    return;
+  }
+
+  const validLineItems = lineItems as Array<NonNullable<(typeof lineItems)[number]>>;
+  const subtotal = validLineItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  const discountAmount = validLineItems.reduce((sum, item) => sum + item.discount, 0);
+  const configuredTaxRate = Number(settings[0]?.taxRate ?? 0);
+  const taxAmount = Number.isFinite(configuredTaxRate) ? subtotal * (configuredTaxRate / 100) : 0;
+  const totalAmount = subtotal + taxAmount;
 
   const [sale] = await db.insert(salesTable).values({
     tenantId,
     receiptNumber: generateReceiptNumber(),
-    customerId: customerId || undefined,
+    customerId: typeof customerId === "string" && customerId ? customerId : undefined,
     cashierId,
     subtotal: String(subtotal),
     taxAmount: String(taxAmount),
@@ -87,44 +154,34 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     totalAmount: String(totalAmount),
     paymentMethod,
     status: "completed",
-    cashTendered: cashTendered ? String(cashTendered) : undefined,
+    cashTendered: Number.isFinite(Number(cashTendered)) ? String(cashTendered) : undefined,
     note,
   }).returning();
 
-  // Insert items and update stock
-  await Promise.all(items.map(async (item: { productId: string; quantity: number; unitPrice: number; discount?: number }) => {
-    const totalPrice = item.unitPrice * item.quantity - (item.discount ?? 0);
-    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, item.productId)).limit(1);
-    const productName = product?.name ?? "Unknown Product";
-
+  // Insert items and update stock using the tenant-scoped prices resolved above.
+  await Promise.all(validLineItems.map(async (item) => {
     await db.insert(saleItemsTable).values({
       saleId: sale.id,
-      productId: item.productId,
-      productName,
+      productId: item.product.id,
+      productName: item.product.name,
       quantity: item.quantity,
       unitPrice: String(item.unitPrice),
-      discount: String(item.discount ?? 0),
-      totalPrice: String(totalPrice),
+      discount: String(item.discount),
+      totalPrice: String(item.totalPrice),
     });
 
-    // Update stock
-    if (product) {
-      await db.update(productsTable)
-        .set({ stock: Math.max(0, product.stock - item.quantity) })
-        .where(eq(productsTable.id, item.productId));
-    }
+    await db.update(productsTable)
+      .set({ stock: Math.max(0, item.product.stock - item.quantity) })
+      .where(and(eq(productsTable.id, item.product.id), eq(productsTable.tenantId, tenantId)));
   }));
 
-  // Update customer totals
-  if (customerId) {
-    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId)).limit(1);
-    if (customer) {
-      await db.update(customersTable).set({
-        totalPurchases: String(parseFloat(customer.totalPurchases) + parseFloat(String(totalAmount))),
-        totalOrders: customer.totalOrders + 1,
-        loyaltyPoints: customer.loyaltyPoints + Math.floor(parseFloat(String(totalAmount))),
-      }).where(eq(customersTable.id, customerId));
-    }
+  // Update customer totals only for the validated tenant-scoped customer.
+  if (customer[0]) {
+    await db.update(customersTable).set({
+      totalPurchases: String(parseFloat(customer[0].totalPurchases) + totalAmount),
+      totalOrders: customer[0].totalOrders + 1,
+      loyaltyPoints: customer[0].loyaltyPoints + Math.floor(totalAmount),
+    }).where(and(eq(customersTable.id, customer[0].id), eq(customersTable.tenantId, tenantId)));
   }
 
   const result = await buildSaleResponse(sale);
@@ -132,7 +189,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
 });
 
 // GET /sales/:id
-router.get("/sales/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/sales/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const [sale] = await db.select().from(salesTable)
@@ -145,7 +202,7 @@ router.get("/sales/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /sales/:id/refund
-router.post("/sales/:id/refund", requireAuth, async (req, res): Promise<void> => {
+router.post("/sales/:id/refund", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const [sale] = await db.select().from(salesTable)

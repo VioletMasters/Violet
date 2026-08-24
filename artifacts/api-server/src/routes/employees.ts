@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db, employeesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
 // GET /employees
-router.get("/employees", requireAuth, async (req, res): Promise<void> => {
+router.get("/employees", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const employees = await db.select().from(employeesTable).where(eq(employeesTable.tenantId, tenantId));
   res.json(employees.map(e => ({
@@ -24,7 +24,7 @@ router.get("/employees", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /employees
-router.post("/employees", requireAuth, async (req, res): Promise<void> => {
+router.post("/employees", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { firstName, lastName, email, phone, role = "employee", department } = req.body;
   if (!firstName) {
@@ -47,7 +47,7 @@ router.post("/employees", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /employees/:id
-router.patch("/employees/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/employees/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { firstName, lastName, email, phone, role, department, isActive } = req.body;
@@ -81,7 +81,7 @@ router.patch("/employees/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // DELETE /employees/:id
-router.delete("/employees/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/employees/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.delete(employeesTable).where(and(eq(employeesTable.id, id), eq(employeesTable.tenantId, tenantId)));

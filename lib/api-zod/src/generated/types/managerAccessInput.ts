@@ -6,9 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SaleItemInput {
-  productId: string;
-  /** @minimum 1 */
-  quantity: number;
-  discount?: number;
+export interface ManagerAccessInput {
+  email: string;
+  /** @minLength 1 */
+  password: string;
 }

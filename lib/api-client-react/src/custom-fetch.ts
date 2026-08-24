@@ -7,6 +7,7 @@ export type ErrorType<T = unknown> = ApiError<T>;
 export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
+export type ManagerAccessTokenGetter = () => Promise<string | null> | string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
@@ -17,6 +18,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _managerAccessTokenGetter: ManagerAccessTokenGetter | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +44,15 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a getter for a short-lived manager elevation token. The token is
+ * carried separately from the user session so protected management operations
+ * can be enforced by the API without interrupting normal POS access.
+ */
+export function setManagerAccessTokenGetter(getter: ManagerAccessTokenGetter | null): void {
+  _managerAccessTokenGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -355,6 +366,13 @@ export async function customFetch<T = unknown>(
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  if (_managerAccessTokenGetter && !headers.has("x-violet-manager-access")) {
+    const managerAccessToken = await _managerAccessTokenGetter();
+    if (managerAccessToken) {
+      headers.set("x-violet-manager-access", managerAccessToken);
     }
   }
 

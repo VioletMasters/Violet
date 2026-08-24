@@ -30,7 +30,7 @@ export default function LoginPage() {
       onSuccess: (data) => {
         setAuth(data.user, data.tenant, data.token);
         toast.success("Welcome back to Violet Enterprise");
-        setLocation("/dashboard");
+        setLocation("/pos");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to login. Please check your credentials.");

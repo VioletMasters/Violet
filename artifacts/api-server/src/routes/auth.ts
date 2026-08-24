@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db, tenantsTable, usersTable, sessionsTable, plansTable, subscriptionsTable, settingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { UnlockManagerAccessBody, UnlockManagerAccessResponse } from "@workspace/api-zod";
+import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
-import { requireAuth } from "../middlewares/auth";
+import { isManagerRole, requireAuth } from "../middlewares/auth";
+import { issueManagerAccess } from "../lib/manager-access";
 
 const router = Router();
 
@@ -135,6 +137,34 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       createdAt: tenant?.createdAt?.toISOString() ?? new Date().toISOString(),
     },
   });
+});
+
+// POST /auth/manager-unlock
+router.post("/auth/manager-unlock", requireAuth, async (req, res): Promise<void> => {
+  const body = UnlockManagerAccessBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Email and password required" });
+    return;
+  }
+  const { email, password } = body.data;
+
+  const [manager] = await db
+    .select()
+    .from(usersTable)
+    .where(and(eq(usersTable.tenantId, req.tenantId!), eq(usersTable.email, email.trim())))
+    .limit(1);
+
+  if (!manager || !isManagerRole(manager.role) || !verifyPassword(password, manager.passwordHash)) {
+    res.status(401).json({ error: "Manager credentials were not accepted" });
+    return;
+  }
+
+  const sessionToken = req.headers.authorization?.slice(7) ?? "";
+  const grant = issueManagerAccess(sessionToken, req.tenantId!);
+  res.json(UnlockManagerAccessResponse.parse({
+    accessToken: grant.accessToken,
+    expiresAt: grant.expiresAt.toISOString(),
+  }));
 });
 
 // POST /auth/logout

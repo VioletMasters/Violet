@@ -13,9 +13,6 @@ export interface SaleInput {
   /** @minItems 1 */
   items: SaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
-  discountAmount?: number;
-  taxAmount?: number;
-  totalAmount: number;
   cashTendered?: number;
   note?: string;
 }

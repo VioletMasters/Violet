@@ -33,7 +33,7 @@ export default function RegisterPage() {
       onSuccess: (data) => {
         setAuth(data.user, data.tenant, data.token);
         toast.success("Business account created successfully!");
-        setLocation("/dashboard");
+        setLocation("/pos");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to register. Please try again.");

@@ -78,6 +78,7 @@ app.use(express.urlencoded({ extended: true }));
 // Apply rate limiter to auth endpoints
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/manager-unlock", authLimiter);
 
 app.use("/api", router);
 

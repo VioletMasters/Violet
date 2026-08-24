@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { Redirect, Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppLayout } from './components/layout/app-layout';
 import { AuthProvider } from './hooks/use-auth';
 
@@ -20,7 +20,7 @@ import Subscription from './pages/subscription';
 import Admin from './pages/admin';
 import Suppliers from './pages/suppliers';
 
-const NotFound = () => <div className="p-8 text-center text-xl">404 - Not Found</div>;
+const DefaultAppRoute = () => <Redirect to="/pos" />;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,7 +46,7 @@ function AppRoutes() {
         <Route path="/settings" component={Settings} />
         <Route path="/subscription" component={Subscription} />
         <Route path="/admin" component={Admin} />
-        <Route component={NotFound} />
+        <Route component={DefaultAppRoute} />
       </Switch>
     </AppLayout>
   );

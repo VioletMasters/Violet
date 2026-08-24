@@ -1,2 +1,3 @@
 - [Desktop CI lockfiles](desktop-ci-lockfiles.md) — GitHub desktop builds require npm lockfiles that resolve through the public registry.
 - [GitHub release publishing](github-release-publishing.md) — connector writes to Git trees and workflow paths are blocked here; use authenticated Git push for releases.
+- [Manager elevation](manager-elevation.md) — business tools require a short-lived, session-bound signed elevation token, separate from POS authentication.

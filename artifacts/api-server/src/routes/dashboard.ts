@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db, salesTable, productsTable, customersTable, saleItemsTable } from "@workspace/db";
 import { eq, and, gte, sql, desc, lt } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
 // GET /dashboard/stats
-router.get("/dashboard/stats", requireAuth, async (req, res): Promise<void> => {
+router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -45,7 +45,7 @@ router.get("/dashboard/stats", requireAuth, async (req, res): Promise<void> => {
 });
 
 // GET /dashboard/recent-sales
-router.get("/dashboard/recent-sales", requireAuth, async (req, res): Promise<void> => {
+router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const sales = await db.select().from(salesTable)
     .where(eq(salesTable.tenantId, tenantId))
@@ -84,7 +84,7 @@ router.get("/dashboard/recent-sales", requireAuth, async (req, res): Promise<voi
 });
 
 // GET /dashboard/top-products
-router.get("/dashboard/top-products", requireAuth, async (req, res): Promise<void> => {
+router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
@@ -110,7 +110,7 @@ router.get("/dashboard/top-products", requireAuth, async (req, res): Promise<voi
 });
 
 // GET /dashboard/sales-trend
-router.get("/dashboard/sales-trend", requireAuth, async (req, res): Promise<void> => {
+router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 

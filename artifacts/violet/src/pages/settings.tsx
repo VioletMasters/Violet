@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
-import { useGetSettings, useUpdateSettings } from "@workspace/api-client-react";
+import React, { useEffect, useState } from "react";
+import { Link } from "wouter";
+import { useGetSettings, useUnlockManagerAccess, useUpdateSettings } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Store, Receipt, Banknote } from "lucide-react";
+import {
+  Banknote,
+  BarChart3,
+  Boxes,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Settings2,
+  ShieldCheck,
+  Store,
+  Truck,
+  UserRoundCog,
+  Users,
+} from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const settingsSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
@@ -24,8 +39,37 @@ const settingsSchema = z.object({
 
 type SettingsForm = z.infer<typeof settingsSchema>;
 
+const managementLinks = [
+  { href: "/dashboard", label: "Dashboard", description: "Sales and store performance at a glance.", icon: LayoutDashboard },
+  { href: "/products", label: "Products", description: "Catalog, pricing, and barcode management.", icon: Package },
+  { href: "/inventory", label: "Inventory", description: "Stock levels, low-stock alerts, and adjustments.", icon: Boxes },
+  { href: "/customers", label: "Customers", description: "Customer records and relationship management.", icon: Users },
+  { href: "/employees", label: "Employees", description: "Manage your team and employee details.", icon: UserRoundCog },
+  { href: "/suppliers", label: "Suppliers", description: "Maintain supplier contacts and purchasing partners.", icon: Truck },
+  { href: "/reports", label: "Reports", description: "Review sales, inventory, and business reporting.", icon: BarChart3 },
+  { href: "/subscription", label: "Subscription", description: "Review your Violet plan and billing.", icon: Settings2 },
+];
+
 export default function SettingsPage() {
-  const { data: settings, isLoading } = useGetSettings();
+  const { user, isManagerAccessActive, setManagerAccess } = useAuth();
+  const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
+  const [managerPassword, setManagerPassword] = useState("");
+  const { data: settings, isLoading } = useGetSettings({
+    query: { queryKey: ["/api/settings"], enabled: isManagerAccessActive },
+  });
+
+  const unlockMutation = useUnlockManagerAccess({
+    mutation: {
+      onSuccess: (data) => {
+        setManagerAccess(data.accessToken, data.expiresAt);
+        setManagerPassword("");
+        toast.success("Manager access unlocked for 15 minutes.");
+      },
+      onError: () => {
+        toast.error("Those manager credentials could not be verified.");
+      },
+    },
+  });
   
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -61,6 +105,66 @@ export default function SettingsPage() {
     updateMutation.mutate({ data });
   };
 
+  const unlockManagement = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    unlockMutation.mutate({
+      data: {
+        email: managerEmail.trim(),
+        password: managerPassword,
+      },
+    });
+  };
+
+  if (!isManagerAccessActive) {
+    return (
+      <div className="mx-auto max-w-md pt-8">
+        <Card className="border-primary/25 shadow-sm">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <ShieldCheck className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle>Manager access required</CardTitle>
+            <CardDescription>
+              Point of Sale remains available. Enter a manager, administrator, or owner account to open business settings and management tools.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={unlockManagement}>
+              <div className="space-y-2">
+                <Label htmlFor="manager-email">Manager email</Label>
+                <Input
+                  id="manager-email"
+                  type="email"
+                  autoComplete="username"
+                  value={managerEmail}
+                  onChange={(event) => setManagerEmail(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manager-password">Manager password</Label>
+                <Input
+                  id="manager-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={managerPassword}
+                  onChange={(event) => setManagerPassword(event.target.value)}
+                  required
+                />
+              </div>
+              <Button className="w-full" type="submit" disabled={unlockMutation.isPending}>
+                {unlockMutation.isPending ? "Verifying access..." : "Unlock Settings"}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Access expires automatically after 15 minutes or when you sign out.
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground">Loading settings...</div>;
   }
@@ -68,9 +172,29 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-display font-bold tracking-tight">Business Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure your store preferences and receipts.</p>
+        <h1 className="text-3xl font-display font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground mt-1">Business management tools and store configuration.</p>
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Business Management</h2>
+          <p className="text-sm text-muted-foreground">Open a tool to manage your store outside the checkout flow.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {managementLinks.map(({ href, label, description, icon: Icon }) => (
+            <Link key={href} href={href}>
+              <Card className="h-full transition-colors hover:border-primary/50 hover:bg-accent/30">
+                <CardHeader className="space-y-2 p-4">
+                  <Icon className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base">{label}</CardTitle>
+                  <CardDescription className="text-xs leading-relaxed">{description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         <Card>

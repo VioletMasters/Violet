@@ -22,7 +22,8 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<SaleInputPaymentMethod>("cash");
   const [cashTendered, setCashTendered] = useState<string>("");
 
-  const { data: productsData, isLoading } = useListProducts({ search, limit: 50 });
+  const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
+  const { data: productsData, isLoading } = useListProducts({ search: normalizedSearch, limit: 50 });
   const products = productsData?.data || [];
 
   const createSale = useCreateSale({
@@ -91,12 +92,9 @@ export default function POSPage() {
     createSale.mutate({
       data: {
         paymentMethod,
-        totalAmount: total,
-        taxAmount: tax,
         items: cart.map(item => ({
           productId: item.id,
           quantity: item.cartQuantity,
-          unitPrice: item.price
         })),
         cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined
       }
@@ -114,7 +112,7 @@ export default function POSPage() {
               placeholder="Search products, SKU, barcode... (Press '/')" 
               className="pl-9 h-11 bg-background"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value.replace(/[\r\n]+/g, ""))}
             />
           </div>
         </div>

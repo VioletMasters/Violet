@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, productsTable, categoriesTable, inventoryMovementsTable } from "@workspace/db";
 import { eq, and, ilike, lte, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ function getStockStatus(stock: number, minStock: number): string {
 }
 
 // GET /inventory
-router.get("/inventory", requireAuth, async (req, res): Promise<void> => {
+router.get("/inventory", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { search, page = "1", limit = "50" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page, 10));
@@ -50,7 +50,7 @@ router.get("/inventory", requireAuth, async (req, res): Promise<void> => {
 });
 
 // GET /inventory/low-stock
-router.get("/inventory/low-stock", requireAuth, async (req, res): Promise<void> => {
+router.get("/inventory/low-stock", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const rows = await db.select({ p: productsTable, catName: categoriesTable.name })
     .from(productsTable)
@@ -71,7 +71,7 @@ router.get("/inventory/low-stock", requireAuth, async (req, res): Promise<void> 
 });
 
 // POST /inventory/adjust
-router.post("/inventory/adjust", requireAuth, async (req, res): Promise<void> => {
+router.post("/inventory/adjust", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const userId = req.user!.id;
   const { productId, adjustment, reason, note } = req.body;

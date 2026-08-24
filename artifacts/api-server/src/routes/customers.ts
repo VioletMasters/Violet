@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, customersTable } from "@workspace/db";
 import { eq, and, ilike, sql, desc } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
@@ -45,7 +45,7 @@ router.get("/customers", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /customers
-router.post("/customers", requireAuth, async (req, res): Promise<void> => {
+router.post("/customers", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { firstName, lastName, email, phone, notes } = req.body;
   if (!firstName) {
@@ -96,7 +96,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /customers/:id
-router.patch("/customers/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/customers/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { firstName, lastName, email, phone, notes } = req.body;
@@ -130,7 +130,7 @@ router.patch("/customers/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // DELETE /customers/:id
-router.delete("/customers/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/customers/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   await db.delete(customersTable).where(and(eq(customersTable.id, id), eq(customersTable.tenantId, tenantId)));

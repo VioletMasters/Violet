@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db, salesTable, productsTable, categoriesTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
 // GET /reports/sales
-router.get("/reports/sales", requireAuth, async (req, res): Promise<void> => {
+router.get("/reports/sales", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { startDate, endDate, groupBy = "day" } = req.query as Record<string, string>;
 
@@ -52,7 +52,7 @@ router.get("/reports/sales", requireAuth, async (req, res): Promise<void> => {
 });
 
 // GET /reports/inventory
-router.get("/reports/inventory", requireAuth, async (req, res): Promise<void> => {
+router.get("/reports/inventory", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
 
   const products = await db.select({ p: productsTable, catName: categoriesTable.name })

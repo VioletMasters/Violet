@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db, sessionsTable, usersTable, tenantsTable } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
+import { hasValidManagerAccess } from "../lib/manager-access";
 
 export interface AuthUser {
   id: string;
@@ -11,6 +12,12 @@ export interface AuthUser {
   tenantId: string;
   avatarUrl: string | null;
   createdAt: Date;
+}
+
+const managerRoles = new Set(["owner", "administrator", "manager", "super_admin"]);
+
+export function isManagerRole(role: string): boolean {
+  return managerRoles.has(role);
 }
 
 declare global {
@@ -79,6 +86,20 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+    next();
+  });
+}
+
+export async function requireManagerAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
+  await requireAuth(req, res, () => {
+    const sessionToken = req.headers.authorization?.slice(7) ?? "";
+    const managerAccessToken = req.header("x-violet-manager-access");
+
+    if (!managerAccessToken || !req.tenantId || !hasValidManagerAccess(managerAccessToken, sessionToken, req.tenantId)) {
+      res.status(403).json({ error: "Manager access required" });
+      return;
+    }
+
     next();
   });
 }

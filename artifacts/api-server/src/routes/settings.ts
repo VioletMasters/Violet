@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
 // GET /settings
-router.get("/settings", requireAuth, async (req, res): Promise<void> => {
+router.get("/settings", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.tenantId, tenantId)).limit(1);
   if (!settings) {
@@ -29,7 +29,7 @@ router.get("/settings", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /settings
-router.patch("/settings", requireAuth, async (req, res): Promise<void> => {
+router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const { businessName, businessEmail, businessPhone, address, currency, currencySymbol, taxRate, taxName, receiptFooter, logoUrl, timezone } = req.body;
 

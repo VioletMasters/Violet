@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, plansTable, subscriptionsTable, usersTable, productsTable, customersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
@@ -29,7 +29,7 @@ router.get("/plans", async (req, res): Promise<void> => {
 });
 
 // GET /subscription
-router.get("/subscription", requireAuth, async (req, res): Promise<void> => {
+router.get("/subscription", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
 
   const [sub] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.tenantId, tenantId)).limit(1);
