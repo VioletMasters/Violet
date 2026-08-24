@@ -211,32 +211,26 @@ export default function LandingPage() {
                 <p className="text-xs text-muted-foreground text-center mt-3">Includes all subscription tiers · Full admin panel · Docker Compose</p>
               </div>
 
-              {/* Windows Desktop App */}
+              {/* Desktop Apps */}
               <div className="bg-background rounded-2xl border border-border p-8 flex flex-col">
                 <h3 className="font-bold text-xl mb-3 flex items-center gap-2">
-                  <Monitor className="w-5 h-5 text-primary" /> Windows Desktop App
+                  <Monitor className="w-5 h-5 text-primary" /> Desktop Apps
                 </h3>
                 <p className="text-sm text-muted-foreground mb-6 flex-1">
-                  Prefer a native Windows experience? Install Violet Enterprise as a proper desktop app — no browser required. It connects to your self-hosted or cloud Violet server.
+                  Prefer a native desktop experience? Violet Enterprise connects to your self-hosted or cloud Violet server without requiring a browser.
                 </p>
                 <ul className="space-y-3 text-muted-foreground mb-8 text-sm">
-                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Native NSIS installer</strong> — installs like any Windows application.</span></li>
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Windows and macOS installers</strong> — built for Windows, Intel Macs, and Apple Silicon Macs.</span></li>
                   <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Works with any server</strong> — point it at your LAN Docker instance or cloud URL.</span></li>
                   <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Remembers your server</strong> — opens straight to your Violet instance every time.</span></li>
                 </ul>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Requires Windows 10 or later. You need a running Violet server to connect to.
+                  Installer downloads will appear after the first verified public release. You need a running Violet server to connect to.
                 </p>
-                <a
-                  href="https://github.com/violet-enterprise/violet-enterprise/releases/latest"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button size="lg" variant="outline" className="w-full">
-                    <Download className="mr-2 w-4 h-4" /> Download Windows Installer (.exe)
-                  </Button>
-                </a>
-                <p className="text-xs text-muted-foreground text-center mt-3">Built and signed via GitHub Actions · Windows 10 / 11</p>
+                <Button size="lg" variant="outline" className="w-full" disabled>
+                  <Download className="mr-2 w-4 h-4" /> Desktop Installer Coming Soon
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-3">Windows 10 / 11 · macOS Intel and Apple Silicon</p>
               </div>
             </div>
           </div>

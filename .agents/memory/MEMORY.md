@@ -1,0 +1,1 @@
+- [Desktop CI lockfiles](desktop-ci-lockfiles.md) — GitHub desktop builds require npm lockfiles that resolve through the public registry.

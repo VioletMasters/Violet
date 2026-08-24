@@ -11,6 +11,10 @@ out-tsc
 # dependencies
 node_modules
 
+# Tauri generated platform bindings and native build outputs
+artifacts/violet-desktop/src-tauri/gen/
+artifacts/violet-desktop/src-tauri/target/
+
 # IDEs and editors
 /.idea
 .project
