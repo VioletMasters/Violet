@@ -895,6 +895,19 @@ paths:
                 $ref: "#/components/schemas/InventoryReport"
 
   # ─── Settings ───────────────────────────────────────────────────────────────
+  /settings/pos-tax:
+    get:
+      operationId: getPosTaxSettings
+      tags: [settings]
+      summary: Get tax settings for POS checkout
+      responses:
+        "200":
+          description: POS tax settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosTaxSettings"
+
   /settings:
     get:
       operationId: getSettings
@@ -2065,6 +2078,15 @@ components:
         logoUrl:
           type: ["string", "null"]
         timezone:
+          type: string
+
+    PosTaxSettings:
+      type: object
+      required: [taxRate, taxName]
+      properties:
+        taxRate:
+          type: number
+        taxName:
           type: string
 
     SettingsUpdate:

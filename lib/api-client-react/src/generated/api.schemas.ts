@@ -712,6 +712,11 @@ export interface Settings {
   timezone?: string;
 }
 
+export interface PosTaxSettings {
+  taxRate: number;
+  taxName: string;
+}
+
 export interface SettingsUpdate {
   businessName?: string;
   businessEmail?: string;

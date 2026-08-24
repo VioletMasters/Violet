@@ -48,6 +48,7 @@ export * from './planInputBillingType';
 export * from './planInputTier';
 export * from './planTier';
 export * from './planUpdate';
+export * from './posTaxSettings';
 export * from './product';
 export * from './productInput';
 export * from './productsPage';

@@ -1,9 +1,26 @@
 import { Router } from "express";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireManagerAccess } from "../middlewares/auth";
+import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
+
+// GET /settings/pos-tax
+router.get("/settings/pos-tax", requireAuth, async (req, res): Promise<void> => {
+  const tenantId = req.tenantId!;
+  const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.tenantId, tenantId)).limit(1);
+
+  if (!settings) {
+    res.status(404).json({ error: "Settings not found" });
+    return;
+  }
+
+  const taxRate = Number(settings.taxRate);
+  res.json({
+    taxRate: Number.isFinite(taxRate) ? taxRate : 0,
+    taxName: settings.taxName,
+  });
+});
 
 // GET /settings
 router.get("/settings", requireManagerAccess, async (req, res): Promise<void> => {

@@ -142,6 +142,15 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   const configuredTaxRate = Number(settings[0]?.taxRate ?? 0);
   const taxAmount = Number.isFinite(configuredTaxRate) ? subtotal * (configuredTaxRate / 100) : 0;
   const totalAmount = subtotal + taxAmount;
+  const parsedCashTendered = cashTendered === undefined || cashTendered === null || cashTendered === ""
+    ? undefined
+    : Number(cashTendered);
+
+  if (paymentMethod === "cash" && parsedCashTendered !== undefined
+    && (!Number.isFinite(parsedCashTendered) || parsedCashTendered < totalAmount)) {
+    res.status(400).json({ error: "Cash tendered must cover the total amount due" });
+    return;
+  }
 
   const [sale] = await db.insert(salesTable).values({
     tenantId,
@@ -154,7 +163,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     totalAmount: String(totalAmount),
     paymentMethod,
     status: "completed",
-    cashTendered: Number.isFinite(Number(cashTendered)) ? String(cashTendered) : undefined,
+    cashTendered: parsedCashTendered !== undefined ? String(parsedCashTendered) : undefined,
     note,
   }).returning();
 

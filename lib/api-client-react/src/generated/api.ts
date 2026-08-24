@@ -51,6 +51,7 @@ import type {
   Plan,
   PlanInput,
   PlanUpdate,
+  PosTaxSettings,
   Product,
   ProductInput,
   ProductUpdate,
@@ -3241,6 +3242,83 @@ export function useGetInventoryReport<TData = Awaited<ReturnType<typeof getInven
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetInventoryReportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPosTaxSettingsUrl = () => {
+
+
+
+
+  return `/api/settings/pos-tax`
+}
+
+/**
+ * @summary Get tax settings for POS checkout
+ */
+export const getPosTaxSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<PosTaxSettings> => {
+
+  return customFetch<PosTaxSettings>(getGetPosTaxSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPosTaxSettingsQueryKey = () => {
+    return [
+    `/api/settings/pos-tax`
+    ] as const;
+    }
+
+
+export const getGetPosTaxSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getPosTaxSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPosTaxSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPosTaxSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPosTaxSettings>>> = ({ signal }) => getPosTaxSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPosTaxSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPosTaxSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getPosTaxSettings>>>
+export type GetPosTaxSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get tax settings for POS checkout
+ */
+
+export function useGetPosTaxSettings<TData = Awaited<ReturnType<typeof getPosTaxSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPosTaxSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPosTaxSettingsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

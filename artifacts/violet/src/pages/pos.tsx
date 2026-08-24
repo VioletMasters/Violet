@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useListProducts, useCreateSale } from "@workspace/api-client-react";
+import { useListProducts, useCreateSale, useGetPosTaxSettings } from "@workspace/api-client-react";
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package } from "lucide-react";
 import { toast } from "sonner";
 import type { Product, SaleInputPaymentMethod } from "@workspace/api-client-react";
@@ -24,6 +24,11 @@ export default function POSPage() {
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListProducts({ search: normalizedSearch, limit: 50 });
+  const {
+    data: posTaxSettings,
+    isLoading: isLoadingTaxSettings,
+    isError: hasTaxSettingsError,
+  } = useGetPosTaxSettings();
   const products = productsData?.data || [];
 
   const createSale = useCreateSale({
@@ -83,8 +88,10 @@ export default function POSPage() {
   };
 
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.cartQuantity, 0), [cart]);
-  const tax = subtotal * 0; // Assuming 0% tax for simplicity in MVP, settings would dictate this normally
+  const taxRate = posTaxSettings?.taxRate ?? 0;
+  const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
+  const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError;
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -95,6 +102,7 @@ export default function POSPage() {
         items: cart.map(item => ({
           productId: item.id,
           quantity: item.cartQuantity,
+          unitPrice: item.price
         })),
         cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined
       }
@@ -221,21 +229,26 @@ export default function POSPage() {
               <span>{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
-              <span>Tax</span>
+              <span>{posTaxSettings?.taxName || "Tax"}</span>
               <span>{formatCurrency(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-lg pt-2 border-t border-border/50">
               <span>Total</span>
               <span className="text-primary">{formatCurrency(total)}</span>
             </div>
+            {hasTaxSettingsError && (
+              <p className="text-sm text-destructive" role="alert">
+                Tax settings could not be loaded. Checkout is unavailable.
+              </p>
+            )}
           </div>
           
           <Button 
             className="w-full h-14 text-lg font-bold" 
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || checkoutUnavailable}
             onClick={() => setPaymentModalOpen(true)}
           >
-            Charge {formatCurrency(total)}
+            {isLoadingTaxSettings ? "Loading tax settings..." : `Charge ${formatCurrency(total)}`}
           </Button>
         </div>
       </div>
@@ -303,7 +316,7 @@ export default function POSPage() {
             <Button 
               className="w-full" 
               onClick={handleCheckout}
-              disabled={createSale.isPending || (paymentMethod === "cash" && !!cashTendered && parseFloat(cashTendered) < total)}
+              disabled={checkoutUnavailable || createSale.isPending || (paymentMethod === "cash" && !!cashTendered && parseFloat(cashTendered) < total)}
             >
               {createSale.isPending ? "Processing..." : "Complete Sale"}
             </Button>

@@ -1082,6 +1082,15 @@ export const GetInventoryReportResponse = zod.object({
 
 
 /**
+ * @summary Get tax settings for POS checkout
+ */
+export const GetPosTaxSettingsResponse = zod.object({
+  "taxRate": zod.number(),
+  "taxName": zod.string()
+})
+
+
+/**
  * @summary Get business settings
  */
 export const GetSettingsResponse = zod.object({
