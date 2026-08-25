@@ -61,6 +61,6 @@
     }
   },
   "plugins": {
-    "store": {}
+    "store": null
   }
 }
