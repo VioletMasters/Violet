@@ -158,9 +158,13 @@ jobs:
             $shell = New-Object -ComObject WScript.Shell
             $target = $shell.CreateShortcut($shortcutPath).TargetPath
             if (-not $target -or -not (Test-Path $target)) {
-              throw "Shortcut does not resolve to an installed Violet executable: $shortcutPath"
+              throw "Shortcut does not resolve to an installed executable: $shortcutPath (target: $target)"
             }
-            return Get-Item $target
+            $targetItem = Get-Item $target
+            if ($targetItem.Extension -ne ".exe") {
+              throw "Shortcut target is not a Windows executable: $shortcutPath (target: $target)"
+            }
+            return $targetItem
           }
 
           function Get-StartMenuVioletApp {
@@ -194,6 +198,10 @@ jobs:
           if ($config.bundle.windows.webviewInstallMode.type -ne "offlineInstaller") {
             throw "Windows desktop builds must use Tauri's offline WebView2 installer."
           }
+          $expectedExecutableName = "$($config.mainBinaryName).exe"
+          if (-not $config.mainBinaryName) {
+            throw "tauri.conf.json must define mainBinaryName for Windows shortcut verification."
+          }
 
           $nsis = Get-ChildItem "release-assets" -Filter "*.exe" -File | Select-Object -First 1
           if (-not $nsis) {
@@ -209,7 +217,13 @@ jobs:
           }
           $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Violet Enterprise.lnk"
           $desktopApp = Get-ShortcutTarget $desktopShortcut
+          if ($desktopApp.Name -ne $expectedExecutableName) {
+            throw "Desktop shortcut target does not match tauri.conf.json mainBinaryName: expected $expectedExecutableName, found $($desktopApp.Name)."
+          }
           $startMenuApp = Get-StartMenuVioletApp
+          if ($startMenuApp.FullName -ne $desktopApp.FullName) {
+            throw "NSIS Desktop and Start Menu shortcuts target different executables."
+          }
           Launch-VioletApp $desktopApp "NSIS Desktop shortcut"
           Launch-VioletApp $startMenuApp "NSIS Start Menu shortcut"
 
@@ -245,6 +259,9 @@ jobs:
             throw "MSI installer failed with exit code $($msiInstall.ExitCode)."
           }
           $msiApp = Get-StartMenuVioletApp
+          if ($msiApp.Name -ne $expectedExecutableName) {
+            throw "MSI Start Menu shortcut target does not match tauri.conf.json mainBinaryName: expected $expectedExecutableName, found $($msiApp.Name)."
+          }
           Launch-VioletApp $msiApp "MSI Start Menu shortcut"
 
       - name: Stage desktop startup diagnostics
