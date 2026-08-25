@@ -92,6 +92,129 @@ jobs:
           cp artifacts/violet-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe release-assets/
           cp artifacts/violet-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi release-assets/ || true
 
+      - name: Install and launch Windows installers
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Get-ShortcutTarget($shortcutPath) {
+            if (-not (Test-Path $shortcutPath)) {
+              throw "Expected shortcut was not created: $shortcutPath"
+            }
+            $shell = New-Object -ComObject WScript.Shell
+            $target = $shell.CreateShortcut($shortcutPath).TargetPath
+            if (-not $target -or -not (Test-Path $target)) {
+              throw "Shortcut does not resolve to an installed Violet executable: $shortcutPath"
+            }
+            return Get-Item $target
+          }
+
+          function Get-StartMenuVioletApp {
+            $startMenus = @(
+              [Environment]::GetFolderPath("StartMenu"),
+              [Environment]::GetFolderPath("CommonStartMenu")
+            ) | Where-Object { $_ -and (Test-Path $_) }
+            $shortcut = Get-ChildItem -Path $startMenus -Filter "Violet Enterprise.lnk" -Recurse -File |
+              Select-Object -First 1
+            if (-not $shortcut) {
+              throw "Start Menu shortcut for Violet Enterprise was not created."
+            }
+            return Get-ShortcutTarget $shortcut.FullName
+          }
+
+          function Launch-VioletApp($app, $label) {
+            Write-Host "Launching $label from $($app.FullName)"
+            $process = Start-Process -FilePath $app.FullName -PassThru
+            Start-Sleep -Seconds 12
+            $process.Refresh()
+
+            if ($process.HasExited) {
+              throw "$label exited immediately with code $($process.ExitCode)."
+            }
+            Write-Host "$label remained running after startup."
+            Stop-Process -Id $process.Id -Force
+            Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+          }
+
+          $config = Get-Content "artifacts/violet-desktop/src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($config.bundle.windows.webviewInstallMode.type -ne "offlineInstaller") {
+            throw "Windows desktop builds must use Tauri's offline WebView2 installer."
+          }
+
+          $nsis = Get-ChildItem "release-assets" -Filter "*.exe" -File | Select-Object -First 1
+          if (-not $nsis) {
+            throw "The NSIS installer was not produced."
+          }
+          if ($nsis.Length -lt 50MB) {
+            throw "The NSIS installer is too small to contain the offline WebView2 runtime."
+          }
+
+          $nsisInstall = Start-Process -FilePath $nsis.FullName -ArgumentList "/S" -Wait -PassThru
+          if ($nsisInstall.ExitCode -ne 0) {
+            throw "NSIS installer failed with exit code $($nsisInstall.ExitCode)."
+          }
+          $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Violet Enterprise.lnk"
+          $desktopApp = Get-ShortcutTarget $desktopShortcut
+          $startMenuApp = Get-StartMenuVioletApp
+          Launch-VioletApp $desktopApp "NSIS Desktop shortcut"
+          Launch-VioletApp $startMenuApp "NSIS Start Menu shortcut"
+
+          $uninstaller = Get-ChildItem -Path $desktopApp.Directory.FullName -Filter "*uninstall*.exe" -File |
+            Select-Object -First 1
+          if (-not $uninstaller) {
+            throw "NSIS installation did not include an uninstaller."
+          }
+          $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "NSIS uninstaller failed with exit code $($uninstall.ExitCode)."
+          }
+          $startMenus = @(
+            [Environment]::GetFolderPath("StartMenu"),
+            [Environment]::GetFolderPath("CommonStartMenu")
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          $leftoverStartMenuShortcut = Get-ChildItem -Path $startMenus `
+            -Filter "Violet Enterprise.lnk" -Recurse -File | Select-Object -First 1
+          if ((Test-Path $desktopShortcut) -or
+            (Test-Path $desktopApp.FullName) -or
+            $leftoverStartMenuShortcut) {
+            throw "NSIS uninstall left Violet shortcuts or executable behind; MSI smoke test is not isolated."
+          }
+
+          $msi = Get-ChildItem "release-assets" -Filter "*.msi" -File | Select-Object -First 1
+          if (-not $msi) {
+            throw "The MSI installer was not produced."
+          }
+          $msiInstall = Start-Process -FilePath "msiexec.exe" `
+            -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart" `
+            -Wait -PassThru
+          if ($msiInstall.ExitCode -notin @(0, 3010)) {
+            throw "MSI installer failed with exit code $($msiInstall.ExitCode)."
+          }
+          $msiApp = Get-StartMenuVioletApp
+          Launch-VioletApp $msiApp "MSI Start Menu shortcut"
+
+      - name: Stage desktop startup diagnostics
+        if: failure() && matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $logPath = Join-Path $env:LOCALAPPDATA "Violet Enterprise\startup.log"
+          New-Item -ItemType Directory -Force -Path "release-assets" | Out-Null
+          if (Test-Path $logPath) {
+            Copy-Item $logPath "release-assets/startup.log"
+          } else {
+            "No Violet Enterprise startup.log was created during this job." |
+              Set-Content "release-assets/startup.log"
+          }
+
+      - name: Upload desktop startup diagnostics
+        if: failure() && matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: violet-enterprise-windows-startup-diagnostics
+          path: release-assets/startup.log
+          if-no-files-found: error
+
       - name: Prepare macOS release assets
         if: matrix.platform == 'macos'
         run: |

@@ -40,6 +40,9 @@
     "shortDescription": "Violet Enterprise POS & Business Management",
     "longDescription": "Violet Enterprise is a professional point-of-sale and business management platform. This desktop app connects to your Violet server instance and provides a native desktop experience.",
     "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      },
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false,

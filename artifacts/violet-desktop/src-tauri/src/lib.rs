@@ -1,4 +1,79 @@
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::PathBuf,
+};
+
 use tauri::Manager;
+
+fn startup_log_path() -> PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    base.join("Violet Enterprise").join("startup.log")
+}
+
+fn report_startup_error(error: &str) {
+    let log_path = startup_log_path();
+    let log_result = (|| -> std::io::Result<()> {
+        if let Some(parent) = log_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut log = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)?;
+        writeln!(log, "Violet Enterprise startup failure: {error}")?;
+        Ok(())
+    })();
+
+    let detail = match log_result {
+        Ok(()) => format!(
+            "Violet Enterprise could not start.\n\n{error}\n\nDiagnostic log:\n{}",
+            log_path.display()
+        ),
+        Err(log_error) => format!(
+            "Violet Enterprise could not start.\n\n{error}\n\nThe diagnostic log could not be written: {log_error}"
+        ),
+    };
+
+    #[cfg(windows)]
+    show_startup_error(&detail);
+
+    #[cfg(not(windows))]
+    eprintln!("{detail}");
+}
+
+#[cfg(windows)]
+#[link(name = "user32")]
+extern "system" {
+    fn MessageBoxW(
+        window: *mut std::ffi::c_void,
+        text: *const u16,
+        caption: *const u16,
+        flags: u32,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+fn show_startup_error(detail: &str) {
+    fn wide(value: &str) -> Vec<u16> {
+        value.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    let text = wide(detail);
+    let caption = wide("Violet Enterprise startup error");
+
+    // MB_OK | MB_ICONERROR
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            text.as_ptr(),
+            caption.as_ptr(),
+            0x0000_0010,
+        );
+    }
+}
 
 /// Navigate the main webview to an arbitrary URL.
 /// Called from JS after the operator enters and saves their server address.
@@ -16,7 +91,7 @@ fn app_version() -> &'static str {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             // Add a "Configure Server" menu item on desktop so users can reconfigure
@@ -50,6 +125,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![navigate_to, app_version])
-        .run(tauri::generate_context!())
-        .expect("error while running Violet Enterprise");
+        .run(tauri::generate_context!());
+
+    if let Err(error) = result {
+        report_startup_error(&error.to_string());
+    }
 }

@@ -37,8 +37,20 @@ The NSIS setup installer:
 - creates a **Violet Enterprise** shortcut in the Start Menu;
 - includes an uninstall entry in Windows Settings.
 
+The Windows package includes the WebView2 runtime installer needed by Violet,
+so first launch does not require downloading a runtime from the internet. The
+Windows installer is therefore substantially larger than the application
+frontend itself. Windows may still ask for permission to install the runtime
+for the machine.
+
 The MSI package is also published for organizations that distribute software
 through Windows management tools.
+
+If Windows installs Violet but the window does not appear, launch it once from
+the Start Menu and check
+`%LOCALAPPDATA%\Violet Enterprise\startup.log`. A startup error dialog includes
+the same path when the native shell cannot initialize. If the app opens but its
+interface fails to render, use the **Try again** button and relaunch the app.
 
 ## macOS packaging
 
