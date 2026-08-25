@@ -80,6 +80,13 @@ The generated files are uploaded to the workflow run and attached to the
 matching GitHub Release automatically. The repository's GitHub Actions settings
 must allow the workflow's `GITHUB_TOKEN` to write release contents.
 
+If a Windows build reports an HTTP 5xx error while downloading NSIS from
+`tauri-apps/binary-releases`, the workflow treats that as a transient bundler
+failure, retries it up to three times, and caches the downloaded bundler tools.
+Use **Re-run failed jobs** from the workflow run after confirming the upstream
+download is available again. Compilation, signing, and configuration errors are
+not retried.
+
 ## Local development
 
 From the repository root:
