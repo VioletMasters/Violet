@@ -5,6 +5,11 @@ import { requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
+function planPrice(plan: { tier: string; price: string }) {
+  const price = parseFloat(plan.price);
+  return plan.tier === "enterprise" && price === 0 ? 150000 : price;
+}
+
 // GET /plans — public
 router.get("/plans", async (req, res): Promise<void> => {
   const plans = await db.select().from(plansTable).where(eq(plansTable.isActive, true)).orderBy(plansTable.price);
@@ -13,7 +18,7 @@ router.get("/plans", async (req, res): Promise<void> => {
     name: p.name,
     tier: p.tier,
     description: p.description ?? "",
-    price: parseFloat(p.price),
+    price: planPrice(p),
     annualPrice: p.annualPrice ? parseFloat(p.annualPrice) : null,
     billingType: p.billingType,
     maxUsers: p.maxUsers,
@@ -54,7 +59,7 @@ router.get("/subscription", requireManagerAccess, async (req, res): Promise<void
       name: plan.name,
       tier: plan.tier,
       description: plan.description ?? "",
-      price: parseFloat(plan.price),
+      price: planPrice(plan),
       annualPrice: plan.annualPrice ? parseFloat(plan.annualPrice) : null,
       billingType: plan.billingType,
       maxUsers: plan.maxUsers,
