@@ -85,7 +85,7 @@ export default function SettingsPage() {
         businessEmail: settings.businessEmail || "",
         businessPhone: settings.businessPhone || "",
         address: settings.address || "",
-        currency: settings.currency || "USD",
+        currency: settings.currency || "JMD",
         taxRate: settings.taxRate || 0,
         taxName: settings.taxName || "Tax",
         receiptFooter: settings.receiptFooter || "",
@@ -241,19 +241,15 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label>Currency Code</Label>
                 <Select 
-                  defaultValue={settings?.currency || "USD"} 
+                  defaultValue={settings?.currency || "JMD"} 
                   onValueChange={(val) => setValue("currency", val)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="JMD">JMD (J$)</SelectItem>
                     <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="EUR">EUR (€)</SelectItem>
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
-                    <SelectItem value="JPY">JPY (£)</SelectItem>
-                    <SelectItem value="CAD">CAD (£)</SelectItem>
-                    <SelectItem value="AUD">CAD ($)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

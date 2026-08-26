@@ -61,8 +61,8 @@ async function main() {
        true,true,14),
 
       ('Enterprise','enterprise',
-       'Custom pricing for large operations. Unlimited everything with dedicated support.',
-       '0',NULL,'enterprise', 999,999,999, 999999,999999,
+       'For established operations that need unlimited capacity and dedicated support.',
+       '150000',NULL,'monthly', 999,999,999, 999999,999999,
        ARRAY['Unlimited branches','Unlimited users',
              'Unlimited products & customers','Dedicated account manager',
              'Custom integrations','SLA guarantee','On-premise option'],
@@ -74,6 +74,11 @@ async function main() {
   await client.query(`
     UPDATE subscription_plans SET max_products = 250
     WHERE tier = 'free' AND max_products = 500
+  `);
+  await client.query(`
+    UPDATE subscription_plans
+    SET price = '150000', billing_type = 'monthly'
+    WHERE tier = 'enterprise' AND (price = '0' OR billing_type = 'enterprise')
   `);
   console.log("  ✓ Subscription plans");
 

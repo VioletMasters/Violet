@@ -60,6 +60,13 @@ function normaliseUrl(raw: string): string {
   return url;
 }
 
+function loginUrl(serverUrl: string): string {
+  const parsed = new URL(serverUrl);
+  const path = parsed.pathname.replace(/\/+$/, '');
+  parsed.pathname = `${path}/login`;
+  return parsed.toString().replace(/\/login\/$/, '/login');
+}
+
 // ── App states ────────────────────────────────────────────────────────────────
 
 type Phase = 'checking' | 'setup' | 'connecting';
@@ -105,7 +112,7 @@ export default function App() {
       if (saved) {
         setTargetUrl(saved);
         setPhase('connecting');
-        goTo(saved).catch(() => {
+        goTo(loginUrl(saved)).catch(() => {
           // navigate_to failed — fall back to setup
           setPhase('setup');
           setInputUrl(saved);
@@ -140,7 +147,7 @@ export default function App() {
 
     try {
       await persistUrl(url);
-      await goTo(url);
+      await goTo(loginUrl(url));
       // If goTo resolves without navigating away (browser dev mode), stay on page
     } catch (err) {
       setPhase('setup');

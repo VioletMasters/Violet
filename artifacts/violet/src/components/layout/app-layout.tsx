@@ -4,6 +4,8 @@ import { useGetMe } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -57,12 +59,28 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!token) return null;
   if (isManagementRoute && !isManagerAccessActive) return null;
 
+  const isPosRoute = location === "/pos" || location.startsWith("/pos/");
+  const showBackButton = !isPosRoute;
+
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+          {showBackButton && (
+            <div className="mb-5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 -ml-2 text-muted-foreground hover:text-foreground"
+                onClick={() => setLocation(location === "/settings" ? "/pos" : "/settings")}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                {location === "/settings" ? "Back to Point of Sale" : "Back to Settings"}
+              </Button>
+            </div>
+          )}
           {children}
         </main>
       </div>
