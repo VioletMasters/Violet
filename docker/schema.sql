@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     email text NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
     plan_id uuid,
+    license_status text DEFAULT 'valid'::text NOT NULL,
+    license_validated_at timestamp with time zone DEFAULT now() NOT NULL,
+    license_valid_until timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -37,6 +40,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
     tenant_id uuid NOT NULL,
     plan_id uuid NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
+    payment_status text DEFAULT 'not_required'::text NOT NULL,
     current_period_start timestamp with time zone,
     current_period_end timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,

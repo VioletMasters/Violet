@@ -26,6 +26,7 @@ export const subscriptionsTable = pgTable("subscriptions", {
   tenantId: uuid("tenant_id").notNull().unique(),
   planId: uuid("plan_id").notNull(),
   status: text("status").notNull().default("active"), // active, trial, expired, cancelled
+  paymentStatus: text("payment_status").notNull().default("not_required"), // not_required, pending, paid, past_due, failed
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

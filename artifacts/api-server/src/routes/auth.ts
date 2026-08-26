@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
-import { isManagerRole, requireAuth } from "../middlewares/auth";
+import { getLicenseFailure, isManagerRole, requireAuth } from "../middlewares/auth";
 import { issueManagerAccess } from "../lib/manager-access";
 
 const router = Router();
@@ -37,6 +37,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     email,
     status: "active",
     planId: freePlan?.id ?? undefined,
+    licenseStatus: "valid",
+    licenseValidatedAt: new Date(),
   }).returning();
 
   // Create user (owner)
@@ -56,6 +58,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       tenantId: tenant.id,
       planId: freePlan.id,
       status: "active",
+      paymentStatus: "not_required",
       currentPeriodStart: new Date(),
     });
   }
@@ -114,6 +117,17 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const [plan] = tenant?.planId
     ? await db.select().from(plansTable).where(eq(plansTable.id, tenant.planId)).limit(1)
     : [null];
+
+  if (!tenant) {
+    res.status(401).json({ error: "Business account not found" });
+    return;
+  }
+
+  const licenseFailure = await getLicenseFailure(tenant.id);
+  if (licenseFailure) {
+    res.status(402).json({ error: licenseFailure });
+    return;
+  }
 
   // Create session
   const token = generateToken();

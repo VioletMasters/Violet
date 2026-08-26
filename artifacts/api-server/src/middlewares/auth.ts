@@ -1,5 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
-import { db, sessionsTable, usersTable, tenantsTable } from "@workspace/db";
+import {
+  db,
+  sessionsTable,
+  usersTable,
+  tenantsTable,
+  plansTable,
+  subscriptionsTable,
+} from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 import { hasValidManagerAccess } from "../lib/manager-access";
 
@@ -18,6 +25,49 @@ const managerRoles = new Set(["owner", "administrator", "manager", "super_admin"
 
 export function isManagerRole(role: string): boolean {
   return managerRoles.has(role);
+}
+
+export async function getLicenseFailure(tenantId: string): Promise<string | null> {
+  const [tenant] = await db
+    .select()
+    .from(tenantsTable)
+    .where(eq(tenantsTable.id, tenantId))
+    .limit(1);
+
+  if (!tenant) return "Business account not found";
+  if (tenant.licenseStatus !== "valid") return "Violet license is not valid";
+  if (tenant.licenseValidUntil && tenant.licenseValidUntil <= new Date()) {
+    return "Violet license has expired";
+  }
+  if (tenant.status === "suspended" || tenant.status === "expired") {
+    return "Business account is not active";
+  }
+
+  const [subscription] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.tenantId, tenantId))
+    .limit(1);
+  if (!subscription) return "No active Violet license was found";
+
+  const [plan] = await db
+    .select()
+    .from(plansTable)
+    .where(eq(plansTable.id, subscription.planId))
+    .limit(1);
+
+  const isMonthly = plan?.billingType === "monthly";
+  const paymentOverdue =
+    subscription.paymentStatus === "past_due" ||
+    subscription.paymentStatus === "failed" ||
+    (isMonthly && Boolean(subscription.currentPeriodEnd && subscription.currentPeriodEnd <= new Date()));
+  const inactiveSubscription = ["expired", "cancelled"].includes(subscription.status);
+
+  if (paymentOverdue || inactiveSubscription) {
+    return "Your monthly Violet payment is overdue. Update billing on the Violet website to continue.";
+  }
+
+  return null;
 }
 
 declare global {
@@ -59,6 +109,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     if (!user) {
       res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    const licenseFailure = await getLicenseFailure(user.tenantId);
+    if (licenseFailure) {
+      res.status(402).json({ error: licenseFailure });
       return;
     }
 
