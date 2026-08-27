@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/violet-website/"
+title = "Violet Enterprise Website"
+description = "The public marketing and pricing website for Violet Enterprise, with plan discovery and secure hosted checkout entry points for new and existing business customers."
+version = "1.0.0"
+id = "artifacts/violet-website"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/violet-website/" ]
+localPort = 22908
+
+[services.development]
+run = "pnpm --filter @workspace/violet-website run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/violet-website", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/violet-website/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22908"
+BASE_PATH = "/violet-website/"
