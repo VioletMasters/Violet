@@ -14,6 +14,7 @@ const resp = await fetch(`https://${hostname}/api/v2/proxy/${path}`, {
   method,
   headers: {
     "Content-Type": "application/json",
+    "Accept": "application/json",
     "X-Replit-Token": token,
     "Connector-Name": "whop",
   },
