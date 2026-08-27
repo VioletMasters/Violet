@@ -22,3 +22,8 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["webkitgtk_4_1", "librsvg", "gtk3", "glib", "openssl", "pkg-config", "zlib"]
+
+[userenv]
+
+[userenv.shared]
+WHOP_COMPANY_ID = "biz_j84fxEQcXprzvZ"

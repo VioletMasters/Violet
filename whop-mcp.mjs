@@ -8,7 +8,7 @@ async function mcpCall(method, params = {}) {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
-      "X-Replit-Token": token,
+      "X_REPLIT_TOKEN": token,
       "Connector-Name": "whop",
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
