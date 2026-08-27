@@ -15,6 +15,9 @@ async function mcpCall(method, params = {}) {
   });
   const text = await resp.text();
   const lines = text.split('\n').filter(l => l.startsWith('data:'));
+  if (!lines.length) {
+    throw new Error(`Whop MCP returned ${resp.status}: ${text.slice(0, 500)}`);
+  }
   const envelope = JSON.parse(lines.at(-1).replace(/^data:\s*/, ''));
   const result = envelope.result;
   const textContent = result?.content?.[0]?.text;
