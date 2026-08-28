@@ -51,7 +51,7 @@ const offers: Array<{
     eyebrow: "Built around your business",
     description: "A complete operating system for established retailers and growing chains.",
     jmd: 150000,
-    usd: 999,
+    usd: 1998,
     features: ["Unlimited registers and products", "Unlimited branches", "Custom onboarding", "White-label ready", "Dedicated support", "Self-hosting options"],
   },
 ];
@@ -133,7 +133,7 @@ function Header() {
 }
 
 function Home() {
-  const [currency, setCurrency] = useState<Currency>("JMD");
+  const [currency, setCurrency] = useState<Currency>("USD");
   const [location] = useLocation();
 
   return (
@@ -180,7 +180,7 @@ function Home() {
         <section className="operator-section"><div className="container operator-grid"><div><div className="eyebrow light">Made for the moments that matter</div><h2>A better day at the counter starts <em>here.</em></h2><p>Fast enough for a queue. Detailed enough for a board meeting. Violet keeps the front of house moving while giving owners the confidence behind every number.</p><a href="#pricing" className="button button-light">Find your plan <ArrowRight size={16} /></a></div><div className="operator-list"><div><span>01</span><strong>Sell without slowing down</strong><p>Quick product lookup, scanner-ready workflows, and clean receipts.</p></div><div><span>02</span><strong>See what needs your attention</strong><p>Low-stock signals and live performance data, without the noise.</p></div><div><span>03</span><strong>Keep control of your data</strong><p>Use Violet in the cloud or keep it on your own network.</p></div></div></div></section>
 
         <section className="pricing-section section container" id="pricing">
-          <div className="pricing-top"><div><div className="eyebrow">Plans that scale with you</div><h2>Choose your <em>pace.</em></h2><p>Start free, then add more capacity when the business earns it.</p></div><div className="currency-toggle" role="group" aria-label="Display currency"><button className={currency === "JMD" ? "selected" : ""} onClick={() => setCurrency("JMD")}>JMD</button><button className={currency === "USD" ? "selected" : ""} onClick={() => setCurrency("USD")}>USD</button></div></div>
+          <div className="pricing-top"><div><div className="eyebrow">Plans that scale with you</div><h2>Choose your <em>pace.</em></h2><p>Start free, then add more capacity when the business earns it.</p><small className="pricing-note">Hosted checkout is currently billed in USD.</small></div><div className="currency-toggle" role="group" aria-label="Display currency"><button className={currency === "JMD" ? "selected" : ""} onClick={() => setCurrency("JMD")}>JMD</button><button className={currency === "USD" ? "selected" : ""} onClick={() => setCurrency("USD")}>USD</button></div></div>
           <div className="pricing-grid">{offers.map((offer) => <article className={`price-card ${offer.popular ? "popular" : ""}`} key={offer.tier}>{offer.popular && <div className="popular-label">Most chosen</div>}<div className="price-eyebrow">{offer.eyebrow}</div><h3>{offer.name}</h3><p className="price-description">{offer.description}</p><div className="price">{money(currency === "JMD" ? offer.jmd : offer.usd, currency)}<small>{offer.tier === "free" ? "forever" : " / month"}</small></div><div className="price-divider" /><ul>{offer.features.map((feature) => <li key={feature}><CheckCircle2 size={16} />{feature}</li>)}</ul><CheckoutButton tier={offer.tier} /></article>)}</div>
         </section>
 
