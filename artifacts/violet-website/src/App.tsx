@@ -5,7 +5,7 @@ import { Link, Route, Switch, useLocation } from "wouter";
 type Tier = "free" | "starter" | "professional" | "enterprise";
 type Currency = "JMD" | "USD";
 
-const appUrl = (import.meta.env.VITE_APP_URL || "/violet").replace(/\/$/, "");
+const appUrl = (import.meta.env.VITE_APP_URL || "/").replace(/\/$/, "");
 
 const offers: Array<{
   tier: Tier;
