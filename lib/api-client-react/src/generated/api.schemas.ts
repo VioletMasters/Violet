@@ -723,6 +723,42 @@ export interface Subscription {
   usage?: SubscriptionUsage;
 }
 
+export type BillingCheckoutInputTier = typeof BillingCheckoutInputTier[keyof typeof BillingCheckoutInputTier];
+
+
+export const BillingCheckoutInputTier = {
+  starter: 'starter',
+  professional: 'professional',
+  enterprise: 'enterprise',
+} as const;
+
+export interface BillingCheckoutInput {
+  tier: BillingCheckoutInputTier;
+}
+
+export interface BillingCheckout {
+  checkoutUrl: string;
+  checkoutConfigurationId: string;
+}
+
+export interface BillingReconcileInput {
+  checkoutConfigurationId: string;
+}
+
+export type BillingReconcileResponseTier = typeof BillingReconcileResponseTier[keyof typeof BillingReconcileResponseTier];
+
+
+export const BillingReconcileResponseTier = {
+  starter: 'starter',
+  professional: 'professional',
+  enterprise: 'enterprise',
+} as const;
+
+export interface BillingReconcileResponse {
+  success: boolean;
+  tier: BillingReconcileResponseTier;
+}
+
 export interface SalesReport {
   totalRevenue: number;
   totalOrders: number;

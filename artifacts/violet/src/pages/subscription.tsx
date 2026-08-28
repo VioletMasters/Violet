@@ -7,7 +7,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { CheckCircle2, ExternalLink, Zap } from "lucide-react";
 
 const publicWebsiteUrl =
-  import.meta.env.VITE_PUBLIC_WEBSITE_URL || "https://violetenterprise.com";
+  import.meta.env.VITE_PUBLIC_WEBSITE_URL || "/violet-website";
 
 function openUpgradePage() {
   window.open(`${publicWebsiteUrl.replace(/\/$/, "")}/pricing`, "_blank", "noopener,noreferrer");

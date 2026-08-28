@@ -27,6 +27,10 @@ export const subscriptionsTable = pgTable("subscriptions", {
   planId: uuid("plan_id").notNull(),
   status: text("status").notNull().default("active"), // active, trial, expired, cancelled
   paymentStatus: text("payment_status").notNull().default("not_required"), // not_required, pending, paid, past_due, failed
+  whopPlanId: text("whop_plan_id"),
+  whopCheckoutConfigurationId: text("whop_checkout_configuration_id"),
+  whopMembershipId: text("whop_membership_id"),
+  lastWhopSyncAt: timestamp("last_whop_sync_at", { withTimezone: true }),
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

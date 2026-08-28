@@ -987,6 +987,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/Subscription"
 
+  /billing/checkout:
+    post:
+      operationId: createBillingCheckout
+      tags: [plans]
+      summary: Create a hosted Whop checkout for a paid Violet plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingCheckoutInput"
+      responses:
+        "200":
+          description: Hosted checkout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingCheckout"
+        "400":
+          description: Invalid plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Checkout is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/reconcile:
+    post:
+      operationId: reconcileBillingCheckout
+      tags: [plans]
+      summary: Verify a Whop payment and apply it to the current tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReconcileInput"
+      responses:
+        "200":
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingReconcileResponse"
+        "409":
+          description: Payment is not confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ─── Reports ────────────────────────────────────────────────────────────────
   /reports/sales:
     get:
@@ -2226,6 +2282,40 @@ components:
               type: number
             customers:
               type: number
+
+    BillingCheckoutInput:
+      type: object
+      required: [tier]
+      properties:
+        tier:
+          type: string
+          enum: [starter, professional, enterprise]
+
+    BillingCheckout:
+      type: object
+      required: [checkoutUrl, checkoutConfigurationId]
+      properties:
+        checkoutUrl:
+          type: string
+        checkoutConfigurationId:
+          type: string
+
+    BillingReconcileInput:
+      type: object
+      required: [checkoutConfigurationId]
+      properties:
+        checkoutConfigurationId:
+          type: string
+
+    BillingReconcileResponse:
+      type: object
+      required: [success, tier]
+      properties:
+        success:
+          type: boolean
+        tier:
+          type: string
+          enum: [starter, professional, enterprise]
 
     # ── Reports ────────────────────────────────────────────────────────────────
     SalesReport:

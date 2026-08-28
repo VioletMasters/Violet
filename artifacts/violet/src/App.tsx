@@ -4,7 +4,6 @@ import { Redirect, Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppLayout } from './components/layout/app-layout';
 import { AuthProvider, useAuth } from './hooks/use-auth';
 
-import LandingPage from './pages/landing';
 import LoginPage from './pages/auth/login';
 import RegisterPage from './pages/auth/register';
 
@@ -25,7 +24,7 @@ const DefaultAppRoute = () => <Redirect to="/pos" />;
 function RootRoute() {
   const { token } = useAuth();
 
-  return token ? <Redirect to="/pos" /> : <LandingPage />;
+  return <Redirect to={token ? "/pos" : "/login"} />;
 }
 
 const queryClient = new QueryClient({

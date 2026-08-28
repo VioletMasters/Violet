@@ -1168,6 +1168,32 @@ export const GetSubscriptionResponse = zod.object({
 
 
 /**
+ * @summary Create a hosted Whop checkout for a paid Violet plan
+ */
+export const CreateBillingCheckoutBody = zod.object({
+  "tier": zod.enum(['starter', 'professional', 'enterprise'])
+})
+
+export const CreateBillingCheckoutResponse = zod.object({
+  "checkoutUrl": zod.string(),
+  "checkoutConfigurationId": zod.string()
+})
+
+
+/**
+ * @summary Verify a Whop payment and apply it to the current tenant
+ */
+export const ReconcileBillingCheckoutBody = zod.object({
+  "checkoutConfigurationId": zod.string()
+})
+
+export const ReconcileBillingCheckoutResponse = zod.object({
+  "success": zod.boolean(),
+  "tier": zod.enum(['starter', 'professional', 'enterprise'])
+})
+
+
+/**
  * @summary Get sales report
  */
 export const getSalesReportQueryGroupByDefault = `day`;

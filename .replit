@@ -27,3 +27,7 @@ packages = ["webkitgtk_4_1", "librsvg", "gtk3", "glib", "openssl", "pkg-config",
 
 [userenv.shared]
 WHOP_COMPANY_ID = "biz_j84fxEQcXprzvZ"
+WHOP_PLAN_ENTERPRISE = "plan_SC9d2fuJGdCou"
+WHOP_PLAN_PROFESSIONAL = "plan_VkGHxtAAChF3e"
+WHOP_PLAN_STARTER = "plan_kuPVDFTDfLPEu"
+WHOP_PRODUCT_ID = "prod_keK8sXeY9P2le"

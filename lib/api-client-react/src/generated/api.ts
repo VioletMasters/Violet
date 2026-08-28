@@ -22,6 +22,10 @@ import type {
 import type {
   AdminStats,
   AuthResponse,
+  BillingCheckout,
+  BillingCheckoutInput,
+  BillingReconcileInput,
+  BillingReconcileResponse,
   Brand,
   BrandInput,
   BrandUpdate,
@@ -3543,6 +3547,148 @@ export function useGetSubscription<TData = Awaited<ReturnType<typeof getSubscrip
 
 
 
+
+export const getCreateBillingCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/checkout`
+}
+
+/**
+ * @summary Create a hosted Whop checkout for a paid Violet plan
+ */
+export const createBillingCheckout = async (billingCheckoutInput: BillingCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingCheckout> => {
+
+  return customFetch<BillingCheckout>(getCreateBillingCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billingCheckoutInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBillingCheckoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext> => {
+
+const mutationKey = ['createBillingCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBillingCheckout>>, {data: BodyType<BillingCheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBillingCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBillingCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createBillingCheckout>>>
+    export type CreateBillingCheckoutMutationBody = BodyType<BillingCheckoutInput>
+    export type CreateBillingCheckoutMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create a hosted Whop checkout for a paid Violet plan
+ */
+export const useCreateBillingCheckout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBillingCheckout>>, TError,{data: BodyType<BillingCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBillingCheckout>>,
+        TError,
+        {data: BodyType<BillingCheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBillingCheckoutMutationOptions(options));
+    }
+
+export const getReconcileBillingCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/reconcile`
+}
+
+/**
+ * @summary Verify a Whop payment and apply it to the current tenant
+ */
+export const reconcileBillingCheckout = async (billingReconcileInput: BillingReconcileInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingReconcileResponse> => {
+
+  return customFetch<BillingReconcileResponse>(getReconcileBillingCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billingReconcileInput)
+  }
+);}
+
+
+
+
+
+export const getReconcileBillingCheckoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconcileBillingCheckout>>, TError,{data: BodyType<BillingReconcileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reconcileBillingCheckout>>, TError,{data: BodyType<BillingReconcileInput>}, TContext> => {
+
+const mutationKey = ['reconcileBillingCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reconcileBillingCheckout>>, {data: BodyType<BillingReconcileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reconcileBillingCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReconcileBillingCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof reconcileBillingCheckout>>>
+    export type ReconcileBillingCheckoutMutationBody = BodyType<BillingReconcileInput>
+    export type ReconcileBillingCheckoutMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Verify a Whop payment and apply it to the current tenant
+ */
+export const useReconcileBillingCheckout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconcileBillingCheckout>>, TError,{data: BodyType<BillingReconcileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reconcileBillingCheckout>>,
+        TError,
+        {data: BodyType<BillingReconcileInput>},
+        TContext
+      > => {
+      return useMutation(getReconcileBillingCheckoutMutationOptions(options));
+    }
 
 export const getGetSalesReportUrl = (params: GetSalesReportParams,) => {
   const normalizedParams = new URLSearchParams();

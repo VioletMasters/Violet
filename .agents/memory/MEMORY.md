@@ -3,3 +3,4 @@
 - [GitHub release publishing](github-release-publishing.md) — connector writes to Git trees and workflow paths are blocked here; use authenticated Git push for releases.
 - [Manager elevation](manager-elevation.md) — business tools require a short-lived, session-bound signed elevation token, separate from POS authentication.
 - [Self-hosted schema parity](self-hosted-schema-parity.md) — Docker bootstrap SQL must evolve with Drizzle schemas to keep LAN databases compatible.
+- [Whop SDK and transport](whop-sdk-transport.md) — installed SDK uses WhopClient token auth and connector proxy calls need an explicit Accept header.
