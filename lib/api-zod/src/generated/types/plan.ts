@@ -18,6 +18,9 @@ export interface Plan {
   /** @nullable */
   annualPrice?: number | null;
   billingType?: PlanBillingType;
+  currency?: string;
+  /** @nullable */
+  whopPlanId?: string | null;
   maxUsers?: number;
   maxRegisters?: number;
   maxBranches?: number;

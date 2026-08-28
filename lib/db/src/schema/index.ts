@@ -8,3 +8,4 @@ export * from "./customers";
 export * from "./sales";
 export * from "./employees";
 export * from "./settings";
+export * from "./platform";

@@ -1277,6 +1277,216 @@ paths:
               schema:
                 $ref: "#/components/schemas/Plan"
 
+  /admin/releases:
+    get:
+      operationId: listAdminReleases
+      tags: [admin]
+      summary: List platform releases and uploaded packages
+      responses:
+        "200":
+          description: Releases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlatformRelease"
+    post:
+      operationId: createAdminRelease
+      tags: [admin]
+      summary: Create a platform release draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformReleaseInput"
+      responses:
+        "201":
+          description: Created release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformRelease"
+
+  /admin/releases/{id}:
+    patch:
+      operationId: updateAdminRelease
+      tags: [admin]
+      summary: Update or publish a platform release
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformReleaseUpdate"
+      responses:
+        "200":
+          description: Updated release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformRelease"
+
+  /admin/releases/{id}/assets/{platform}:
+    put:
+      operationId: uploadAdminReleaseAsset
+      tags: [admin]
+      summary: Upload or replace a release package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platform
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [windows, macos, linux, docker]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Uploaded package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseAsset"
+    get:
+      operationId: downloadAdminReleaseAsset
+      tags: [admin]
+      summary: Download an admin release package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platform
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Package bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /releases/latest:
+    get:
+      operationId: getLatestRelease
+      tags: [admin]
+      summary: Get the latest public release
+      parameters:
+        - name: channel
+          in: query
+          schema:
+            type: string
+            default: stable
+      responses:
+        "200":
+          description: Latest published release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatestRelease"
+
+  /releases/{id}/assets/{platform}:
+    get:
+      operationId: downloadPublishedReleaseAsset
+      tags: [admin]
+      summary: Download a published release package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platform
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Package bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /admin/billing:
+    get:
+      operationId: getAdminBilling
+      tags: [admin]
+      summary: Get local plans and current Whop offer values
+      responses:
+        "200":
+          description: Billing configuration and provider data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBilling"
+
+  /admin/sales:
+    get:
+      operationId: listAdminSales
+      tags: [admin]
+      summary: List global POS sales
+      parameters:
+        - { name: startDate, in: query, schema: { type: string } }
+        - { name: endDate, in: query, schema: { type: string } }
+        - { name: tenantId, in: query, schema: { type: string } }
+        - { name: paymentMethod, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: format, in: query, schema: { type: string, enum: [json, csv], default: json } }
+      responses:
+        "200":
+          description: Global sales page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSalesPage"
+            text/csv:
+              schema:
+                type: string
+
+  /admin/audit:
+    get:
+      operationId: listAdminAuditLogs
+      tags: [admin]
+      summary: List platform admin audit events
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlatformAuditLog"
+
 components:
   schemas:
     # ── Shared ─────────────────────────────────────────────────────────────────
@@ -2164,6 +2374,10 @@ components:
         billingType:
           type: string
           enum: [one_time, monthly, annual, enterprise]
+        currency:
+          type: string
+        whopPlanId:
+          type: ["string", "null"]
         maxUsers:
           type: number
         maxRegisters:
@@ -2203,6 +2417,10 @@ components:
         billingType:
           type: string
           enum: [one_time, monthly, annual, enterprise]
+        currency:
+          type: string
+        whopPlanId:
+          type: string
         maxUsers:
           type: number
         maxRegisters:
@@ -2233,6 +2451,10 @@ components:
           type: number
         annualPrice:
           type: number
+        currency:
+          type: string
+        whopPlanId:
+          type: ["string", "null"]
         maxUsers:
           type: number
         maxRegisters:
@@ -2461,3 +2683,129 @@ components:
                 type: number
               revenue:
                 type: number
+
+    ReleaseAsset:
+      type: object
+      required: [id, releaseId, platform, fileName, contentType, sizeBytes, storagePath]
+      properties:
+        id: { type: string }
+        releaseId: { type: string }
+        platform:
+          type: string
+          enum: [windows, macos, linux, docker]
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: number }
+        storagePath: { type: string }
+        createdAt: { type: string }
+
+    PlatformRelease:
+      type: object
+      required: [id, version, channel, status, createdBy, assets]
+      properties:
+        id: { type: string }
+        version: { type: string }
+        channel:
+          type: string
+          enum: [stable, beta, nightly]
+        releaseNotes: { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [draft, published, archived]
+        publishedAt: { type: ["string", "null"] }
+        createdBy: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        assets:
+          type: array
+          items: { $ref: "#/components/schemas/ReleaseAsset" }
+
+    PlatformReleaseInput:
+      type: object
+      required: [version]
+      properties:
+        version: { type: string }
+        channel: { type: string, enum: [stable, beta, nightly] }
+        releaseNotes: { type: string }
+
+    PlatformReleaseUpdate:
+      type: object
+      properties:
+        channel: { type: string, enum: [stable, beta, nightly] }
+        releaseNotes: { type: string }
+        status: { type: string, enum: [draft, published, archived] }
+
+    LatestRelease:
+      allOf:
+        - $ref: "#/components/schemas/PlatformRelease"
+
+    AdminBilling:
+      type: object
+      required: [provider, providerStatus, companyConfigured, plans]
+      properties:
+        provider: { type: string }
+        providerStatus: { type: string }
+        companyConfigured: { type: boolean }
+        plans:
+          type: array
+          items:
+            type: object
+            required: [local]
+            properties:
+              local: { $ref: "#/components/schemas/Plan" }
+              whop:
+                type: ["object", "null"]
+                properties:
+                  id: { type: ["string", "null"] }
+                  title: { type: ["string", "null"] }
+                  currency: { type: ["string", "null"] }
+                  initialPrice: { type: ["number", "null"] }
+                  renewalPrice: { type: ["number", "null"] }
+                  billingPeriod: { type: ["number", "null"] }
+                  visibility: { type: ["string", "null"] }
+                  error: { type: ["string", "null"] }
+
+    AdminSale:
+      type: object
+      required: [id, receiptNumber, tenantId, totalAmount, paymentMethod, status, createdAt]
+      properties:
+        id: { type: string }
+        receiptNumber: { type: string }
+        tenantId: { type: string }
+        tenantName: { type: ["string", "null"] }
+        totalAmount: { type: number }
+        currency: { type: string }
+        paymentMethod: { type: string }
+        status: { type: string }
+        cashierName: { type: string }
+        createdAt: { type: string }
+
+    AdminSalesPage:
+      type: object
+      required: [data, total, page, limit, summary]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/AdminSale" }
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+        summary:
+          type: object
+          required: [revenue, orders]
+          properties:
+            revenue: { type: number }
+            orders: { type: number }
+
+    PlatformAuditLog:
+      type: object
+      required: [id, action, entityType, summary, createdAt, actorName]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        summary: { type: string }
+        metadata: { type: ["string", "null"] }
+        createdAt: { type: string }
+        actorName: { type: string }

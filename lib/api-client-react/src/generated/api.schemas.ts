@@ -629,6 +629,9 @@ export interface Plan {
   /** @nullable */
   annualPrice?: number | null;
   billingType?: PlanBillingType;
+  currency?: string;
+  /** @nullable */
+  whopPlanId?: string | null;
   maxUsers?: number;
   maxRegisters?: number;
   maxBranches?: number;
@@ -668,6 +671,8 @@ export interface PlanInput {
   price: number;
   annualPrice?: number;
   billingType: PlanInputBillingType;
+  currency?: string;
+  whopPlanId?: string;
   maxUsers: number;
   maxRegisters: number;
   maxBranches: number;
@@ -683,6 +688,9 @@ export interface PlanUpdate {
   description?: string;
   price?: number;
   annualPrice?: number;
+  currency?: string;
+  /** @nullable */
+  whopPlanId?: string | null;
   maxUsers?: number;
   maxRegisters?: number;
   maxBranches?: number;
@@ -840,6 +848,176 @@ export interface AdminStats {
   revenueByPlan?: AdminStatsRevenueByPlanItem[];
 }
 
+export type ReleaseAssetPlatform = typeof ReleaseAssetPlatform[keyof typeof ReleaseAssetPlatform];
+
+
+export const ReleaseAssetPlatform = {
+  windows: 'windows',
+  macos: 'macos',
+  linux: 'linux',
+  docker: 'docker',
+} as const;
+
+export interface ReleaseAsset {
+  id: string;
+  releaseId: string;
+  platform: ReleaseAssetPlatform;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  storagePath: string;
+  createdAt?: string;
+}
+
+export type PlatformReleaseChannel = typeof PlatformReleaseChannel[keyof typeof PlatformReleaseChannel];
+
+
+export const PlatformReleaseChannel = {
+  stable: 'stable',
+  beta: 'beta',
+  nightly: 'nightly',
+} as const;
+
+export type PlatformReleaseStatus = typeof PlatformReleaseStatus[keyof typeof PlatformReleaseStatus];
+
+
+export const PlatformReleaseStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface PlatformRelease {
+  id: string;
+  version: string;
+  channel: PlatformReleaseChannel;
+  /** @nullable */
+  releaseNotes?: string | null;
+  status: PlatformReleaseStatus;
+  /** @nullable */
+  publishedAt?: string | null;
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+  assets: ReleaseAsset[];
+}
+
+export type PlatformReleaseInputChannel = typeof PlatformReleaseInputChannel[keyof typeof PlatformReleaseInputChannel];
+
+
+export const PlatformReleaseInputChannel = {
+  stable: 'stable',
+  beta: 'beta',
+  nightly: 'nightly',
+} as const;
+
+export interface PlatformReleaseInput {
+  version: string;
+  channel?: PlatformReleaseInputChannel;
+  releaseNotes?: string;
+}
+
+export type PlatformReleaseUpdateChannel = typeof PlatformReleaseUpdateChannel[keyof typeof PlatformReleaseUpdateChannel];
+
+
+export const PlatformReleaseUpdateChannel = {
+  stable: 'stable',
+  beta: 'beta',
+  nightly: 'nightly',
+} as const;
+
+export type PlatformReleaseUpdateStatus = typeof PlatformReleaseUpdateStatus[keyof typeof PlatformReleaseUpdateStatus];
+
+
+export const PlatformReleaseUpdateStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface PlatformReleaseUpdate {
+  channel?: PlatformReleaseUpdateChannel;
+  releaseNotes?: string;
+  status?: PlatformReleaseUpdateStatus;
+}
+
+export type LatestRelease = PlatformRelease;
+
+/**
+ * @nullable
+ */
+export type AdminBillingPlansItemWhop = {
+  /** @nullable */
+  id?: string | null;
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  initialPrice?: number | null;
+  /** @nullable */
+  renewalPrice?: number | null;
+  /** @nullable */
+  billingPeriod?: number | null;
+  /** @nullable */
+  visibility?: string | null;
+  /** @nullable */
+  error?: string | null;
+} | null;
+
+export type AdminBillingPlansItem = {
+  local: Plan;
+  /** @nullable */
+  whop?: AdminBillingPlansItemWhop;
+};
+
+export interface AdminBilling {
+  provider: string;
+  providerStatus: string;
+  companyConfigured: boolean;
+  plans: AdminBillingPlansItem[];
+}
+
+export interface AdminSale {
+  id: string;
+  receiptNumber: string;
+  tenantId: string;
+  /** @nullable */
+  tenantName?: string | null;
+  totalAmount: number;
+  currency?: string;
+  paymentMethod: string;
+  status: string;
+  cashierName?: string;
+  createdAt: string;
+}
+
+export type AdminSalesPageSummary = {
+  revenue: number;
+  orders: number;
+};
+
+export interface AdminSalesPage {
+  data: AdminSale[];
+  total: number;
+  page: number;
+  limit: number;
+  summary: AdminSalesPageSummary;
+}
+
+export interface PlatformAuditLog {
+  id: string;
+  action: string;
+  entityType: string;
+  /** @nullable */
+  entityId?: string | null;
+  summary: string;
+  /** @nullable */
+  metadata?: string | null;
+  createdAt: string;
+  actorName: string;
+}
+
 export type ListPosProductsParams = {
 search?: string;
 page?: number;
@@ -902,5 +1080,29 @@ export const ListTenantsStatus = {
   suspended: 'suspended',
   trial: 'trial',
   expired: 'expired',
+} as const;
+
+export type GetLatestReleaseParams = {
+channel?: string;
+};
+
+export type ListAdminSalesParams = {
+startDate?: string;
+endDate?: string;
+tenantId?: string;
+paymentMethod?: string;
+status?: string;
+search?: string;
+page?: number;
+limit?: number;
+format?: ListAdminSalesFormat;
+};
+
+export type ListAdminSalesFormat = typeof ListAdminSalesFormat[keyof typeof ListAdminSalesFormat];
+
+
+export const ListAdminSalesFormat = {
+  json: 'json',
+  csv: 'csv',
 } as const;
 

@@ -15,6 +15,8 @@ export interface PlanInput {
   price: number;
   annualPrice?: number;
   billingType: PlanInputBillingType;
+  currency?: string;
+  whopPlanId?: string;
   maxUsers: number;
   maxRegisters: number;
   maxBranches: number;

@@ -1118,6 +1118,8 @@ export const ListPlansResponseItem = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
   "maxBranches": zod.number().optional(),
@@ -1146,6 +1148,8 @@ export const GetSubscriptionResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
   "maxBranches": zod.number().optional(),
@@ -1424,6 +1428,8 @@ export const ListAdminPlansResponseItem = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
   "maxBranches": zod.number().optional(),
@@ -1447,6 +1453,8 @@ export const CreateAdminPlanBody = zod.object({
   "price": zod.number(),
   "annualPrice": zod.number().optional(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().optional(),
   "maxUsers": zod.number(),
   "maxRegisters": zod.number(),
   "maxBranches": zod.number(),
@@ -1465,6 +1473,8 @@ export const CreateAdminPlanResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
   "maxBranches": zod.number().optional(),
@@ -1489,6 +1499,8 @@ export const UpdateAdminPlanBody = zod.object({
   "description": zod.string().optional(),
   "price": zod.number().optional(),
   "annualPrice": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
   "maxBranches": zod.number().optional(),
@@ -1508,6 +1520,8 @@ export const UpdateAdminPlanResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
   "maxBranches": zod.number().optional(),
@@ -1518,5 +1532,274 @@ export const UpdateAdminPlanResponse = zod.object({
   "isPopular": zod.boolean().optional(),
   "trialDays": zod.number().optional()
 })
+
+
+/**
+ * @summary List platform releases and uploaded packages
+ */
+export const ListAdminReleasesResponseItem = zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "channel": zod.enum(['stable', 'beta', 'nightly']),
+  "releaseNotes": zod.string().nullish(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.string().nullish(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
+  "assets": zod.array(zod.object({
+  "id": zod.string(),
+  "releaseId": zod.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storagePath": zod.string(),
+  "createdAt": zod.string().optional()
+}))
+})
+export const ListAdminReleasesResponse = zod.array(ListAdminReleasesResponseItem)
+
+
+/**
+ * @summary Create a platform release draft
+ */
+export const CreateAdminReleaseBody = zod.object({
+  "version": zod.string(),
+  "channel": zod.enum(['stable', 'beta', 'nightly']).optional(),
+  "releaseNotes": zod.string().optional()
+})
+
+export const CreateAdminReleaseResponse = zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "channel": zod.enum(['stable', 'beta', 'nightly']),
+  "releaseNotes": zod.string().nullish(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.string().nullish(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
+  "assets": zod.array(zod.object({
+  "id": zod.string(),
+  "releaseId": zod.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storagePath": zod.string(),
+  "createdAt": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Update or publish a platform release
+ */
+export const UpdateAdminReleaseParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAdminReleaseBody = zod.object({
+  "channel": zod.enum(['stable', 'beta', 'nightly']).optional(),
+  "releaseNotes": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'archived']).optional()
+})
+
+export const UpdateAdminReleaseResponse = zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "channel": zod.enum(['stable', 'beta', 'nightly']),
+  "releaseNotes": zod.string().nullish(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.string().nullish(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
+  "assets": zod.array(zod.object({
+  "id": zod.string(),
+  "releaseId": zod.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storagePath": zod.string(),
+  "createdAt": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Upload or replace a release package
+ */
+export const UploadAdminReleaseAssetParams = zod.object({
+  "id": zod.coerce.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker'])
+})
+
+export const UploadAdminReleaseAssetResponse = zod.object({
+  "id": zod.string(),
+  "releaseId": zod.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storagePath": zod.string(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Download an admin release package
+ */
+export const DownloadAdminReleaseAssetParams = zod.object({
+  "id": zod.coerce.string(),
+  "platform": zod.coerce.string()
+})
+
+export const DownloadAdminReleaseAssetResponse = zod.unknown()
+
+
+/**
+ * @summary Get the latest public release
+ */
+export const getLatestReleaseQueryChannelDefault = `stable`;
+
+export const GetLatestReleaseQueryParams = zod.object({
+  "channel": zod.coerce.string().default(getLatestReleaseQueryChannelDefault)
+})
+
+export const GetLatestReleaseResponse = zod.object({
+  "id": zod.string(),
+  "version": zod.string(),
+  "channel": zod.enum(['stable', 'beta', 'nightly']),
+  "releaseNotes": zod.string().nullish(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.string().nullish(),
+  "createdBy": zod.string(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional(),
+  "assets": zod.array(zod.object({
+  "id": zod.string(),
+  "releaseId": zod.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storagePath": zod.string(),
+  "createdAt": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Download a published release package
+ */
+export const DownloadPublishedReleaseAssetParams = zod.object({
+  "id": zod.coerce.string(),
+  "platform": zod.coerce.string()
+})
+
+export const DownloadPublishedReleaseAssetResponse = zod.unknown()
+
+
+/**
+ * @summary Get local plans and current Whop offer values
+ */
+export const GetAdminBillingResponse = zod.object({
+  "provider": zod.string(),
+  "providerStatus": zod.string(),
+  "companyConfigured": zod.boolean(),
+  "plans": zod.array(zod.object({
+  "local": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "tier": zod.enum(['free', 'starter', 'professional', 'enterprise', 'lifetime']),
+  "description": zod.string().optional(),
+  "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
+  "annualPrice": zod.number().nullish(),
+  "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
+  "currency": zod.string().optional(),
+  "whopPlanId": zod.string().nullish(),
+  "maxUsers": zod.number().optional(),
+  "maxRegisters": zod.number().optional(),
+  "maxBranches": zod.number().optional(),
+  "maxProducts": zod.number().optional(),
+  "maxCustomers": zod.number().optional(),
+  "features": zod.array(zod.string()).optional(),
+  "isActive": zod.boolean(),
+  "isPopular": zod.boolean().optional(),
+  "trialDays": zod.number().optional()
+}),
+  "whop": zod.object({
+  "id": zod.string().nullish(),
+  "title": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "initialPrice": zod.number().nullish(),
+  "renewalPrice": zod.number().nullish(),
+  "billingPeriod": zod.number().nullish(),
+  "visibility": zod.string().nullish(),
+  "error": zod.string().nullish()
+}).nullish()
+}))
+})
+
+
+/**
+ * @summary List global POS sales
+ */
+export const listAdminSalesQueryPageDefault = 1;
+export const listAdminSalesQueryLimitDefault = 50;
+export const listAdminSalesQueryFormatDefault = `json`;
+
+export const ListAdminSalesQueryParams = zod.object({
+  "startDate": zod.coerce.string().optional(),
+  "endDate": zod.coerce.string().optional(),
+  "tenantId": zod.coerce.string().optional(),
+  "paymentMethod": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().int().default(listAdminSalesQueryPageDefault),
+  "limit": zod.coerce.number().int().default(listAdminSalesQueryLimitDefault),
+  "format": zod.enum(['json', 'csv']).default(listAdminSalesQueryFormatDefault)
+})
+
+export const ListAdminSalesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "receiptNumber": zod.string(),
+  "tenantId": zod.string(),
+  "tenantName": zod.string().nullish(),
+  "totalAmount": zod.number(),
+  "currency": zod.string().optional(),
+  "paymentMethod": zod.string(),
+  "status": zod.string(),
+  "cashierName": zod.string().optional(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "summary": zod.object({
+  "revenue": zod.number(),
+  "orders": zod.number()
+})
+})
+
+
+/**
+ * @summary List platform admin audit events
+ */
+export const ListAdminAuditLogsResponseItem = zod.object({
+  "id": zod.string(),
+  "action": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.string().nullish(),
+  "summary": zod.string(),
+  "metadata": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "actorName": zod.string()
+})
+export const ListAdminAuditLogsResponse = zod.array(ListAdminAuditLogsResponseItem)
 
 

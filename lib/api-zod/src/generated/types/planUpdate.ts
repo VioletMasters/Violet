@@ -11,6 +11,9 @@ export interface PlanUpdate {
   description?: string;
   price?: number;
   annualPrice?: number;
+  currency?: string;
+  /** @nullable */
+  whopPlanId?: string | null;
   maxUsers?: number;
   maxRegisters?: number;
   maxBranches?: number;

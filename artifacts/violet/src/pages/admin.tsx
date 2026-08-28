@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   useGetAdminStats,
   useListTenants,
@@ -7,9 +7,19 @@ import {
   useListAdminPlans,
   useCreateAdminPlan,
   useUpdateAdminPlan,
+  useListAdminReleases,
+  useCreateAdminRelease,
+  useUpdateAdminRelease,
+  useUploadAdminReleaseAsset,
+  useGetAdminBilling,
+  useListAdminSales,
+  useListAdminAuditLogs,
+  listAdminSales,
 } from "@workspace/api-client-react";
 import type {
-  Plan, PlanInput, PlanUpdate, TenantUpdateStatus, TenantDetail,
+  Plan, PlanInput, PlanUpdate, TenantUpdateStatus, PlatformRelease,
+  PlatformReleaseInput, PlatformReleaseUpdate, ListAdminSalesParams,
+  AdminSale,
 } from "@workspace/api-client-react";
 import { getGetAdminTenantQueryOptions } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +50,8 @@ import {
   Search, ShieldAlert, Building2, TrendingUp, Users,
   Plus, Edit2, CheckCircle2, XCircle, Star, AlertTriangle,
   Package, UserCog, ShoppingBag, CalendarDays, CreditCard,
-  PauseCircle,
+  PauseCircle, GitBranch, Upload, Download, FileText, RefreshCw,
+  Filter, Database, CircleDot,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,6 +64,8 @@ type PlanFormData = {
   description: string;
   price: string;
   annualPrice: string;
+  currency: string;
+  whopPlanId: string;
   billingType: string;
   maxUsers: string;
   maxRegisters: string;
@@ -71,6 +84,8 @@ const EMPTY_FORM: PlanFormData = {
   description: "",
   price: "0",
   annualPrice: "",
+  currency: "USD",
+  whopPlanId: "",
   billingType: "monthly",
   maxUsers: "5",
   maxRegisters: "2",
@@ -90,6 +105,8 @@ function planToForm(p: Plan): PlanFormData {
     description: p.description ?? "",
     price: String(p.price),
     annualPrice: p.annualPrice != null ? String(p.annualPrice) : "",
+    currency: p.currency ?? "USD",
+    whopPlanId: p.whopPlanId ?? "",
     billingType: p.billingType ?? "monthly",
     maxUsers: String(p.maxUsers ?? 2),
     maxRegisters: String(p.maxRegisters ?? 1),
@@ -390,6 +407,8 @@ function PlanEditor({ open, onClose, plan, allPlans }: PlanEditorProps) {
         description: form.description.trim() || undefined,
         price: parseFloat(form.price) || 0,
         annualPrice: form.annualPrice !== "" ? parseFloat(form.annualPrice) : null,
+        currency: form.currency,
+        whopPlanId: form.whopPlanId.trim() || null,
         maxUsers: parseInt(form.maxUsers, 10) || 1,
         maxRegisters: parseInt(form.maxRegisters, 10) || 1,
         maxBranches: parseInt(form.maxBranches, 10) || 1,
@@ -408,6 +427,8 @@ function PlanEditor({ open, onClose, plan, allPlans }: PlanEditorProps) {
         description: form.description.trim() || undefined,
         price: parseFloat(form.price) || 0,
         annualPrice: form.annualPrice !== "" ? parseFloat(form.annualPrice) : undefined,
+        currency: form.currency,
+        whopPlanId: form.whopPlanId.trim() || undefined,
         billingType: form.billingType as PlanInput["billingType"],
         maxUsers: parseInt(form.maxUsers, 10) || 1,
         maxRegisters: parseInt(form.maxRegisters, 10) || 1,
@@ -515,6 +536,27 @@ function PlanEditor({ open, onClose, plan, allPlans }: PlanEditorProps) {
                   value={form.price}
                   onChange={e => setField("price", e.target.value)}
                   required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Select value={form.currency} onValueChange={v => setField("currency", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD — US Dollar</SelectItem>
+                    <SelectItem value="JMD">JMD — Jamaican Dollar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="plan-whop-id">Whop offer ID <span className="text-muted-foreground font-normal">optional</span></Label>
+                <Input
+                  id="plan-whop-id"
+                  value={form.whopPlanId}
+                  onChange={e => setField("whopPlanId", e.target.value)}
+                  placeholder="plan_…"
                 />
               </div>
             </div>
@@ -719,9 +761,9 @@ function PlansTab() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{formatCurrency(plan.price)}</div>
+                    <div className="font-medium">{formatCurrency(plan.price, plan.currency ?? "USD")}</div>
                     {plan.annualPrice != null && (
-                      <div className="text-xs text-muted-foreground">{formatCurrency(plan.annualPrice)}/yr</div>
+                      <div className="text-xs text-muted-foreground">{formatCurrency(plan.annualPrice, plan.currency ?? "USD")}/yr</div>
                     )}
                   </TableCell>
                   <TableCell>
@@ -786,6 +828,530 @@ function PlansTab() {
         plan={editingPlan}
         allPlans={plans}
       />
+    </div>
+  );
+}
+
+// ── Platform operations ───────────────────────────────────────────────────────
+
+const releasePlatforms = [
+  { value: "windows", label: "Windows", hint: ".exe or .msi" },
+  { value: "macos", label: "macOS", hint: ".dmg or .pkg" },
+  { value: "linux", label: "Linux", hint: ".AppImage or .deb" },
+  { value: "docker", label: "Docker", hint: "image archive" },
+] as const;
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "No package";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function releaseBadge(status: string) {
+  if (status === "published") return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+  if (status === "archived") return "bg-muted text-muted-foreground";
+  return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+}
+
+interface ReleaseEditorProps {
+  open: boolean;
+  release: PlatformRelease | null;
+  onClose: () => void;
+}
+
+function ReleaseEditor({ open, release, onClose }: ReleaseEditorProps) {
+  const queryClient = useQueryClient();
+  const [version, setVersion] = useState("");
+  const [channel, setChannel] = useState("stable");
+  const [releaseNotes, setReleaseNotes] = useState("");
+
+  React.useEffect(() => {
+    setVersion(release?.version ?? "");
+    setChannel(release?.channel ?? "stable");
+    setReleaseNotes(release?.releaseNotes ?? "");
+  }, [release?.id, open]);
+
+  const createRelease = useCreateAdminRelease({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Release draft created");
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/releases"] });
+        onClose();
+      },
+      onError: (error: Error) => toast.error(error.message || "Could not create release"),
+    },
+  });
+  const updateRelease = useUpdateAdminRelease({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Release details updated");
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/releases"] });
+        onClose();
+      },
+      onError: (error: Error) => toast.error(error.message || "Could not update release"),
+    },
+  });
+
+  const pending = createRelease.isPending || updateRelease.isPending;
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const cleanVersion = version.trim();
+    if (!cleanVersion) return;
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(cleanVersion)) {
+      toast.error("Use a valid semantic version such as 2.8.0 or 2.8.0-beta.1");
+      return;
+    }
+    if (release) {
+      const payload: PlatformReleaseUpdate = {
+        channel: channel as PlatformReleaseUpdate["channel"],
+        releaseNotes: releaseNotes.trim(),
+      };
+      updateRelease.mutate({ id: release.id, data: payload });
+    } else {
+      const payload: PlatformReleaseInput = {
+        version: cleanVersion,
+        channel: channel as PlatformReleaseInput["channel"],
+        releaseNotes: releaseNotes.trim(),
+      };
+      createRelease.mutate({ data: payload });
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader className="mb-7">
+          <SheetTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-primary" />
+            {release ? `Edit ${release.version}` : "Create release draft"}
+          </SheetTitle>
+          <SheetDescription>
+            {release
+              ? "Keep the release metadata aligned before publishing it to customers."
+              : "Create the semantic version first, then attach one package for each platform."}
+          </SheetDescription>
+        </SheetHeader>
+        <form onSubmit={submit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="release-version">Semantic version</Label>
+            <Input
+              id="release-version"
+              value={version}
+              onChange={(event) => setVersion(event.target.value)}
+              placeholder="e.g. 2.8.0"
+              disabled={!!release}
+              pattern="^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$"
+              required
+            />
+            <p className="text-xs text-muted-foreground">Use a version such as 2.8.0, without a leading v.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="release-channel">Distribution channel</Label>
+            <Select value={channel} onValueChange={setChannel}>
+              <SelectTrigger id="release-channel"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stable">Stable</SelectItem>
+                <SelectItem value="beta">Beta</SelectItem>
+                <SelectItem value="nightly">Nightly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="release-notes">Release notes</Label>
+            <Textarea
+              id="release-notes"
+              value={releaseNotes}
+              onChange={(event) => setReleaseNotes(event.target.value)}
+              placeholder="Summarize what changed and any operator actions."
+              rows={8}
+            />
+          </div>
+          <SheetFooter className="gap-2">
+            <SheetClose asChild>
+              <Button type="button" variant="outline" disabled={pending}>Cancel</Button>
+            </SheetClose>
+            <Button type="submit" disabled={pending || !version.trim()}>
+              {pending ? "Saving..." : release ? "Save release" : "Create draft"}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ReleasesTab() {
+  const queryClient = useQueryClient();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingRelease, setEditingRelease] = useState<PlatformRelease | null>(null);
+  const { data: releases = [], isLoading, isError, error, refetch } = useListAdminReleases();
+  const updateRelease = useUpdateAdminRelease({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Release status updated");
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/releases"] });
+      },
+      onError: (mutationError: Error) => toast.error(mutationError.message || "Could not update release status"),
+    },
+  });
+  const uploadAsset = useUploadAdminReleaseAsset({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Package uploaded");
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/releases"] });
+      },
+      onError: (mutationError: Error) => toast.error(mutationError.message || "Could not upload package"),
+    },
+  });
+
+  const openNewRelease = () => {
+    setEditingRelease(null);
+    setEditorOpen(true);
+  };
+  const openEditor = (release: PlatformRelease) => {
+    setEditingRelease(release);
+    setEditorOpen(true);
+  };
+  const setStatus = (release: PlatformRelease) => {
+    const nextStatus = release.status === "published" ? "draft" : "published";
+    const label = nextStatus === "published" ? "publish" : "unpublish";
+    if (!window.confirm(`Are you sure you want to ${label} ${release.version}?`)) return;
+    updateRelease.mutate({
+      id: release.id,
+      data: { status: nextStatus as PlatformReleaseUpdate["status"] },
+    });
+  };
+  const upload = (release: PlatformRelease, platform: typeof releasePlatforms[number]["value"], file: File | undefined) => {
+    if (!file) return;
+    uploadAsset.mutate({ id: release.id, platform, data: file });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Release pipeline</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Draft, package, and publish desktop updates from one controlled surface.
+          </p>
+        </div>
+        <Button onClick={openNewRelease} className="gap-2 shrink-0">
+          <Plus className="h-4 w-4" /> New release
+        </Button>
+      </div>
+
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{(error as Error)?.message || "Releases could not be loaded."}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2 shrink-0">
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoading ? (
+        <div className="space-y-4">
+          {[1, 2].map((item) => <div key={item} className="h-48 rounded-xl border bg-muted/30 animate-pulse" />)}
+        </div>
+      ) : releases.length === 0 ? (
+        <Card>
+          <CardContent className="flex min-h-56 flex-col items-center justify-center text-center">
+            <div className="mb-4 rounded-full bg-primary/10 p-3 text-primary"><GitBranch className="h-6 w-6" /></div>
+            <p className="font-medium">No platform releases yet</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">Create a draft to start the next release train.</p>
+            <Button onClick={openNewRelease} variant="outline" size="sm" className="mt-4">Create first draft</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {releases.map((release) => (
+            <Card key={release.id} className="overflow-hidden">
+              <CardHeader className="border-b bg-muted/20 pb-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg border bg-background p-2 text-primary"><GitBranch className="h-5 w-5" /></div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CardTitle className="text-lg">{release.version}</CardTitle>
+                        <Badge variant="outline" className={releaseBadge(release.status)}>{release.status}</Badge>
+                        <Badge variant="secondary" className="capitalize">{release.channel}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Created {release.createdAt ? formatDate(release.createdAt) : "recently"}
+                        {release.publishedAt ? ` · Published ${formatDate(release.publishedAt)}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openEditor(release)} className="gap-2">
+                      <Edit2 className="h-3.5 w-3.5" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={release.status === "published" ? "outline" : "default"}
+                      onClick={() => setStatus(release)}
+                      disabled={updateRelease.isPending}
+                    >
+                      {release.status === "published" ? "Unpublish" : "Publish"}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5 pt-5">
+                <div className="rounded-lg border bg-background/60 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-semibold"><Package className="h-4 w-4 text-primary" /> Platform packages</div>
+                    <span className="text-xs text-muted-foreground">{release.assets.length}/4 attached</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {releasePlatforms.map((platform) => {
+                      const asset = release.assets.find((item) => item.platform === platform.value);
+                      return (
+                        <label key={platform.value} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.03]">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{platform.label}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {asset ? `${asset.fileName} · ${formatBytes(asset.sizeBytes)}` : platform.hint}
+                            </p>
+                          </div>
+                          <div className="shrink-0 rounded-md border bg-background p-1.5 text-muted-foreground">
+                            <Upload className="h-3.5 w-3.5" />
+                          </div>
+                          <Input
+                            type="file"
+                            className="sr-only"
+                            onChange={(event) => {
+                              upload(release, platform.value, event.target.files?.[0]);
+                              event.currentTarget.value = "";
+                            }}
+                            disabled={uploadAsset.isPending}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                {release.releaseNotes ? (
+                  <div className="flex gap-3 text-sm">
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <p className="whitespace-pre-line text-muted-foreground">{release.releaseNotes}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">No release notes added.</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      <ReleaseEditor open={editorOpen} release={editingRelease} onClose={() => setEditorOpen(false)} />
+    </div>
+  );
+}
+
+function BillingTab() {
+  const { data, isLoading, isError, error, refetch } = useGetAdminBilling();
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Plans &amp; billing</p>
+          <p className="mt-1 text-sm text-muted-foreground">Compare the local catalog with the values currently returned by Whop.</p>
+        </div>
+        {data && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Provider</span>
+            <Badge variant={data.companyConfigured ? "success" : "destructive"}>{data.companyConfigured ? "Configured" : "Needs configuration"}</Badge>
+            <span className="text-muted-foreground">{data.providerStatus}</span>
+          </div>
+        )}
+      </div>
+      <Alert className="border-primary/20 bg-primary/[0.04]">
+        <Database className="h-4 w-4 text-primary" />
+        <AlertDescription>
+          <strong>Source of truth:</strong> local Violet plan values control tenant access and the in-app catalog.
+          Whop values are shown for reconciliation only; changes made here do not edit provider offers.
+        </AlertDescription>
+      </Alert>
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{(error as Error)?.message || "Billing data could not be loaded."}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2"><RefreshCw className="h-3.5 w-3.5" /> Retry</Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoading ? (
+        <div className="h-80 rounded-xl border bg-muted/30 animate-pulse" />
+      ) : !data || data.plans.length === 0 ? (
+        <Card><CardContent className="flex min-h-56 flex-col items-center justify-center text-center">
+          <CreditCard className="mb-3 h-7 w-7 text-muted-foreground" />
+          <p className="font-medium">No billing plans to reconcile</p>
+          <p className="mt-1 text-sm text-muted-foreground">Create a local plan first, then return here to inspect its provider values.</p>
+        </CardContent></Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead>Local plan</TableHead>
+                <TableHead>Local price</TableHead>
+                <TableHead>Whop offer</TableHead>
+                <TableHead>Whop pricing</TableHead>
+                <TableHead>Alignment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.plans.map(({ local, whop }) => {
+                const hasOffer = !!whop && !whop.error;
+                const priceMatches = hasOffer && whop?.renewalPrice != null && Number(whop.renewalPrice) === Number(local.price);
+                return (
+                  <TableRow key={local.id}>
+                    <TableCell><div className="font-medium">{local.name}</div><div className="text-xs capitalize text-muted-foreground">{local.tier}</div></TableCell>
+                    <TableCell><div className="font-medium">{formatCurrency(local.price, local.currency ?? "USD")}</div><div className="text-xs text-muted-foreground capitalize">{local.currency ?? "USD"} · {local.billingType?.replace("_", " ")}</div></TableCell>
+                    <TableCell>{hasOffer ? <><div className="font-medium">{whop?.title || whop?.id || "Connected offer"}</div><div className="text-xs text-muted-foreground">{whop?.currency || "—"} · {whop?.visibility || "—"}</div></> : <span className="text-sm text-muted-foreground">{whop?.error || "Not connected"}</span>}</TableCell>
+                    <TableCell>{hasOffer ? <><div className="font-medium">{whop?.renewalPrice != null ? formatCurrency(whop.renewalPrice, whop.currency || "USD") : "—"}</div><div className="text-xs text-muted-foreground">{whop.currency || "USD"} · Initial {whop?.initialPrice != null ? formatCurrency(whop.initialPrice, whop.currency || "USD") : "—"}</div></> : "—"}</TableCell>
+                    <TableCell>{priceMatches ? <Badge variant="success" className="gap-1"><CheckCircle2 className="h-3 w-3" /> Matches</Badge> : <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700">{hasOffer ? "Review values" : "Needs mapping"}</Badge>}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function csvEscape(value: unknown) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function SalesTab() {
+  const [search, setSearch] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [status, setStatus] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const limit = 25;
+  const params = useMemo<ListAdminSalesParams>(() => ({
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
+    ...(tenantId ? { tenantId } : {}),
+    ...(paymentMethod ? { paymentMethod } : {}),
+    ...(status ? { status } : {}),
+    ...(search ? { search } : {}),
+    page,
+    limit,
+  }), [startDate, endDate, tenantId, paymentMethod, status, search, page]);
+  const { data, isLoading, isError, error, refetch } = useListAdminSales(params);
+  const salesPage = typeof data === "string" ? undefined : data;
+
+  const clearFilters = () => {
+    setSearch(""); setTenantId(""); setPaymentMethod(""); setStatus(""); setStartDate(""); setEndDate(""); setPage(1);
+  };
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const response = await listAdminSales({ ...params, page: undefined, limit: undefined, format: "csv" });
+      const csv = typeof response === "string"
+        ? response
+        : [
+            ["Receipt", "Tenant", "Amount", "Payment method", "Status", "Date"].map(csvEscape).join(","),
+            ...response.data.map((sale) => [sale.receiptNumber, sale.tenantName, sale.totalAmount, sale.paymentMethod, sale.status, sale.createdAt].map(csvEscape).join(",")),
+          ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `violet-sales-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click(); URL.revokeObjectURL(url);
+      toast.success("Sales export downloaded");
+    } catch (exportError) {
+      toast.error((exportError as Error).message || "Could not export sales");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div><p className="text-sm font-semibold">Global sales ledger</p><p className="mt-1 text-sm text-muted-foreground">Search transactions across every tenant and reconcile gross revenue.</p></div>
+        <Button variant="outline" onClick={exportCsv} disabled={exporting} className="gap-2"><Download className="h-4 w-4" /> {exporting ? "Preparing..." : "Export CSV"}</Button>
+      </div>
+      <Card>
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="relative lg:col-span-2"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Receipt or tenant" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></div>
+          <Input placeholder="Tenant ID" value={tenantId} onChange={(event) => { setTenantId(event.target.value); setPage(1); }} />
+          <Select value={paymentMethod || "all"} onValueChange={(value) => { setPaymentMethod(value === "all" ? "" : value); setPage(1); }}>
+            <SelectTrigger><SelectValue placeholder="Payment method" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All payment methods</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem><SelectItem value="mobile">Mobile</SelectItem></SelectContent>
+          </Select>
+          <Select value={status || "all"} onValueChange={(value) => { setStatus(value === "all" ? "" : value); setPage(1); }}>
+            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All statuses</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="refunded">Refunded</SelectItem><SelectItem value="voided">Voided</SelectItem></SelectContent>
+          </Select>
+          <Button variant="ghost" onClick={clearFilters} className="gap-2"><Filter className="h-4 w-4" /> Clear</Button>
+          <div className="flex items-center gap-2 lg:col-span-2"><Label htmlFor="sales-start" className="text-xs text-muted-foreground">From</Label><Input id="sales-start" type="date" value={startDate} onChange={(event) => { setStartDate(event.target.value); setPage(1); }} /></div>
+          <div className="flex items-center gap-2 lg:col-span-2"><Label htmlFor="sales-end" className="text-xs text-muted-foreground">To</Label><Input id="sales-end" type="date" value={endDate} onChange={(event) => { setEndDate(event.target.value); setPage(1); }} /></div>
+        </CardContent>
+      </Card>
+      {salesPage && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filtered revenue</p><p className="mt-2 text-2xl font-semibold tabular-nums">{formatCurrency(salesPage.summary.revenue, "JMD")}</p><p className="mt-1 text-xs text-muted-foreground">Mixed tenant currencies are reported in each transaction row.</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Transactions</p><p className="mt-2 text-2xl font-semibold tabular-nums">{salesPage.summary.orders.toLocaleString()}</p><p className="mt-1 text-xs text-muted-foreground">Page {salesPage.page} of {Math.max(1, Math.ceil(salesPage.total / salesPage.limit))}</p></CardContent></Card>
+        </div>
+      )}
+      {isError ? (
+        <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription className="flex items-center justify-between gap-4"><span>{(error as Error)?.message || "Sales could not be loaded."}</span><Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2"><RefreshCw className="h-3.5 w-3.5" /> Retry</Button></AlertDescription></Alert>
+      ) : isLoading ? (
+        <div className="h-72 rounded-xl border bg-muted/30 animate-pulse" />
+      ) : !salesPage || salesPage.data.length === 0 ? (
+        <Card><CardContent className="flex min-h-56 flex-col items-center justify-center text-center"><CircleDot className="mb-3 h-7 w-7 text-muted-foreground" /><p className="font-medium">No transactions match these filters</p><p className="mt-1 text-sm text-muted-foreground">Try clearing a filter or expanding the date range.</p></CardContent></Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader className="bg-muted/50"><TableRow><TableHead>Receipt</TableHead><TableHead>Tenant</TableHead><TableHead>Amount</TableHead><TableHead>Payment</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+            <TableBody>{salesPage.data.map((sale: AdminSale) => (
+              <TableRow key={sale.id}>
+                <TableCell className="font-mono text-xs">{sale.receiptNumber}</TableCell>
+                <TableCell><div className="font-medium">{sale.tenantName || "Unknown tenant"}</div><div className="text-xs text-muted-foreground">{sale.tenantId}</div></TableCell>
+                <TableCell className="font-medium tabular-nums">{formatCurrency(sale.totalAmount, sale.currency || "JMD")} <span className="text-xs font-normal text-muted-foreground">{sale.currency || "JMD"}</span></TableCell>
+                <TableCell className="capitalize text-muted-foreground">{sale.paymentMethod}</TableCell>
+                <TableCell><Badge variant={sale.status === "completed" ? "success" : "outline"} className="capitalize">{sale.status}</Badge></TableCell>
+                <TableCell className="text-sm text-muted-foreground">{formatDate(sale.createdAt)}</TableCell>
+              </TableRow>
+            ))}</TableBody>
+          </Table>
+          <div className="flex items-center justify-between border-t px-4 py-3"><p className="text-xs text-muted-foreground">{salesPage.total.toLocaleString()} total transactions</p><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= Math.ceil(salesPage.total / limit)} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function AuditTab() {
+  const { data: logs = [], isLoading, isError, error, refetch } = useListAdminAuditLogs();
+  return (
+    <div className="space-y-6">
+      <div><p className="text-sm font-semibold">Admin audit trail</p><p className="mt-1 text-sm text-muted-foreground">A read-only record of recent platform-level changes and operational actions.</p></div>
+      {isError ? (
+        <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription className="flex items-center justify-between gap-4"><span>{(error as Error)?.message || "Audit events could not be loaded."}</span><Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2"><RefreshCw className="h-3.5 w-3.5" /> Retry</Button></AlertDescription></Alert>
+      ) : isLoading ? (
+        <div className="space-y-3">{[1, 2, 3, 4].map((item) => <div key={item} className="h-16 rounded-lg border bg-muted/30 animate-pulse" />)}</div>
+      ) : logs.length === 0 ? (
+        <Card><CardContent className="flex min-h-56 flex-col items-center justify-center text-center"><FileText className="mb-3 h-7 w-7 text-muted-foreground" /><p className="font-medium">No admin activity recorded</p><p className="mt-1 text-sm text-muted-foreground">Release, billing, and tenant actions will appear here.</p></CardContent></Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <Table><TableHeader className="bg-muted/50"><TableRow><TableHead>Action</TableHead><TableHead>Entity</TableHead><TableHead>Actor</TableHead><TableHead>When</TableHead></TableRow></TableHeader>
+            <TableBody>{logs.map((log) => <TableRow key={log.id}><TableCell><div className="font-medium">{log.summary}</div><div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{log.action}</div></TableCell><TableCell><span className="capitalize">{log.entityType}</span>{log.entityId && <div className="font-mono text-xs text-muted-foreground">{log.entityId}</div>}</TableCell><TableCell>{log.actorName}</TableCell><TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDate(log.createdAt)}</TableCell></TableRow>)}</TableBody>
+          </Table>
+        </Card>
+      )}
     </div>
   );
 }
@@ -905,6 +1471,18 @@ export default function AdminPage() {
           <TabsTrigger value="plans" className="gap-2">
             <Package className="w-4 h-4" /> Plans &amp; Features
           </TabsTrigger>
+          <TabsTrigger value="releases" className="gap-2">
+            <GitBranch className="w-4 h-4" /> Releases
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="gap-2">
+            <CreditCard className="w-4 h-4" /> Billing
+          </TabsTrigger>
+          <TabsTrigger value="sales" className="gap-2">
+            <TrendingUp className="w-4 h-4" /> Sales
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-2">
+            <FileText className="w-4 h-4" /> Audit
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Tenants tab ── */}
@@ -1018,6 +1596,22 @@ export default function AdminPage() {
         {/* ── Plans tab ── */}
         <TabsContent value="plans">
           <PlansTab />
+        </TabsContent>
+
+        <TabsContent value="releases">
+          <ReleasesTab />
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <BillingTab />
+        </TabsContent>
+
+        <TabsContent value="sales">
+          <SalesTab />
+        </TabsContent>
+
+        <TabsContent value="audit">
+          <AuditTab />
         </TabsContent>
       </Tabs>
 

@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminBilling,
+  AdminSalesPage,
   AdminStats,
   AuthResponse,
   BillingCheckout,
@@ -41,12 +43,15 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ErrorResponse,
+  GetLatestReleaseParams,
   GetSalesReportParams,
   HealthStatus,
   InventoryAdjustInput,
   InventoryItem,
   InventoryPage,
   InventoryReport,
+  LatestRelease,
+  ListAdminSalesParams,
   ListCustomersParams,
   ListInventoryParams,
   ListPosProductsParams,
@@ -59,6 +64,10 @@ import type {
   Plan,
   PlanInput,
   PlanUpdate,
+  PlatformAuditLog,
+  PlatformRelease,
+  PlatformReleaseInput,
+  PlatformReleaseUpdate,
   PosProductsPage,
   PosTaxSettings,
   Product,
@@ -67,6 +76,7 @@ import type {
   ProductsPage,
   RefundInput,
   RegisterInput,
+  ReleaseAsset,
   Sale,
   SaleInput,
   SalesPage,
@@ -182,15 +192,8 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-  return withQueryKey(query, queryOptions.queryKey);
+return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getRegisterUrl = () => {
 
 
@@ -614,15 +617,8 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-  return withQueryKey(query, queryOptions.queryKey);
+return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getGetDashboardStatsUrl = () => {
 
 
@@ -693,6 +689,7 @@ export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashbo
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+// End of generated queries.
 
 
 
@@ -4605,4 +4602,784 @@ export const useUpdateAdminPlan = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getUpdateAdminPlanMutationOptions(options));
     }
+
+export const getListAdminReleasesUrl = () => {
+
+
+
+
+  return `/api/admin/releases`
+}
+
+/**
+ * @summary List platform releases and uploaded packages
+ */
+export const listAdminReleases = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlatformRelease[]> => {
+
+  return customFetch<PlatformRelease[]>(getListAdminReleasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminReleasesQueryKey = () => {
+    return [
+    `/api/admin/releases`
+    ] as const;
+    }
+
+
+export const getListAdminReleasesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminReleases>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminReleases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminReleasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminReleases>>> = ({ signal }) => listAdminReleases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminReleases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminReleasesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminReleases>>>
+export type ListAdminReleasesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List platform releases and uploaded packages
+ */
+
+export function useListAdminReleases<TData = Awaited<ReturnType<typeof listAdminReleases>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminReleases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminReleasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminReleaseUrl = () => {
+
+
+
+
+  return `/api/admin/releases`
+}
+
+/**
+ * @summary Create a platform release draft
+ */
+export const createAdminRelease = async (platformReleaseInput: PlatformReleaseInput, options?: Parameters<typeof customFetch>[1]): Promise<PlatformRelease> => {
+
+  return customFetch<PlatformRelease>(getCreateAdminReleaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformReleaseInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminReleaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminRelease>>, TError,{data: BodyType<PlatformReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminRelease>>, TError,{data: BodyType<PlatformReleaseInput>}, TContext> => {
+
+const mutationKey = ['createAdminRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminRelease>>, {data: BodyType<PlatformReleaseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminRelease(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminRelease>>>
+    export type CreateAdminReleaseMutationBody = BodyType<PlatformReleaseInput>
+    export type CreateAdminReleaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a platform release draft
+ */
+export const useCreateAdminRelease = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminRelease>>, TError,{data: BodyType<PlatformReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminRelease>>,
+        TError,
+        {data: BodyType<PlatformReleaseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdminReleaseMutationOptions(options));
+    }
+
+export const getUpdateAdminReleaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/releases/${id}`
+}
+
+/**
+ * @summary Update or publish a platform release
+ */
+export const updateAdminRelease = async (id: string,
+    platformReleaseUpdate: PlatformReleaseUpdate, options?: Parameters<typeof customFetch>[1]): Promise<PlatformRelease> => {
+
+  return customFetch<PlatformRelease>(getUpdateAdminReleaseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformReleaseUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminReleaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminRelease>>, TError,{id: string;data: BodyType<PlatformReleaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminRelease>>, TError,{id: string;data: BodyType<PlatformReleaseUpdate>}, TContext> => {
+
+const mutationKey = ['updateAdminRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminRelease>>, {id: string;data: BodyType<PlatformReleaseUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAdminRelease(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminRelease>>>
+    export type UpdateAdminReleaseMutationBody = BodyType<PlatformReleaseUpdate>
+    export type UpdateAdminReleaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update or publish a platform release
+ */
+export const useUpdateAdminRelease = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminRelease>>, TError,{id: string;data: BodyType<PlatformReleaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminRelease>>,
+        TError,
+        {id: string;data: BodyType<PlatformReleaseUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminReleaseMutationOptions(options));
+    }
+
+export const getUploadAdminReleaseAssetUrl = (id: string,
+    platform: 'windows' | 'macos' | 'linux' | 'docker',) => {
+
+
+
+
+  return `/api/admin/releases/${id}/assets/${platform}`
+}
+
+/**
+ * @summary Upload or replace a release package
+ */
+export const uploadAdminReleaseAsset = async (id: string,
+    platform: 'windows' | 'macos' | 'linux' | 'docker',
+    uploadAdminReleaseAssetBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<ReleaseAsset> => {
+
+  return customFetch<ReleaseAsset>(getUploadAdminReleaseAssetUrl(id,platform),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
+    body: uploadAdminReleaseAssetBody
+  }
+);}
+
+
+
+
+
+export const getUploadAdminReleaseAssetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadAdminReleaseAsset>>, TError,{id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadAdminReleaseAsset>>, TError,{id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<Blob>}, TContext> => {
+
+const mutationKey = ['uploadAdminReleaseAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadAdminReleaseAsset>>, {id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<Blob>}> = (props) => {
+          const {id,platform,data} = props ?? {};
+
+          return  uploadAdminReleaseAsset(id,platform,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadAdminReleaseAssetMutationResult = NonNullable<Awaited<ReturnType<typeof uploadAdminReleaseAsset>>>
+    export type UploadAdminReleaseAssetMutationBody = BodyType<Blob>
+    export type UploadAdminReleaseAssetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upload or replace a release package
+ */
+export const useUploadAdminReleaseAsset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadAdminReleaseAsset>>, TError,{id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadAdminReleaseAsset>>,
+        TError,
+        {id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<Blob>},
+        TContext
+      > => {
+      return useMutation(getUploadAdminReleaseAssetMutationOptions(options));
+    }
+
+export const getDownloadAdminReleaseAssetUrl = (id: string,
+    platform: string,) => {
+
+
+
+
+  return `/api/admin/releases/${id}/assets/${platform}`
+}
+
+/**
+ * @summary Download an admin release package
+ */
+export const downloadAdminReleaseAsset = async (id: string,
+    platform: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadAdminReleaseAssetUrl(id,platform),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadAdminReleaseAssetQueryKey = (id: string,
+    platform: string,) => {
+    return [
+    `/api/admin/releases/${id}/assets/${platform}`
+    ] as const;
+    }
+
+
+export const getDownloadAdminReleaseAssetQueryOptions = <TData = Awaited<ReturnType<typeof downloadAdminReleaseAsset>>, TError = ErrorType<unknown>>(id: string,
+    platform: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAdminReleaseAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadAdminReleaseAssetQueryKey(id,platform);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadAdminReleaseAsset>>> = ({ signal }) => downloadAdminReleaseAsset(id,platform, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && platform !== null && platform !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadAdminReleaseAsset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadAdminReleaseAssetQueryResult = NonNullable<Awaited<ReturnType<typeof downloadAdminReleaseAsset>>>
+export type DownloadAdminReleaseAssetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download an admin release package
+ */
+
+export function useDownloadAdminReleaseAsset<TData = Awaited<ReturnType<typeof downloadAdminReleaseAsset>>, TError = ErrorType<unknown>>(
+ id: string,
+    platform: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAdminReleaseAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadAdminReleaseAssetQueryOptions(id,platform,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLatestReleaseUrl = (params?: GetLatestReleaseParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/releases/latest?${stringifiedParams}` : `/api/releases/latest`
+}
+
+/**
+ * @summary Get the latest public release
+ */
+export const getLatestRelease = async (params?: GetLatestReleaseParams, options?: Parameters<typeof customFetch>[1]): Promise<LatestRelease> => {
+
+  return customFetch<LatestRelease>(getGetLatestReleaseUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLatestReleaseQueryKey = (params?: GetLatestReleaseParams,) => {
+    return [
+    `/api/releases/latest`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLatestReleaseQueryOptions = <TData = Awaited<ReturnType<typeof getLatestRelease>>, TError = ErrorType<unknown>>(params?: GetLatestReleaseParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLatestRelease>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLatestReleaseQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLatestRelease>>> = ({ signal }) => getLatestRelease(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLatestRelease>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLatestReleaseQueryResult = NonNullable<Awaited<ReturnType<typeof getLatestRelease>>>
+export type GetLatestReleaseQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the latest public release
+ */
+
+export function useGetLatestRelease<TData = Awaited<ReturnType<typeof getLatestRelease>>, TError = ErrorType<unknown>>(
+ params?: GetLatestReleaseParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLatestRelease>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLatestReleaseQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadPublishedReleaseAssetUrl = (id: string,
+    platform: string,) => {
+
+
+
+
+  return `/api/releases/${id}/assets/${platform}`
+}
+
+/**
+ * @summary Download a published release package
+ */
+export const downloadPublishedReleaseAsset = async (id: string,
+    platform: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadPublishedReleaseAssetUrl(id,platform),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadPublishedReleaseAssetQueryKey = (id: string,
+    platform: string,) => {
+    return [
+    `/api/releases/${id}/assets/${platform}`
+    ] as const;
+    }
+
+
+export const getDownloadPublishedReleaseAssetQueryOptions = <TData = Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>, TError = ErrorType<unknown>>(id: string,
+    platform: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadPublishedReleaseAssetQueryKey(id,platform);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>> = ({ signal }) => downloadPublishedReleaseAsset(id,platform, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && platform !== null && platform !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadPublishedReleaseAssetQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>>
+export type DownloadPublishedReleaseAssetQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download a published release package
+ */
+
+export function useDownloadPublishedReleaseAsset<TData = Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>, TError = ErrorType<unknown>>(
+ id: string,
+    platform: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadPublishedReleaseAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadPublishedReleaseAssetQueryOptions(id,platform,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminBillingUrl = () => {
+
+
+
+
+  return `/api/admin/billing`
+}
+
+/**
+ * @summary Get local plans and current Whop offer values
+ */
+export const getAdminBilling = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminBilling> => {
+
+  return customFetch<AdminBilling>(getGetAdminBillingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminBillingQueryKey = () => {
+    return [
+    `/api/admin/billing`
+    ] as const;
+    }
+
+
+export const getGetAdminBillingQueryOptions = <TData = Awaited<ReturnType<typeof getAdminBilling>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBilling>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminBillingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminBilling>>> = ({ signal }) => getAdminBilling({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminBilling>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminBillingQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminBilling>>>
+export type GetAdminBillingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get local plans and current Whop offer values
+ */
+
+export function useGetAdminBilling<TData = Awaited<ReturnType<typeof getAdminBilling>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBilling>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminBillingQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminSalesUrl = (params?: ListAdminSalesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/sales?${stringifiedParams}` : `/api/admin/sales`
+}
+
+/**
+ * @summary List global POS sales
+ */
+export const listAdminSales = async (params?: ListAdminSalesParams, options?: Parameters<typeof customFetch>[1]): Promise<AdminSalesPage | string> => {
+
+  return customFetch<AdminSalesPage | string>(getListAdminSalesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminSalesQueryKey = (params?: ListAdminSalesParams,) => {
+    return [
+    `/api/admin/sales`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminSalesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminSales>>, TError = ErrorType<unknown>>(params?: ListAdminSalesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminSales>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminSalesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminSales>>> = ({ signal }) => listAdminSales(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminSales>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminSalesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminSales>>>
+export type ListAdminSalesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List global POS sales
+ */
+
+export function useListAdminSales<TData = Awaited<ReturnType<typeof listAdminSales>>, TError = ErrorType<unknown>>(
+ params?: ListAdminSalesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminSales>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminSalesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminAuditLogsUrl = () => {
+
+
+
+
+  return `/api/admin/audit`
+}
+
+/**
+ * @summary List platform admin audit events
+ */
+export const listAdminAuditLogs = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlatformAuditLog[]> => {
+
+  return customFetch<PlatformAuditLog[]>(getListAdminAuditLogsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminAuditLogsQueryKey = () => {
+    return [
+    `/api/admin/audit`
+    ] as const;
+    }
+
+
+export const getListAdminAuditLogsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminAuditLogs>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminAuditLogs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminAuditLogsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminAuditLogs>>> = ({ signal }) => listAdminAuditLogs({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminAuditLogs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminAuditLogsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminAuditLogs>>>
+export type ListAdminAuditLogsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List platform admin audit events
+ */
+
+export function useListAdminAuditLogs<TData = Awaited<ReturnType<typeof listAdminAuditLogs>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminAuditLogs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminAuditLogsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

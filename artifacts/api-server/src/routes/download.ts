@@ -1,6 +1,8 @@
 import { Router } from "express";
 import path from "path";
 import fs from "fs";
+import { db, releasesTable, releaseAssetsTable } from "@workspace/db";
+import { and, desc, eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -10,7 +12,22 @@ const router = Router();
 // Both cases resolve to: <cwd>/violet-enterprise.zip
 const ZIP_PATH = path.join(process.cwd(), "violet-enterprise.zip");
 
-router.get("/download", (_req, res) => {
+router.get("/download", async (_req, res) => {
+  const [release] = await db.select().from(releasesTable)
+    .where(and(eq(releasesTable.status, "published"), eq(releasesTable.channel, "stable")))
+    .orderBy(desc(releasesTable.publishedAt)).limit(1);
+  if (release) {
+    const [asset] = await db.select().from(releaseAssetsTable)
+      .where(and(eq(releaseAssetsTable.releaseId, release.id), eq(releaseAssetsTable.platform, "docker"))).limit(1);
+    if (asset && fs.existsSync(asset.storagePath)) {
+      res.setHeader("Content-Type", asset.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${asset.fileName.replace(/[^a-zA-Z0-9._-]/g, "-")}"`);
+      res.setHeader("Content-Length", asset.sizeBytes);
+      fs.createReadStream(asset.storagePath).pipe(res);
+      return;
+    }
+  }
+
   if (!fs.existsSync(ZIP_PATH)) {
     res.status(503).json({
       error: "Download package is not available yet. Please check back soon.",

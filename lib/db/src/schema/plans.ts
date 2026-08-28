@@ -8,6 +8,8 @@ export const plansTable = pgTable("subscription_plans", {
   price: numeric("price", { precision: 10, scale: 2 }).notNull().default("0"),
   annualPrice: numeric("annual_price", { precision: 10, scale: 2 }),
   billingType: text("billing_type").notNull().default("one_time"), // one_time, monthly, annual, enterprise
+  currency: text("currency").notNull().default("USD"),
+  whopPlanId: text("whop_plan_id"),
   maxUsers: integer("max_users").notNull().default(2),
   maxRegisters: integer("max_registers").notNull().default(1),
   maxBranches: integer("max_branches").notNull().default(1),
