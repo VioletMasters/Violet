@@ -133,7 +133,7 @@ function Header() {
 }
 
 function Home() {
-  const [currency, setCurrency] = useState<Currency>("USD");
+  const [currency, setCurrency] = useState<Currency>("JMD");
   const [location] = useLocation();
 
   return (
@@ -162,7 +162,7 @@ function Home() {
                 <aside><div className="mini-logo">V</div><span className="active-line" /><span /><span /><span /><span /></aside>
                 <div className="dashboard-main">
                   <div className="dash-heading"><div><small>Thursday, August 27</small><strong>Good morning, Amelia.</strong></div><div className="avatar">AM</div></div>
-                  <div className="metric-grid"><div><small>Today’s sales</small><strong>$184,260</strong><span className="positive">↑ 12.8%</span></div><div><small>Orders</small><strong>184</strong><span className="muted">Across 2 registers</span></div><div><small>Low stock</small><strong>08</strong><span className="warning">Needs attention</span></div></div>
+                  <div className="metric-grid"><div><small>Today’s sales</small><strong>JMD 184,260</strong><span className="positive">↑ 12.8%</span></div><div><small>Orders</small><strong>184</strong><span className="muted">Across 2 registers</span></div><div><small>Low stock</small><strong>08</strong><span className="warning">Needs attention</span></div></div>
                   <div className="chart-card"><div className="chart-label"><strong>Sales overview</strong><span>Last 7 days⌄</span></div><svg viewBox="0 0 440 130" role="img" aria-label="Sales trend rising over seven days"><path d="M0 108 C38 96 48 104 78 79 S125 83 150 62 S194 78 220 54 S267 66 296 33 S350 54 378 24 S408 34 440 10" fill="none" stroke="#b99cff" strokeWidth="4" /><path d="M0 108 C38 96 48 104 78 79 S125 83 150 62 S194 78 220 54 S267 66 296 33 S350 54 378 24 S408 34 440 10 L440 130 L0 130Z" fill="url(#area)" opacity=".28" /><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#9b7aff" /><stop offset="1" stopColor="#9b7aff" stopOpacity="0" /></linearGradient></defs></svg><div className="chart-days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div>
                 </div>
               </div>
