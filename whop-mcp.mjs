@@ -8,7 +8,6 @@ async function mcpCall(method, params = {}) {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
-      Accept: "application/json, text/event-stream",
       "X-Replit-Token": token,
       "Connector-Name": "whop",
     },
