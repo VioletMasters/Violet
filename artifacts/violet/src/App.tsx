@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { Redirect, Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppLayout } from './components/layout/app-layout';
 import { AuthProvider, useAuth } from './hooks/use-auth';
+import { useTheme } from './hooks/use-theme';
 
 import LoginPage from './pages/auth/login';
 import RegisterPage from './pages/auth/register';
@@ -72,13 +73,15 @@ function Router() {
 }
 
 function App() {
+  const { theme } = useTheme();
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
-        <Toaster theme="dark" position="top-right" richColors />
+        <Toaster theme={theme} position="top-right" richColors />
       </AuthProvider>
     </QueryClientProvider>
   );

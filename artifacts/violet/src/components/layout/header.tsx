@@ -1,13 +1,23 @@
 import React from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
-import { LogOut, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LogOut, Moon, Sun, User } from "lucide-react";
 import { useLogout } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 export function Header() {
   const { user, tenant, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [, setLocation] = useLocation();
   
   const logoutMutation = useLogout({
@@ -35,6 +45,34 @@ export function Header() {
       </div>
       
       <div className="flex items-center gap-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-muted-foreground hover:text-foreground"
+              aria-label={`Appearance: ${theme}`}
+              title="Change appearance"
+            >
+              {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              <span className="hidden md:inline capitalize">{theme}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={theme} onValueChange={(value) => {
+              if (value === "light" || value === "dark") setTheme(value);
+            }}>
+              <DropdownMenuRadioItem value="light">
+                <Sun className="h-4 w-4" /> Light
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <Moon className="h-4 w-4" /> Dark
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <div className="flex items-center gap-2 text-sm">
           <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground border">
             <User className="w-4 h-4" />

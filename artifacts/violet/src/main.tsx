@@ -2,6 +2,7 @@ import { setAuthTokenGetter, setManagerAccessTokenGetter } from "@workspace/api-
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { applyTheme, getStoredTheme, ThemeProvider } from "./hooks/use-theme";
 
 // Configure API Client
 setAuthTokenGetter(() => {
@@ -35,9 +36,11 @@ setManagerAccessTokenGetter(() => {
   }
 });
 
-// Setup Dark Mode initially
-if (!document.documentElement.classList.contains("dark")) {
-  document.documentElement.classList.add("dark");
-}
+// Apply the saved application appearance before the first render.
+applyTheme(getStoredTheme());
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>,
+);
