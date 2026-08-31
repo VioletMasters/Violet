@@ -1,0 +1,1158 @@
+# Add Comprehensive Supermarket POS Reporting System
+
+I want you to add a complete, professional reporting and analytics system to the existing POS application.
+
+**IMPORTANT:** This is an enhancement to the existing application. Do NOT rebuild the application from scratch and do NOT remove or break any existing functionality.
+
+Before making changes, inspect the entire existing codebase, database schema, API structure, authentication system, Docker configuration, cashier application, admin dashboard, and existing POS functionality.
+
+Preserve all existing functionality and architecture unless a change is absolutely necessary.
+
+---
+
+# 1. REPORTING SYSTEM OVERVIEW
+
+Create a new **Reports** section in the admin/management dashboard.
+
+The reporting system should be designed for a supermarket/grocery store and should support:
+
+* Sales reporting
+* Product reporting
+* Inventory reporting
+* Profit/margin reporting
+* Cash register reporting
+* Cashier/employee reporting
+* Refund reporting
+* Void reporting
+* Discount reporting
+* Payment method reporting
+* Purchasing/supplier reporting
+* Receiving reporting
+* Inventory valuation
+* End-of-day reporting
+* Multi-store reporting
+* Dashboard analytics
+
+Reports must support date filtering.
+
+Provide:
+
+* Today
+* Yesterday
+* This Week
+* Last Week
+* This Month
+* Last Month
+* This Year
+* Custom Date Range
+
+Where appropriate, also allow filtering by:
+
+* Store/location
+* Cashier
+* Register
+* Product
+* Product category/department
+* Supplier
+* Payment method
+
+---
+
+# 2. OWNER / MANAGEMENT DASHBOARD
+
+Create an executive dashboard that gives the store owner a quick overview of the business.
+
+Display cards for:
+
+* Today's Sales
+* Today's Transactions
+* Average Transaction Value
+* Today's Gross Profit
+* Gross Margin %
+* Refunds
+* Discounts
+* Cash Collected
+* Card Payments
+* Other Payments
+* Low Stock Items
+* Out-of-Stock Items
+
+Also display:
+
+### Sales Trend
+
+A chart showing sales over time.
+
+Allow switching between:
+
+* Daily
+* Weekly
+* Monthly
+
+### Top Products
+
+Show the best-selling products by:
+
+* Quantity sold
+* Revenue
+* Profit
+
+### Low Stock
+
+Show products below their configured minimum stock level.
+
+### Alerts
+
+Display important management alerts such as:
+
+* Low-stock products
+* Out-of-stock products
+* Cashier shortages
+* Large refunds
+* Large discounts
+* Excessive voids
+* Pending purchase orders
+* Receiving discrepancies
+
+---
+
+# 3. SALES REPORTS
+
+Create a Sales Reports section.
+
+## Daily Sales
+
+Show:
+
+* Gross sales
+* Discounts
+* Refunds
+* Taxes
+* Net sales
+* Number of transactions
+* Average transaction value
+* Gross profit
+* Gross margin
+
+Break sales down by:
+
+* Cash
+* Debit/credit card
+* Other payment methods
+
+Allow the user to click a total and drill down into the underlying transactions.
+
+---
+
+## Sales by Product
+
+Show:
+
+* Product
+* SKU
+* Barcode
+* Category
+* Units sold
+* Gross revenue
+* Discounts
+* Refunds
+* Net revenue
+* Cost
+* Gross profit
+* Gross margin
+
+Allow sorting by any column.
+
+---
+
+## Sales by Category / Department
+
+Support supermarket departments such as:
+
+* Grocery
+* Produce
+* Meat
+* Bakery
+* Dairy
+* Frozen
+* Beverages
+* Household
+* Personal Care
+* Other
+
+Show:
+
+* Sales
+* Units sold
+* Cost
+* Gross profit
+* Gross margin
+
+---
+
+## Sales by Hour
+
+Create an hourly sales report showing which hours generate the most sales.
+
+This should help store owners determine:
+
+* Peak hours
+* Slow hours
+* Staffing requirements
+
+---
+
+## Sales by Cashier
+
+Show:
+
+* Cashier
+* Number of transactions
+* Sales
+* Average transaction
+* Discounts
+* Refunds
+* Voids
+* Gross profit
+
+---
+
+## Sales by Register
+
+Show performance for each POS/register.
+
+Include:
+
+* Transactions
+* Sales
+* Cash
+* Card
+* Refunds
+* Discounts
+* Voids
+* Register variance
+
+---
+
+# 4. PRODUCT REPORTS
+
+Create a Product Reports section.
+
+## Best-Selling Products
+
+Allow ranking by:
+
+* Units sold
+* Revenue
+* Profit
+
+Provide:
+
+* Top 10
+* Top 25
+* Top 50
+* Custom
+
+---
+
+## Slow-Moving Products
+
+Identify products with low sales over a selected period.
+
+Allow thresholds such as:
+
+* No sales
+* Fewer than 5 sales
+* Fewer than 10 sales
+* Custom threshold
+
+Show:
+
+* Product
+* Current stock
+* Units sold
+* Revenue
+* Inventory value
+* Days since last sale
+
+---
+
+## Product Profitability
+
+Show:
+
+* Product
+* Cost price
+* Selling price
+* Units sold
+* Revenue
+* Cost
+* Gross profit
+* Margin %
+
+Allow sorting by highest and lowest margin.
+
+Highlight products with unusually low margins.
+
+---
+
+# 5. INVENTORY REPORTS
+
+Create an Inventory Reports section.
+
+## Current Inventory
+
+Show:
+
+* Product
+* SKU
+* Barcode
+* Category
+* Current quantity
+* Minimum stock
+* Maximum stock
+* Cost price
+* Retail price
+* Inventory cost value
+* Inventory retail value
+
+---
+
+## Low Stock
+
+Automatically identify products where:
+
+Current Stock <= Minimum Stock
+
+Show:
+
+* Product
+* Current quantity
+* Minimum quantity
+* Supplier
+* Suggested reorder quantity
+
+---
+
+## Out of Stock
+
+Show all products with:
+
+Current Stock = 0
+
+Include:
+
+* Product
+* SKU
+* Last sale
+* Last received
+* Supplier
+
+---
+
+## Inventory Valuation
+
+Calculate:
+
+Inventory Cost Value
+
+and
+
+Inventory Retail Value
+
+Also calculate:
+
+Potential Gross Profit
+
+Formula:
+
+Retail Inventory Value - Cost Inventory Value
+
+---
+
+# 6. INVENTORY MOVEMENT
+
+Create an Inventory Movement report.
+
+Track:
+
+* Stock received
+* Sales
+* Returns
+* Adjustments
+* Damaged items
+* Transfers
+* Stock corrections
+* Manual changes
+
+Every inventory adjustment should record:
+
+* User
+* Date/time
+* Product
+* Previous quantity
+* New quantity
+* Quantity difference
+* Reason
+
+This creates a complete audit trail.
+
+---
+
+# 7. CASH REGISTER REPORTS
+
+Create a Cash Management section.
+
+## Register Summary
+
+For each register show:
+
+* Opening cash
+* Cash sales
+* Cash refunds
+* Cash drops
+* Cash payouts
+* Expected cash
+* Actual cash
+* Variance
+
+Example:
+
+Opening Cash: $50,000
+
+Cash Sales: $182,500
+
+Cash Refunds: -$4,000
+
+Cash Drops: -$100,000
+
+Expected Cash: $128,500
+
+Actual Cash: $126,500
+
+Variance: -$2,000
+
+---
+
+## Cashier Variance Report
+
+Show:
+
+* Cashier
+* Register
+* Shift
+* Expected amount
+* Actual amount
+* Variance
+* Date/time
+
+Clearly highlight:
+
+* Overages
+* Shortages
+
+---
+
+# 8. END-OF-DAY REPORT
+
+Create a professional End-of-Day report.
+
+Include:
+
+* Total sales
+* Number of transactions
+* Gross sales
+* Discounts
+* Refunds
+* Net sales
+* Gross profit
+* Gross margin
+* Cash sales
+* Card sales
+* Other payments
+* Cash drops
+* Register totals
+* Cashier totals
+* Cash shortages
+* Cash overages
+
+Allow:
+
+* Print
+* PDF export
+* Excel export
+
+---
+
+# 9. PAYMENT REPORTS
+
+Create a Payment Method report.
+
+Show totals for:
+
+* Cash
+* Debit card
+* Credit card
+* Bank transfer
+* Mobile payment
+* Other configured payment methods
+
+Show:
+
+* Number of transactions
+* Total amount
+* Percentage of sales
+
+Allow filtering by:
+
+* Date
+* Store
+* Register
+* Cashier
+
+---
+
+# 10. REFUND REPORT
+
+Create a dedicated Refund Report.
+
+Show:
+
+* Transaction number
+* Date/time
+* Cashier
+* Product
+* Quantity
+* Refund amount
+* Payment method
+* Reason
+* Approved by
+
+Track the user who processed the refund.
+
+---
+
+# 11. VOID REPORT
+
+Create a Void Report.
+
+Show:
+
+* Transaction
+* Cashier
+* Register
+* Product
+* Amount
+* Date/time
+* Reason
+* Approved by
+
+Voids should be fully auditable.
+
+---
+
+# 12. DISCOUNT REPORT
+
+Create a Discount Report.
+
+Show:
+
+* Transaction
+* Cashier
+* Product
+* Original price
+* Discount amount
+* Final price
+* Discount percentage
+* Reason
+* Date/time
+
+Allow management to identify excessive discount activity.
+
+---
+
+# 13. CASHIER / EMPLOYEE REPORTS
+
+Create an Employee Performance report.
+
+Show:
+
+* Cashier
+* Transactions
+* Sales
+* Average transaction
+* Refunds
+* Voids
+* Discounts
+* Cash variance
+* Shift duration
+
+Allow filtering by date.
+
+Also track:
+
+* Login
+* Logout
+* Register assignment
+* Shift opening
+* Shift closing
+
+---
+
+# 14. PURCHASING REPORTS
+
+If purchasing functionality already exists, integrate it into reporting.
+
+Create:
+
+## Purchase Report
+
+Show:
+
+* Supplier
+* Purchase order
+* Product
+* Quantity
+* Unit cost
+* Total cost
+* Date
+
+---
+
+## Supplier Spending
+
+Show:
+
+* Supplier
+* Total purchases
+* Number of purchase orders
+* Average purchase value
+
+Allow date filtering.
+
+---
+
+# 15. STOCK RECEIVING REPORT
+
+Create a receiving report.
+
+Show:
+
+* Supplier
+* Purchase order
+* Product
+* Ordered quantity
+* Received quantity
+* Difference
+* Unit cost
+* Total cost
+* Received by
+* Date/time
+
+Flag discrepancies where:
+
+Ordered quantity != Received quantity
+
+---
+
+# 16. MULTI-STORE SUPPORT
+
+The system should be designed to support multiple store locations.
+
+Do NOT assume there will only ever be one store.
+
+Every relevant transaction should support a:
+
+* Store ID
+* Register ID
+* Cashier ID
+
+The owner should be able to view:
+
+### Company-wide reports
+
+and filter by:
+
+### Individual store
+
+Example:
+
+Store A
+Store B
+Store C
+
+Create a Store Comparison report showing:
+
+* Sales
+* Transactions
+* Average transaction
+* Gross profit
+* Gross margin
+* Refunds
+* Discounts
+* Inventory value
+
+Allow ranking stores by sales and profit.
+
+---
+
+# 17. REPORT DRILL-DOWN
+
+Reports should not just display numbers.
+
+Where practical, clicking a number should open the underlying records.
+
+For example:
+
+Click:
+
+"$1,245,800 Sales"
+
+and display the transactions that make up that total.
+
+Similarly:
+
+Click:
+
+"482 Transactions"
+
+and show those transactions.
+
+Click:
+
+"23 Low Stock"
+
+and show the 23 products.
+
+This makes the reports useful for auditing.
+
+---
+
+# 18. EXPORTING
+
+Every major report should support:
+
+* CSV
+* Excel/XLSX
+* PDF
+* Print
+
+Exports must respect the currently selected filters and date range.
+
+For example, if the user selects:
+
+Store A
+August 1–31
+Grocery Department
+
+the export should contain only that filtered data.
+
+---
+
+# 19. DATABASE / DATA COLLECTION
+
+Before implementing reports, inspect the current database.
+
+Ensure the application records enough information to generate these reports.
+
+Transactions should retain information such as:
+
+* Transaction ID
+* Date/time
+* Store
+* Register
+* Cashier
+* Customer if applicable
+* Products
+* Quantity
+* Selling price
+* Cost price
+* Discount
+* Tax
+* Payment method
+* Total
+* Refund information
+* Void information
+
+Inventory records should support:
+
+* Current quantity
+* Minimum quantity
+* Maximum quantity
+* Cost
+* Selling price
+* Supplier
+* Category
+
+Cash register records should support:
+
+* Opening amount
+* Closing amount
+* Expected amount
+* Actual amount
+* Cash drops
+* Cash payouts
+* Variance
+
+Create appropriate database migrations if required.
+
+Do NOT destroy existing production data.
+
+If new columns/tables are required, create safe migrations.
+
+---
+
+# 20. AUDIT LOG
+
+Create or extend an audit log system.
+
+Track important management actions such as:
+
+* Price changes
+* Inventory adjustments
+* Refunds
+* Voids
+* Discounts
+* Product deletion
+* Product creation
+* User changes
+* Permission changes
+* Register opening
+* Register closing
+
+Record:
+
+* User
+* Action
+* Date/time
+* Relevant record
+* Previous value
+* New value
+* Reason where applicable
+
+Management should be able to search the audit log.
+
+---
+
+# 21. SECURITY / PERMISSIONS
+
+Do not allow every employee to access financial reports.
+
+Use role-based permissions.
+
+For example:
+
+### Cashier
+
+Can:
+
+* View their own transactions
+* View their own shift
+* Complete sales
+
+Cannot:
+
+* View company profit
+* View other cashier performance
+* View inventory valuation
+* Modify reports
+
+### Supervisor / Manager
+
+Can:
+
+* View store reports
+* Approve refunds
+* View cashier performance
+* View inventory reports
+
+### Owner / Administrator
+
+Can:
+
+* View all reports
+* View all stores
+* View profit
+* View employee performance
+* Export reports
+* View audit logs
+* Configure reporting settings
+
+Use the existing authentication/authorization system rather than creating a separate login system.
+
+---
+
+# 22. PERFORMANCE
+
+Reports may eventually contain hundreds of thousands or millions of transactions.
+
+Do not load the entire database into the browser.
+
+Use server-side queries and aggregation.
+
+Implement:
+
+* Pagination
+* Database indexes
+* Efficient aggregation queries
+* Date filtering at the database level
+* Proper joins
+* Cached summary data where appropriate
+
+Reports should remain responsive as transaction volume grows.
+
+---
+
+# 23. REAL-TIME DATA
+
+The reporting dashboard should use current database information.
+
+If the existing application supports WebSockets, Server-Sent Events, or another real-time mechanism, use it where appropriate.
+
+For example, when a cashier completes a sale:
+
+* Sales dashboard updates
+* Transaction count updates
+* Inventory updates
+* Payment totals update
+
+Do not introduce unnecessary real-time infrastructure if the existing architecture does not support it; a refresh mechanism is acceptable as a fallback.
+
+---
+
+# 24. REMOTE / CENTRAL SERVER COMPATIBILITY
+
+This application is intended to eventually support a central server with multiple cashier computers.
+
+The reporting system must therefore work correctly when:
+
+Multiple cashier applications
+
+↓
+
+connect to
+
+Central API server
+
+↓
+
+which connects to
+
+Central PostgreSQL database.
+
+Do NOT create a separate database for every cashier.
+
+The central database must remain the source of truth.
+
+Every transaction must be associated with the appropriate:
+
+* Store
+* Register
+* Cashier
+
+so reports can aggregate data across the entire business.
+
+---
+
+# 25. UI DESIGN
+
+The reporting interface should look professional and appropriate for a supermarket management system.
+
+Use:
+
+* Clean dashboard cards
+* Tables
+* Charts
+* Date selectors
+* Dropdown filters
+* Search
+* Pagination
+* Sorting
+* Export buttons
+* Print buttons
+* Drill-down dialogs/pages
+
+Make the reports easy for a non-technical store owner to understand.
+
+Use clear labels such as:
+
+* Total Sales
+* Net Sales
+* Gross Profit
+* Gross Margin
+* Transactions
+* Average Sale
+* Inventory Value
+* Low Stock
+* Out of Stock
+* Cash Variance
+
+Avoid unnecessarily technical terminology in the UI.
+
+---
+
+# 26. IMPORTANT FINANCIAL DEFINITIONS
+
+Use consistent calculations throughout the application.
+
+### Gross Sales
+
+Total sales before discounts and refunds.
+
+### Net Sales
+
+Gross Sales - Discounts - Refunds
+
+### Cost of Goods Sold
+
+The cost associated with products sold.
+
+### Gross Profit
+
+Net Sales - Cost of Goods Sold
+
+### Gross Margin
+
+Gross Profit / Net Sales × 100
+
+Make sure these calculations are consistent across all reports.
+
+Do not calculate profit using the current product price if the historical transaction stored a different cost.
+
+Historical transactions should use the product cost that was applicable when the sale occurred.
+
+---
+
+# 27. TESTING
+
+After implementation, thoroughly test:
+
+* Sales reports
+* Product reports
+* Inventory reports
+* Profit calculations
+* Cash reports
+* Refund reports
+* Void reports
+* Discount reports
+* Cashier reports
+* Purchasing reports
+* Receiving reports
+* Store reports
+* Exporting
+* Date filtering
+* Permissions
+* Audit logs
+
+Create test transactions and verify that the reports calculate correctly.
+
+Test multiple cashiers.
+
+Test multiple registers.
+
+Test multiple stores if the current schema supports them.
+
+Test simultaneous transactions from multiple cashier systems.
+
+---
+
+# 28. DOCKER COMPATIBILITY
+
+The application currently runs using Docker Compose.
+
+Do NOT break the existing Docker setup.
+
+After implementation:
+
+* Update migrations
+* Update API
+* Update frontend/dashboard
+* Update Docker configuration only if necessary
+* Verify all containers start successfully
+* Verify the web application loads
+* Verify the API works
+* Verify the database migrations execute correctly
+
+Do not hard-code localhost addresses.
+
+The application must continue working in the existing Docker environment.
+
+---
+
+# 29. BACKWARD COMPATIBILITY
+
+This is an existing application.
+
+DO NOT:
+
+* Delete existing features
+* Replace the existing authentication system
+* Replace the existing database
+* Remove existing API endpoints
+* Remove existing cashier functionality
+* Break existing Docker Compose configuration
+* Create a completely separate POS application
+
+Instead, integrate the reporting system into the existing application.
+
+Before modifying anything, inspect how the current system works and adapt to the existing architecture.
+
+---
+
+# 30. FINAL IMPLEMENTATION REQUIREMENT
+
+When finished, I want the admin dashboard to have a professional **Reports** area with at least these sections:
+
+Reports
+
+├── Overview
+├── Sales
+│   ├── Daily Sales
+│   ├── Sales Trends
+│   ├── Sales by Product
+│   ├── Sales by Department
+│   ├── Sales by Cashier
+│   ├── Sales by Register
+│   └── Sales by Hour
+│
+├── Products
+│   ├── Best Sellers
+│   ├── Slow Movers
+│   └── Product Profitability
+│
+├── Inventory
+│   ├── Current Inventory
+│   ├── Low Stock
+│   ├── Out of Stock
+│   ├── Inventory Valuation
+│   └── Inventory Movement
+│
+├── Profit
+│   ├── Gross Profit
+│   └── Gross Margin
+│
+├── Cash Management
+│   ├── Register Summary
+│   ├── Cashier Variance
+│   └── End of Day
+│
+├── Employees
+│   ├── Cashier Performance
+│   ├── Refunds
+│   ├── Voids
+│   └── Discounts
+│
+├── Purchasing
+│   ├── Purchases
+│   ├── Suppliers
+│   └── Receiving
+│
+├── Stores
+│   └── Store Comparison
+│
+└── Audit
+└── Audit Log
+
+The final result should feel like a **professional supermarket POS management/reporting system**, not a basic sales table.
+
+Start by inspecting the existing project and database architecture. Then implement the reporting system in a way that fits the existing codebase.
