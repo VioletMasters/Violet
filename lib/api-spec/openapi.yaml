@@ -1017,6 +1017,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: cancelBillingCheckout
+      tags: [plans]
+      summary: Cancel the current tenant's pending Whop checkout
+      responses:
+        "200":
+          description: Pending checkout cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "409":
+          description: No checkout is pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /billing/reconcile:
     post:
@@ -1624,6 +1641,11 @@ components:
         subscriptionStatus:
           type: string
         subscriptionStart:
+          type: ["string", "null"]
+        requiresBillingAction:
+          type: boolean
+          description: True when the account may only access billing recovery until its Whop subscription is restored.
+        billingMessage:
           type: ["string", "null"]
         createdAt:
           type: string
@@ -2355,7 +2377,7 @@ components:
     # ── Plans & Subscriptions ──────────────────────────────────────────────────
     Plan:
       type: object
-      required: [id, name, tier, price, isActive]
+      required: [id, name, tier, price, currency, checkoutPrice, checkoutCurrency, isActive]
       properties:
         id:
           type: string
@@ -2376,6 +2398,12 @@ components:
           enum: [one_time, monthly, annual, enterprise]
         currency:
           type: string
+        checkoutPrice:
+          type: number
+          description: Authoritative amount charged by Whop
+        checkoutCurrency:
+          type: string
+          description: Authoritative currency charged by Whop
         whopPlanId:
           type: ["string", "null"]
         maxUsers:
@@ -2495,6 +2523,13 @@ components:
           type: ["string", "null"]
         currentPeriodEnd:
           type: ["string", "null"]
+        paymentStatus:
+          type: ["string", "null"]
+          enum: [not_required, pending, paid, failed, refunded, past_due, null]
+        checkoutPending:
+          type: boolean
+        lastWhopSyncAt:
+          type: ["string", "null"]
         usage:
           type: object
           properties:
@@ -2524,20 +2559,25 @@ components:
 
     BillingReconcileInput:
       type: object
-      required: [checkoutConfigurationId]
       properties:
         checkoutConfigurationId:
           type: string
+          description: Optional consistency check. Reconciliation always uses the pending checkout stored for the authenticated tenant.
 
     BillingReconcileResponse:
       type: object
-      required: [success, tier]
+      required: [success, tier, status, message]
       properties:
         success:
           type: boolean
         tier:
           type: string
           enum: [starter, professional, enterprise]
+        status:
+          type: string
+          enum: [active, pending, failed, past_due, cancelled, refunded]
+        message:
+          type: string
 
     # ── Reports ────────────────────────────────────────────────────────────────
     SalesReport:

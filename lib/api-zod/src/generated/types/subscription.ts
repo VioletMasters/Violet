@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Plan } from './plan';
+import type { SubscriptionPaymentStatus } from './subscriptionPaymentStatus';
 import type { SubscriptionStatus } from './subscriptionStatus';
 import type { SubscriptionUsage } from './subscriptionUsage';
 
@@ -19,5 +20,10 @@ export interface Subscription {
   currentPeriodStart?: string | null;
   /** @nullable */
   currentPeriodEnd?: string | null;
+  /** @nullable */
+  paymentStatus?: SubscriptionPaymentStatus;
+  checkoutPending?: boolean;
+  /** @nullable */
+  lastWhopSyncAt?: string | null;
   usage?: SubscriptionUsage;
 }

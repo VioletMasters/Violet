@@ -18,7 +18,11 @@ export interface Plan {
   /** @nullable */
   annualPrice?: number | null;
   billingType?: PlanBillingType;
-  currency?: string;
+  currency: string;
+  /** Authoritative amount charged by Whop */
+  checkoutPrice: number;
+  /** Authoritative currency charged by Whop */
+  checkoutCurrency: string;
   /** @nullable */
   whopPlanId?: string | null;
   maxUsers?: number;

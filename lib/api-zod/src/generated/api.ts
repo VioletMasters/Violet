@@ -58,6 +58,8 @@ export const RegisterResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
+  "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -97,6 +99,8 @@ export const LoginResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
+  "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -1118,7 +1122,9 @@ export const ListPlansResponseItem = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
-  "currency": zod.string().optional(),
+  "currency": zod.string(),
+  "checkoutPrice": zod.number().describe('Authoritative amount charged by Whop'),
+  "checkoutCurrency": zod.string().describe('Authoritative currency charged by Whop'),
   "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
@@ -1148,7 +1154,9 @@ export const GetSubscriptionResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
-  "currency": zod.string().optional(),
+  "currency": zod.string(),
+  "checkoutPrice": zod.number().describe('Authoritative amount charged by Whop'),
+  "checkoutCurrency": zod.string().describe('Authoritative currency charged by Whop'),
   "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
@@ -1163,6 +1171,9 @@ export const GetSubscriptionResponse = zod.object({
   "status": zod.enum(['active', 'trial', 'expired', 'cancelled']),
   "currentPeriodStart": zod.string().nullish(),
   "currentPeriodEnd": zod.string().nullish(),
+  "paymentStatus": zod.union([zod.literal('not_required'),zod.literal('pending'),zod.literal('paid'),zod.literal('failed'),zod.literal('refunded'),zod.literal('past_due'),zod.literal(null)]).nullish(),
+  "checkoutPending": zod.boolean().optional(),
+  "lastWhopSyncAt": zod.string().nullish(),
   "usage": zod.object({
   "users": zod.number().optional(),
   "products": zod.number().optional(),
@@ -1185,15 +1196,25 @@ export const CreateBillingCheckoutResponse = zod.object({
 
 
 /**
+ * @summary Cancel the current tenant's pending Whop checkout
+ */
+export const CancelBillingCheckoutResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Verify a Whop payment and apply it to the current tenant
  */
 export const ReconcileBillingCheckoutBody = zod.object({
-  "checkoutConfigurationId": zod.string()
+  "checkoutConfigurationId": zod.string().optional().describe('Optional consistency check. Reconciliation always uses the pending checkout stored for the authenticated tenant.')
 })
 
 export const ReconcileBillingCheckoutResponse = zod.object({
   "success": zod.boolean(),
-  "tier": zod.enum(['starter', 'professional', 'enterprise'])
+  "tier": zod.enum(['starter', 'professional', 'enterprise']),
+  "status": zod.enum(['active', 'pending', 'failed', 'past_due', 'cancelled', 'refunded']),
+  "message": zod.string()
 })
 
 
@@ -1349,6 +1370,8 @@ export const ListTenantsResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
+  "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
 })),
   "total": zod.number(),
@@ -1413,6 +1436,8 @@ export const UpdateAdminTenantResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
+  "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -1428,7 +1453,9 @@ export const ListAdminPlansResponseItem = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
-  "currency": zod.string().optional(),
+  "currency": zod.string(),
+  "checkoutPrice": zod.number().describe('Authoritative amount charged by Whop'),
+  "checkoutCurrency": zod.string().describe('Authoritative currency charged by Whop'),
   "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
@@ -1473,7 +1500,9 @@ export const CreateAdminPlanResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
-  "currency": zod.string().optional(),
+  "currency": zod.string(),
+  "checkoutPrice": zod.number().describe('Authoritative amount charged by Whop'),
+  "checkoutCurrency": zod.string().describe('Authoritative currency charged by Whop'),
   "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
@@ -1520,7 +1549,9 @@ export const UpdateAdminPlanResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
-  "currency": zod.string().optional(),
+  "currency": zod.string(),
+  "checkoutPrice": zod.number().describe('Authoritative amount charged by Whop'),
+  "checkoutCurrency": zod.string().describe('Authoritative currency charged by Whop'),
   "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),
@@ -1719,7 +1750,9 @@ export const GetAdminBillingResponse = zod.object({
   "price": zod.number().describe('One-time price for free\/lifetime; monthly price for recurring'),
   "annualPrice": zod.number().nullish(),
   "billingType": zod.enum(['one_time', 'monthly', 'annual', 'enterprise']).optional(),
-  "currency": zod.string().optional(),
+  "currency": zod.string(),
+  "checkoutPrice": zod.number().describe('Authoritative amount charged by Whop'),
+  "checkoutCurrency": zod.string().describe('Authoritative currency charged by Whop'),
   "whopPlanId": zod.string().nullish(),
   "maxUsers": zod.number().optional(),
   "maxRegisters": zod.number().optional(),

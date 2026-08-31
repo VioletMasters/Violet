@@ -3,8 +3,9 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useRegister } from "@workspace/api-client-react";
+import { createBillingCheckout, useRegister } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { getRequestedPaidTier, planLabel } from "@/lib/billing";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,8 @@ type RegisterForm = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
   const { setAuth } = useAuth();
+  const selectedTier = getRequestedPaidTier();
+  const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema)
@@ -30,10 +33,22 @@ export default function RegisterPage() {
 
   const registerMutation = useRegister({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         setAuth(data.user, data.tenant, data.token);
         toast.success("Business account created successfully!");
-        setLocation("/pos");
+        if (!selectedTier) {
+          setLocation("/pos");
+          return;
+        }
+
+        setIsOpeningCheckout(true);
+        try {
+          const checkout = await createBillingCheckout({ tier: selectedTier });
+          window.location.assign(checkout.checkoutUrl);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Secure checkout is unavailable.");
+          setLocation(`/subscription?checkout=error&tier=${selectedTier}`);
+        }
       },
       onError: (error) => {
         toast.error(error.message || "Failed to register. Please try again.");
@@ -56,6 +71,11 @@ export default function RegisterPage() {
           </Link>
           <h1 className="text-3xl font-display font-bold text-center tracking-tight">Create your account</h1>
           <p className="text-muted-foreground mt-2">Set up Violet Enterprise for your business</p>
+          {selectedTier && (
+            <p className="mt-3 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+              {planLabel(selectedTier)} plan selected — checkout follows account creation
+            </p>
+          )}
         </div>
 
         <div className="bg-card border border-border/50 rounded-2xl p-8 shadow-xl">
@@ -129,16 +149,22 @@ export default function RegisterPage() {
             <Button 
               type="submit" 
               className="w-full h-11 text-base mt-2" 
-              disabled={registerMutation.isPending}
+              disabled={registerMutation.isPending || isOpeningCheckout}
             >
-              {registerMutation.isPending ? "Creating account..." : "Start Free Trial"}
+              {registerMutation.isPending
+                ? "Creating account..."
+                : isOpeningCheckout
+                  ? "Opening secure checkout..."
+                  : selectedTier
+                    ? `Continue to ${planLabel(selectedTier)} checkout`
+                    : "Create free account"}
             </Button>
           </form>
         </div>
 
         <p className="text-center mt-8 text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:underline font-medium">
+          <Link href={selectedTier ? `/login?plan=${selectedTier}` : "/login"} className="text-primary hover:underline font-medium">
             Sign in
           </Link>
         </p>

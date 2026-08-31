@@ -42,13 +42,13 @@ async function main() {
   // ── 1. Subscription plans ──────────────────────────────────────────────
   await client.query(`
     INSERT INTO subscription_plans
-      (name, tier, description, price, annual_price, billing_type,
+      (name, tier, description, price, annual_price, billing_type, currency, checkout_price, checkout_currency,
        max_users, max_registers, max_branches, max_products, max_customers,
        features, is_active, is_popular, trial_days)
     VALUES
       ('Free', 'free',
        'Buy once, own forever. Perfect for a single small store with no monthly fees.',
-       '0', NULL, 'one_time',
+       '0', NULL, 'one_time', 'JMD', '0', 'USD',
        2, 1, 1, 250, 500,
        ARRAY[
          'Basic POS (cash & card)',
@@ -63,7 +63,7 @@ async function main() {
 
       ('Starter', 'starter',
        'Everything you need to grow your store with advanced tools and more capacity.',
-       '49', '470', 'monthly',
+       '7500', NULL, 'monthly', 'JMD', '49', 'USD',
        5, 2, 1, 2000, 2000,
        ARRAY[
          'Full POS features',
@@ -79,7 +79,7 @@ async function main() {
 
       ('Professional', 'professional',
        'For growing businesses with multiple registers and advanced analytics.',
-       '129', '1238', 'monthly',
+       '20000', NULL, 'monthly', 'JMD', '129', 'USD',
        20, 10, 3, 10000, 10000,
        ARRAY[
          'Everything in Starter',
@@ -95,7 +95,7 @@ async function main() {
 
       ('Enterprise', 'enterprise',
        'For established operations that need unlimited capacity and dedicated support.',
-       '150000', NULL, 'monthly',
+       '150000', NULL, 'monthly', 'JMD', '999', 'USD',
        999, 999, 999, 999999, 999999,
        ARRAY[
          'Unlimited branches',
@@ -108,6 +108,30 @@ async function main() {
        ],
        true, false, 0)
     ON CONFLICT DO NOTHING
+  `);
+  await client.query(`
+    UPDATE subscription_plans
+    SET
+      price = CASE tier
+        WHEN 'free' THEN 0
+        WHEN 'starter' THEN 7500
+        WHEN 'professional' THEN 20000
+        WHEN 'enterprise' THEN 150000
+        ELSE price
+      END,
+      currency = CASE
+        WHEN tier IN ('free', 'starter', 'professional', 'enterprise') THEN 'JMD'
+        ELSE currency
+      END,
+      checkout_price = CASE tier
+        WHEN 'starter' THEN 49
+        WHEN 'professional' THEN 129
+        WHEN 'enterprise' THEN 999
+        ELSE 0
+      END,
+      checkout_currency = 'USD',
+      updated_at = now()
+    WHERE tier IN ('free', 'starter', 'professional', 'enterprise')
   `);
   console.log("  ✓ Plans seeded");
 

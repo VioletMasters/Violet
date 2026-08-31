@@ -7,5 +7,6 @@
  */
 
 export interface BillingReconcileInput {
-  checkoutConfigurationId: string;
+  /** Optional consistency check. Reconciliation always uses the pending checkout stored for the authenticated tenant. */
+  checkoutConfigurationId?: string;
 }

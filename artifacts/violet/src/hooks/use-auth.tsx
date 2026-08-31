@@ -9,6 +9,7 @@ interface AuthState {
   isManagerAccessActive: boolean;
   setAuth: (user: UserProfile, tenant: Tenant, token: string) => void;
   updateUser: (user: UserProfile) => void;
+  updateTenant: (tenant: Tenant) => void;
   setManagerAccess: (accessToken: string, expiresAt: string) => void;
   clearManagerAccess: () => void;
   logout: () => void;
@@ -69,6 +70,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const updateTenant = (tenant: Tenant) => {
+    setState((prev) => {
+      const next = { ...prev, tenant };
+      localStorage.setItem('violet_auth', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const setManagerAccess = (accessToken: string, expiresAt: string) => {
     const next = { accessToken, expiresAt };
     sessionStorage.setItem(managerAccessStorageKey, JSON.stringify(next));
@@ -110,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isManagerAccessActive,
       setAuth,
       updateUser,
+      updateTenant,
       setManagerAccess,
       clearManagerAccess,
       logout,

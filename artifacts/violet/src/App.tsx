@@ -23,9 +23,9 @@ import Suppliers from './pages/suppliers';
 const DefaultAppRoute = () => <Redirect to="/pos" />;
 
 function RootRoute() {
-  const { token } = useAuth();
+  const { token, tenant } = useAuth();
 
-  return <Redirect to={token ? "/pos" : "/login"} />;
+  return <Redirect to={token ? (tenant?.requiresBillingAction ? "/subscription" : "/pos") : "/login"} />;
 }
 
 const queryClient = new QueryClient({

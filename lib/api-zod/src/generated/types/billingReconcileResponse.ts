@@ -5,9 +5,12 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingReconcileResponseStatus } from './billingReconcileResponseStatus';
 import type { BillingReconcileResponseTier } from './billingReconcileResponseTier';
 
 export interface BillingReconcileResponse {
   success: boolean;
   tier: BillingReconcileResponseTier;
+  status: BillingReconcileResponseStatus;
+  message: string;
 }

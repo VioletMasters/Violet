@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
-import { getLicenseFailure, isManagerRole, requireAuth } from "../middlewares/auth";
+import { getLicenseFailure, isManagerRole, requireAuth, requireSession } from "../middlewares/auth";
 import { issueManagerAccess } from "../lib/manager-access";
 
 const router = Router();
@@ -94,6 +94,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       status: tenant.status,
       planId: tenant.planId ?? "",
       planName: freePlan?.name ?? "Free",
+      requiresBillingAction: false,
+      billingMessage: null,
       createdAt: tenant.createdAt.toISOString(),
     },
   });
@@ -113,10 +115,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
-  const [plan] = tenant?.planId
-    ? await db.select().from(plansTable).where(eq(plansTable.id, tenant.planId)).limit(1)
-    : [null];
+  let [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
 
   if (!tenant) {
     res.status(401).json({ error: "Business account not found" });
@@ -124,10 +123,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 
   const licenseFailure = await getLicenseFailure(tenant.id);
-  if (licenseFailure) {
-    res.status(402).json({ error: licenseFailure });
-    return;
-  }
+  [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
+  const [plan] = tenant?.planId
+    ? await db.select().from(plansTable).where(eq(plansTable.id, tenant.planId)).limit(1)
+    : [null];
 
   // Create session
   const token = generateToken();
@@ -153,6 +152,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       status: tenant?.status ?? "active",
       planId: tenant?.planId ?? "",
       planName: plan?.name ?? "Free",
+      requiresBillingAction: Boolean(licenseFailure),
+      billingMessage: licenseFailure,
       createdAt: tenant?.createdAt?.toISOString() ?? new Date().toISOString(),
     },
   });
@@ -209,7 +210,7 @@ router.post("/auth/manager-confirmation", requireAuth, async (req, res): Promise
 });
 
 // POST /auth/logout
-router.post("/auth/logout", requireAuth, async (req, res): Promise<void> => {
+router.post("/auth/logout", requireSession, async (req, res): Promise<void> => {
   const token = req.headers.authorization?.slice(7) ?? "";
   await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
   res.json({ success: true });

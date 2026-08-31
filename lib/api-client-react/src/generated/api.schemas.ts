@@ -94,6 +94,10 @@ export interface Tenant {
   subscriptionStatus?: string;
   /** @nullable */
   subscriptionStart?: string | null;
+  /** True when the account may only access billing recovery until its Whop subscription is restored. */
+  requiresBillingAction?: boolean;
+  /** @nullable */
+  billingMessage?: string | null;
   createdAt: string;
 }
 
@@ -629,7 +633,11 @@ export interface Plan {
   /** @nullable */
   annualPrice?: number | null;
   billingType?: PlanBillingType;
-  currency?: string;
+  currency: string;
+  /** Authoritative amount charged by Whop */
+  checkoutPrice: number;
+  /** Authoritative currency charged by Whop */
+  checkoutCurrency: string;
   /** @nullable */
   whopPlanId?: string | null;
   maxUsers?: number;
@@ -712,6 +720,21 @@ export const SubscriptionStatus = {
   cancelled: 'cancelled',
 } as const;
 
+/**
+ * @nullable
+ */
+export type SubscriptionPaymentStatus = typeof SubscriptionPaymentStatus[keyof typeof SubscriptionPaymentStatus] | null;
+
+
+export const SubscriptionPaymentStatus = {
+  not_required: 'not_required',
+  pending: 'pending',
+  paid: 'paid',
+  failed: 'failed',
+  refunded: 'refunded',
+  past_due: 'past_due',
+} as const;
+
 export type SubscriptionUsage = {
   users?: number;
   products?: number;
@@ -728,6 +751,11 @@ export interface Subscription {
   currentPeriodStart?: string | null;
   /** @nullable */
   currentPeriodEnd?: string | null;
+  /** @nullable */
+  paymentStatus?: SubscriptionPaymentStatus;
+  checkoutPending?: boolean;
+  /** @nullable */
+  lastWhopSyncAt?: string | null;
   usage?: SubscriptionUsage;
 }
 
@@ -750,7 +778,8 @@ export interface BillingCheckout {
 }
 
 export interface BillingReconcileInput {
-  checkoutConfigurationId: string;
+  /** Optional consistency check. Reconciliation always uses the pending checkout stored for the authenticated tenant. */
+  checkoutConfigurationId?: string;
 }
 
 export type BillingReconcileResponseTier = typeof BillingReconcileResponseTier[keyof typeof BillingReconcileResponseTier];
@@ -762,9 +791,23 @@ export const BillingReconcileResponseTier = {
   enterprise: 'enterprise',
 } as const;
 
+export type BillingReconcileResponseStatus = typeof BillingReconcileResponseStatus[keyof typeof BillingReconcileResponseStatus];
+
+
+export const BillingReconcileResponseStatus = {
+  active: 'active',
+  pending: 'pending',
+  failed: 'failed',
+  past_due: 'past_due',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+} as const;
+
 export interface BillingReconcileResponse {
   success: boolean;
   tier: BillingReconcileResponseTier;
+  status: BillingReconcileResponseStatus;
+  message: string;
 }
 
 export interface SalesReport {

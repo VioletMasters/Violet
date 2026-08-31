@@ -3,8 +3,9 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useLogin } from "@workspace/api-client-react";
+import { createBillingCheckout, useLogin } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { getRequestedPaidTier, planLabel } from "@/lib/billing";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,8 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { setAuth } = useAuth();
+  const selectedTier = getRequestedPaidTier();
+  const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema)
@@ -27,10 +30,22 @@ export default function LoginPage() {
 
   const loginMutation = useLogin({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         setAuth(data.user, data.tenant, data.token);
         toast.success("Welcome back to Violet Enterprise");
-        setLocation("/pos");
+        if (selectedTier) {
+          setIsOpeningCheckout(true);
+          try {
+            const checkout = await createBillingCheckout({ tier: selectedTier });
+            window.location.assign(checkout.checkoutUrl);
+            return;
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Secure checkout is unavailable.");
+            setLocation(`/subscription?checkout=error&tier=${selectedTier}`);
+            return;
+          }
+        }
+        setLocation(data.tenant.requiresBillingAction ? "/subscription" : "/pos");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to login. Please check your credentials.");
@@ -53,6 +68,11 @@ export default function LoginPage() {
           </Link>
           <h1 className="text-3xl font-display font-bold text-center tracking-tight">Sign in to Violet</h1>
           <p className="text-muted-foreground mt-2">Welcome back to your command center</p>
+          {selectedTier && (
+            <p className="mt-3 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+              Sign in to continue to {planLabel(selectedTier)} checkout
+            </p>
+          )}
         </div>
 
         <div className="bg-card border border-border/50 rounded-2xl p-8 shadow-xl">
@@ -90,16 +110,22 @@ export default function LoginPage() {
             <Button 
               type="submit" 
               className="w-full h-11 text-base" 
-              disabled={loginMutation.isPending}
+              disabled={loginMutation.isPending || isOpeningCheckout}
             >
-              {loginMutation.isPending ? "Signing in..." : "Sign in"}
+              {loginMutation.isPending
+                ? "Signing in..."
+                : isOpeningCheckout
+                  ? "Opening secure checkout..."
+                  : selectedTier
+                    ? "Sign in and continue"
+                    : "Sign in"}
             </Button>
           </form>
         </div>
 
         <p className="text-center mt-8 text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link href="/register" className="text-primary hover:underline font-medium">
+          <Link href={selectedTier ? `/register?plan=${selectedTier}` : "/register"} className="text-primary hover:underline font-medium">
             Register your business
           </Link>
         </p>

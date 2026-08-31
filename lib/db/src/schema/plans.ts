@@ -9,6 +9,8 @@ export const plansTable = pgTable("subscription_plans", {
   annualPrice: numeric("annual_price", { precision: 10, scale: 2 }),
   billingType: text("billing_type").notNull().default("one_time"), // one_time, monthly, annual, enterprise
   currency: text("currency").notNull().default("USD"),
+  checkoutPrice: numeric("checkout_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  checkoutCurrency: text("checkout_currency").notNull().default("USD"),
   whopPlanId: text("whop_plan_id"),
   maxUsers: integer("max_users").notNull().default(2),
   maxRegisters: integer("max_registers").notNull().default(1),
@@ -31,6 +33,10 @@ export const subscriptionsTable = pgTable("subscriptions", {
   paymentStatus: text("payment_status").notNull().default("not_required"), // not_required, pending, paid, past_due, failed
   whopPlanId: text("whop_plan_id"),
   whopCheckoutConfigurationId: text("whop_checkout_configuration_id"),
+  pendingWhopCheckoutConfigurationId: text("pending_whop_checkout_configuration_id"),
+  pendingWhopTier: text("pending_whop_tier"),
+  pendingWhopClaim: text("pending_whop_claim"),
+  pendingWhopUserId: uuid("pending_whop_user_id"),
   whopMembershipId: text("whop_membership_id"),
   lastWhopSyncAt: timestamp("last_whop_sync_at", { withTimezone: true }),
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),

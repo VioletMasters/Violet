@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
     price numeric(10,2) DEFAULT '0'::numeric NOT NULL,
     annual_price numeric(10,2),
     billing_type text DEFAULT 'one_time'::text NOT NULL,
+    currency text DEFAULT 'JMD'::text NOT NULL,
+    checkout_price numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    checkout_currency text DEFAULT 'USD'::text NOT NULL,
+    whop_plan_id text,
     max_users integer DEFAULT 2 NOT NULL,
     max_registers integer DEFAULT 1 NOT NULL,
     max_branches integer DEFAULT 1 NOT NULL,
@@ -41,6 +45,14 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
     plan_id uuid NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
     payment_status text DEFAULT 'not_required'::text NOT NULL,
+    whop_plan_id text,
+    whop_checkout_configuration_id text,
+    pending_whop_checkout_configuration_id text,
+    pending_whop_tier text,
+    pending_whop_claim text,
+    pending_whop_user_id uuid,
+    whop_membership_id text,
+    last_whop_sync_at timestamp with time zone,
     current_period_start timestamp with time zone,
     current_period_end timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -129,6 +141,40 @@ CREATE TABLE IF NOT EXISTS public.products (
 -- Keep existing self-hosted databases compatible with newer app versions.
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS require_manager_password_for_cart_removal boolean DEFAULT false NOT NULL;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS brand_id uuid;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS currency text DEFAULT 'JMD'::text NOT NULL;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS whop_plan_id text;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS checkout_price numeric(10,2) DEFAULT '0'::numeric NOT NULL;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS checkout_currency text DEFAULT 'USD'::text NOT NULL;
+UPDATE public.subscription_plans
+SET
+    price = CASE tier
+        WHEN 'free' THEN 0
+        WHEN 'starter' THEN 7500
+        WHEN 'professional' THEN 20000
+        WHEN 'enterprise' THEN 150000
+        ELSE price
+    END,
+    currency = CASE
+        WHEN tier IN ('free', 'starter', 'professional', 'enterprise') THEN 'JMD'
+        ELSE currency
+    END,
+    checkout_price = CASE tier
+        WHEN 'starter' THEN 49
+        WHEN 'professional' THEN 129
+        WHEN 'enterprise' THEN 999
+        ELSE 0
+    END,
+    checkout_currency = 'USD',
+    updated_at = now()
+WHERE tier IN ('free', 'starter', 'professional', 'enterprise');
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS whop_plan_id text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS whop_checkout_configuration_id text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS pending_whop_checkout_configuration_id text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS pending_whop_tier text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS pending_whop_claim text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS pending_whop_user_id uuid;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS whop_membership_id text;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS last_whop_sync_at timestamp with time zone;
 
 CREATE TABLE IF NOT EXISTS public.customers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

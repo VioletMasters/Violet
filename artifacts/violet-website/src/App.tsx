@@ -51,7 +51,7 @@ const offers: Array<{
     eyebrow: "Built around your business",
     description: "A complete operating system for established retailers and growing chains.",
     jmd: 150000,
-    usd: 1998,
+    usd: 999,
     features: ["Unlimited registers and products", "Unlimited branches", "Custom onboarding", "White-label ready", "Dedicated support", "Self-hosting options"],
   },
 ];
@@ -72,38 +72,16 @@ function money(amount: number, currency: Currency) {
 }
 
 function CheckoutButton({ tier, className = "" }: { tier: Tier; className?: string }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function startCheckout() {
-    if (tier === "free") {
-      window.location.href = `${appUrl}/register?plan=free`;
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ tier }),
-      });
-      const data = (await response.json()) as { checkoutUrl?: string; error?: string };
-      if (!response.ok || !data.checkoutUrl) throw new Error(data.error || "Checkout is unavailable.");
-      window.location.assign(data.checkoutUrl);
-    } catch (checkoutError) {
-      setError(checkoutError instanceof Error ? checkoutError.message : "Checkout is unavailable.");
-      setBusy(false);
-    }
+  function startCheckout() {
+    window.location.href = `${appUrl}/register?plan=${tier}`;
   }
 
   return (
     <div className={`checkout-action ${className}`}>
-      <button className="button button-primary button-wide" onClick={startCheckout} disabled={busy}>
-        {busy ? "Opening secure checkout…" : tier === "free" ? "Create free account" : "Choose " + offers.find((offer) => offer.tier === tier)?.name}
-        {!busy && <ArrowRight size={16} />}
+      <button className="button button-primary button-wide" onClick={startCheckout}>
+        {tier === "free" ? "Create free account" : "Create account for " + offers.find((offer) => offer.tier === tier)?.name}
+        <ArrowRight size={16} />
       </button>
-      {error && <p className="checkout-error">{error}</p>}
     </div>
   );
 }

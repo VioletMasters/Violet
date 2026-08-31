@@ -192,8 +192,15 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-return withQueryKey(query, queryOptions.queryKey);
+  return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getRegisterUrl = () => {
 
 
@@ -617,8 +624,15 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-return withQueryKey(query, queryOptions.queryKey);
+  return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getGetDashboardStatsUrl = () => {
 
 
@@ -689,7 +703,6 @@ export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashbo
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-// End of generated queries.
 
 
 
@@ -3614,6 +3627,77 @@ export const useCreateBillingCheckout = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateBillingCheckoutMutationOptions(options));
+    }
+
+export const getCancelBillingCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/checkout`
+}
+
+/**
+ * @summary Cancel the current tenant's pending Whop checkout
+ */
+export const cancelBillingCheckout = async ( options?: Parameters<typeof customFetch>[1]): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getCancelBillingCheckoutUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelBillingCheckoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBillingCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelBillingCheckout>>, TError,void, TContext> => {
+
+const mutationKey = ['cancelBillingCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelBillingCheckout>>, void> = () => {
+
+
+          return  cancelBillingCheckout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelBillingCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof cancelBillingCheckout>>>
+
+    export type CancelBillingCheckoutMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Cancel the current tenant's pending Whop checkout
+ */
+export const useCancelBillingCheckout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBillingCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelBillingCheckout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCancelBillingCheckoutMutationOptions(options));
     }
 
 export const getReconcileBillingCheckoutUrl = () => {

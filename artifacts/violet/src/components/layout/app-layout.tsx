@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { token, logout, isManagerAccessActive } = useAuth();
+  const { token, tenant, logout, isManagerAccessActive } = useAuth();
   
   // Verify token
   const { data: me, error } = useGetMe({
@@ -23,8 +23,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) {
       setLocation("/login");
+    } else if (tenant?.requiresBillingAction && location !== "/subscription") {
+      setLocation("/subscription");
     }
-  }, [token, location, setLocation]);
+  }, [token, tenant?.requiresBillingAction, location, setLocation]);
 
   useEffect(() => {
     if (error) {
@@ -47,7 +49,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     "/employees",
     "/suppliers",
     "/reports",
-    "/subscription",
   ].some((route) => location === route || location.startsWith(`${route}/`));
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (isManagementRoute && !isManagerAccessActive) return null;
 
   const isPosRoute = location === "/pos" || location.startsWith("/pos/");
-  const showBackButton = !isPosRoute;
+  const showBackButton = !isPosRoute && !(location === "/subscription" && tenant?.requiresBillingAction);
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">

@@ -1,14 +1,10 @@
 import { Router } from "express";
 import { db, plansTable, subscriptionsTable, usersTable, productsTable, customersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireManagerAccess } from "../middlewares/auth";
+import { isManagerRole, requireSession } from "../middlewares/auth";
+import { refreshWhopMembershipIfStale } from "../lib/subscriptionSync";
 
 const router = Router();
-
-function planPrice(plan: { tier: string; price: string }) {
-  const price = parseFloat(plan.price);
-  return plan.tier === "enterprise" && price === 0 ? 150000 : price;
-}
 
 // GET /plans — public
 router.get("/plans", async (req, res): Promise<void> => {
@@ -18,9 +14,12 @@ router.get("/plans", async (req, res): Promise<void> => {
     name: p.name,
     tier: p.tier,
     description: p.description ?? "",
-    price: planPrice(p),
+    price: parseFloat(p.price),
     annualPrice: p.annualPrice ? parseFloat(p.annualPrice) : null,
     billingType: p.billingType,
+    currency: p.currency,
+    checkoutPrice: parseFloat(p.checkoutPrice),
+    checkoutCurrency: p.checkoutCurrency,
     maxUsers: p.maxUsers,
     maxRegisters: p.maxRegisters,
     maxBranches: p.maxBranches,
@@ -34,13 +33,30 @@ router.get("/plans", async (req, res): Promise<void> => {
 });
 
 // GET /subscription
-router.get("/subscription", requireManagerAccess, async (req, res): Promise<void> => {
+router.get("/subscription", requireSession, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
+  if (!req.user || !isManagerRole(req.user.role)) {
+    res.status(403).json({ error: "Only an account owner or manager can view billing." });
+    return;
+  }
 
-  const [sub] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.tenantId, tenantId)).limit(1);
+  let [sub] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.tenantId, tenantId)).limit(1);
   if (!sub) {
     res.status(404).json({ error: "No subscription found" });
     return;
+  }
+
+  if (sub.whopMembershipId) {
+    try {
+      await refreshWhopMembershipIfStale(tenantId, sub.lastWhopSyncAt, 0);
+      [sub] = await db
+        .select()
+        .from(subscriptionsTable)
+        .where(eq(subscriptionsTable.tenantId, tenantId))
+        .limit(1);
+    } catch (err) {
+      req.log.warn({ err, tenantId }, "Unable to refresh Whop membership for subscription view");
+    }
   }
 
   const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, sub.planId)).limit(1);
@@ -59,9 +75,12 @@ router.get("/subscription", requireManagerAccess, async (req, res): Promise<void
       name: plan.name,
       tier: plan.tier,
       description: plan.description ?? "",
-      price: planPrice(plan),
+      price: parseFloat(plan.price),
       annualPrice: plan.annualPrice ? parseFloat(plan.annualPrice) : null,
       billingType: plan.billingType,
+      currency: plan.currency,
+      checkoutPrice: parseFloat(plan.checkoutPrice),
+      checkoutCurrency: plan.checkoutCurrency,
       maxUsers: plan.maxUsers,
       maxRegisters: plan.maxRegisters,
       maxBranches: plan.maxBranches,
@@ -75,6 +94,9 @@ router.get("/subscription", requireManagerAccess, async (req, res): Promise<void
     status: sub.status,
     currentPeriodStart: sub.currentPeriodStart?.toISOString() ?? null,
     currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+    paymentStatus: sub.paymentStatus ?? null,
+    checkoutPending: Boolean(sub.pendingWhopCheckoutConfigurationId),
+    lastWhopSyncAt: sub.lastWhopSyncAt?.toISOString() ?? null,
     usage: {
       users: users.length,
       products: products.length,

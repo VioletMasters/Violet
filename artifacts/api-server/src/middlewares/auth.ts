@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 import { hasValidManagerAccess } from "../lib/manager-access";
+import { refreshWhopMembershipIfStale, WhopBindingError } from "../lib/subscriptionSync";
 
 export interface AuthUser {
   id: string;
@@ -22,33 +23,78 @@ export interface AuthUser {
 }
 
 const managerRoles = new Set(["owner", "administrator", "manager", "super_admin"]);
+const MAX_TRANSIENT_WHOP_STALENESS_MS = 6 * 60 * 60 * 1000;
 
 export function isManagerRole(role: string): boolean {
   return managerRoles.has(role);
 }
 
 export async function getLicenseFailure(tenantId: string): Promise<string | null> {
-  const [tenant] = await db
+  let [tenant] = await db
     .select()
     .from(tenantsTable)
     .where(eq(tenantsTable.id, tenantId))
     .limit(1);
 
   if (!tenant) return "Business account not found";
-  if (tenant.licenseStatus !== "valid") return "Violet license is not valid";
-  if (tenant.licenseValidUntil && tenant.licenseValidUntil <= new Date()) {
-    return "Violet license has expired";
-  }
-  if (tenant.status === "suspended" || tenant.status === "expired") {
+  if (tenant.status === "suspended") {
     return "Business account is not active";
   }
 
-  const [subscription] = await db
+  let [subscription] = await db
     .select()
     .from(subscriptionsTable)
     .where(eq(subscriptionsTable.tenantId, tenantId))
     .limit(1);
   if (!subscription) return "No active Violet license was found";
+
+  if (subscription.whopMembershipId) {
+    try {
+      await refreshWhopMembershipIfStale(tenantId, subscription.lastWhopSyncAt);
+      [tenant] = await db
+        .select()
+        .from(tenantsTable)
+        .where(eq(tenantsTable.id, tenantId))
+        .limit(1);
+      [subscription] = await db
+        .select()
+        .from(subscriptionsTable)
+        .where(eq(subscriptionsTable.tenantId, tenantId))
+        .limit(1);
+    } catch (err) {
+      console.warn("Unable to refresh Whop membership status", {
+        tenantId,
+        message: err instanceof Error ? err.message : "Unknown error",
+      });
+      const statusCode =
+        typeof err === "object" &&
+        err !== null &&
+        "statusCode" in err &&
+        typeof err.statusCode === "number"
+          ? err.statusCode
+          : null;
+      const permanentVerificationFailure =
+        err instanceof WhopBindingError ||
+        statusCode === 401 ||
+        statusCode === 403 ||
+        statusCode === 404;
+      const lastVerifiedAt = subscription.lastWhopSyncAt?.getTime() ?? 0;
+      const verificationTooOld =
+        !lastVerifiedAt || Date.now() - lastVerifiedAt > MAX_TRANSIENT_WHOP_STALENESS_MS;
+      if (permanentVerificationFailure || verificationTooOld) {
+        return "Violet could not verify this paid license with Whop. Open Subscription to restore access.";
+      }
+    }
+  }
+
+  if (!tenant || !subscription) return "No active Violet license was found";
+  if (tenant.licenseStatus !== "valid") return "Violet license is not valid";
+  if (tenant.licenseValidUntil && tenant.licenseValidUntil <= new Date()) {
+    return "Violet license has expired";
+  }
+  if (tenant.status === "expired") {
+    return "Business account is not active";
+  }
 
   const [plan] = await db
     .select()
@@ -64,7 +110,7 @@ export async function getLicenseFailure(tenantId: string): Promise<string | null
   const inactiveSubscription = ["expired", "cancelled"].includes(subscription.status);
 
   if (paymentOverdue || inactiveSubscription) {
-    return "Your monthly Violet payment is overdue. Update billing on the Violet website to continue.";
+    return "Your Violet payment needs attention. Open Subscription to restore access.";
   }
 
   return null;
@@ -80,10 +126,23 @@ declare global {
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authenticated = await authenticateSession(req, res);
+  if (!authenticated) return;
+
+  const licenseFailure = await getLicenseFailure(req.tenantId!);
+  if (licenseFailure) {
+    res.status(402).json({ error: licenseFailure });
+    return;
+  }
+
+  next();
+}
+
+async function authenticateSession(req: Request, res: Response): Promise<boolean> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
-    return;
+    return false;
   }
 
   const token = authHeader.slice(7);
@@ -98,7 +157,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     if (!session) {
       res.status(401).json({ error: "Invalid or expired session" });
-      return;
+      return false;
     }
 
     const [user] = await db
@@ -109,13 +168,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     if (!user) {
       res.status(401).json({ error: "User not found" });
-      return;
-    }
-
-    const licenseFailure = await getLicenseFailure(user.tenantId);
-    if (licenseFailure) {
-      res.status(402).json({ error: licenseFailure });
-      return;
+      return false;
     }
 
     req.user = {
@@ -129,11 +182,18 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       createdAt: user.createdAt,
     };
     req.tenantId = user.tenantId;
-    next();
+    return true;
   } catch (err) {
     req.log.error({ err }, "Auth middleware error");
     res.status(500).json({ error: "Internal server error" });
+    return false;
   }
+}
+
+export async function requireSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authenticated = await authenticateSession(req, res);
+  if (!authenticated) return;
+  next();
 }
 
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
