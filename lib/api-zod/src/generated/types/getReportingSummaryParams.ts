@@ -7,6 +7,7 @@
  */
 import type { ReportCashierIdParameter } from './reportCashierIdParameter';
 import type { ReportEndDateParameter } from './reportEndDateParameter';
+import type { ReportPaymentMethodParameter } from './reportPaymentMethodParameter';
 import type { ReportRegisterIdParameter } from './reportRegisterIdParameter';
 import type { ReportStartDateParameter } from './reportStartDateParameter';
 import type { ReportStoreIdParameter } from './reportStoreIdParameter';
@@ -17,4 +18,5 @@ endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
+paymentMethod?: ReportPaymentMethodParameter;
 };

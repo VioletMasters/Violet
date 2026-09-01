@@ -46,6 +46,8 @@ import type {
   ErrorResponse,
   ExportReportingTransactionsParams,
   GetCashReportParams,
+  GetEmployeeReportParams,
+  GetInventoryMovementReportParams,
   GetLatestReleaseParams,
   GetProductReportParams,
   GetReportDefinitions200,
@@ -5343,6 +5345,90 @@ export function useGetProductReport<TData = Awaited<ReturnType<typeof getProduct
 
 
 
+export const getGetEmployeeReportUrl = (params: GetEmployeeReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/employees?${stringifiedParams}` : `/api/reports/employees`
+}
+
+/**
+ * @summary Get cashier performance report
+ */
+export const getEmployeeReport = async (params: GetEmployeeReportParams, options?: Parameters<typeof customFetch>[1]): Promise<ReportData> => {
+
+  return customFetch<ReportData>(getGetEmployeeReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployeeReportQueryKey = (params?: GetEmployeeReportParams,) => {
+    return [
+    `/api/reports/employees`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEmployeeReportQueryOptions = <TData = Awaited<ReturnType<typeof getEmployeeReport>>, TError = ErrorType<unknown>>(params: GetEmployeeReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployeeReport>>> = ({ signal }) => getEmployeeReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployeeReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployeeReportQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployeeReport>>>
+export type GetEmployeeReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get cashier performance report
+ */
+
+export function useGetEmployeeReport<TData = Awaited<ReturnType<typeof getEmployeeReport>>, TError = ErrorType<unknown>>(
+ params: GetEmployeeReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployeeReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetCashReportUrl = (params: GetCashReportParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5415,6 +5501,90 @@ export function useGetCashReport<TData = Awaited<ReturnType<typeof getCashReport
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCashReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInventoryMovementReportUrl = (params: GetInventoryMovementReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/inventory-movements?${stringifiedParams}` : `/api/reports/inventory-movements`
+}
+
+/**
+ * @summary Get inventory movement audit trail
+ */
+export const getInventoryMovementReport = async (params: GetInventoryMovementReportParams, options?: Parameters<typeof customFetch>[1]): Promise<ReportData> => {
+
+  return customFetch<ReportData>(getGetInventoryMovementReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInventoryMovementReportQueryKey = (params?: GetInventoryMovementReportParams,) => {
+    return [
+    `/api/reports/inventory-movements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetInventoryMovementReportQueryOptions = <TData = Awaited<ReturnType<typeof getInventoryMovementReport>>, TError = ErrorType<unknown>>(params: GetInventoryMovementReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInventoryMovementReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInventoryMovementReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInventoryMovementReport>>> = ({ signal }) => getInventoryMovementReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInventoryMovementReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInventoryMovementReportQueryResult = NonNullable<Awaited<ReturnType<typeof getInventoryMovementReport>>>
+export type GetInventoryMovementReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get inventory movement audit trail
+ */
+
+export function useGetInventoryMovementReport<TData = Awaited<ReturnType<typeof getInventoryMovementReport>>, TError = ErrorType<unknown>>(
+ params: GetInventoryMovementReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInventoryMovementReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInventoryMovementReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

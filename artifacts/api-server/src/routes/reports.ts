@@ -1,8 +1,8 @@
 import { Router } from "express";
 import {
-  auditEventsTable, cashEventsTable, categoriesTable, db, purchaseOrdersTable, receiptsTable,
+  auditEventsTable, cashEventsTable, categoriesTable, db, inventoryMovementsTable, purchaseOrdersTable, receiptsTable,
   refundsTable, refundItemsTable, registersTable, saleItemsTable, salePaymentsTable, salesTable,
-  storesTable, productsTable,
+  storesTable, productsTable, usersTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, ilike, lte, ne, sql, type SQL } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
@@ -121,6 +121,24 @@ router.get("/reports/products", requireManagerAccess, async (req, res): Promise<
   res.json({ data: rows.map((r) => ({ ...r, units: Number(r.units), netSales: money(r.netSales), cogs: money(r.cogs), grossProfit: money(Number(r.netSales) - Number(r.cogs)) })) });
 });
 
+router.get("/reports/employees", requireManagerAccess, async (req, res): Promise<void> => {
+  const query = req.query as Query; const error = validDates(query);
+  if (error) { res.status(400).json({ error }); return; }
+  const conditions = [...filters(query, req.tenantId!), eq(salesTable.status, "completed")];
+  const rows = await db.select({
+    cashierId: salesTable.cashierId,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    role: usersTable.role,
+    transactions: sql<number>`COUNT(*)`,
+    sales: sql<string>`SUM(${salesTable.totalAmount}::numeric)`,
+    discounts: sql<string>`SUM(${salesTable.discountAmount}::numeric)`,
+  }).from(salesTable).innerJoin(usersTable, and(eq(salesTable.cashierId, usersTable.id), eq(usersTable.tenantId, req.tenantId!)))
+    .where(and(...conditions)).groupBy(salesTable.cashierId, usersTable.firstName, usersTable.lastName, usersTable.role)
+    .orderBy(desc(sql`SUM(${salesTable.totalAmount}::numeric)`));
+  res.json({ data: rows.map((row) => ({ ...row, transactions: Number(row.transactions), sales: money(row.sales), discounts: money(row.discounts) })) });
+});
+
 router.get("/reports/inventory", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const rows = await db.select({ product: productsTable, categoryName: categoriesTable.name }).from(productsTable)
@@ -133,6 +151,33 @@ router.get("/reports/inventory", requireManagerAccess, async (req, res): Promise
     outOfStockCount: rows.filter((r) => r.product.stock === 0).length,
     data: rows.map((r) => ({ ...r.product, categoryName: r.categoryName, valuation: money(Number(r.product.costPrice ?? 0) * r.product.stock) })),
   });
+});
+
+router.get("/reports/inventory-movements", requireManagerAccess, async (req, res): Promise<void> => {
+  const query = req.query as Query; const error = validDates(query);
+  if (error) { res.status(400).json({ error }); return; }
+  const conditions: SQL[] = [
+    eq(inventoryMovementsTable.tenantId, req.tenantId!),
+    gte(inventoryMovementsTable.createdAt, new Date(query.startDate!)),
+    lte(inventoryMovementsTable.createdAt, new Date(query.endDate!)),
+  ];
+  if (query.storeId) conditions.push(eq(inventoryMovementsTable.storeId, query.storeId));
+  const rows = await db.select({
+    id: inventoryMovementsTable.id,
+    productId: inventoryMovementsTable.productId,
+    productName: productsTable.name,
+    adjustment: inventoryMovementsTable.adjustment,
+    reason: inventoryMovementsTable.reason,
+    note: inventoryMovementsTable.note,
+    referenceType: inventoryMovementsTable.referenceType,
+    referenceId: inventoryMovementsTable.referenceId,
+    createdBy: inventoryMovementsTable.createdBy,
+    createdAt: inventoryMovementsTable.createdAt,
+  }).from(inventoryMovementsTable).leftJoin(productsTable, and(
+    eq(inventoryMovementsTable.productId, productsTable.id),
+    eq(productsTable.tenantId, req.tenantId!),
+  )).where(and(...conditions)).orderBy(desc(inventoryMovementsTable.createdAt)).limit(1000);
+  res.json({ data: rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })) });
 });
 
 router.get("/reports/cash", requireManagerAccess, async (req, res): Promise<void> => {

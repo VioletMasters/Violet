@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ReportEndDateParameter } from './reportEndDateParameter';
+import type { ReportRegisterIdParameter } from './reportRegisterIdParameter';
 import type { ReportStartDateParameter } from './reportStartDateParameter';
 import type { ReportStoreIdParameter } from './reportStoreIdParameter';
 
@@ -13,4 +14,5 @@ export type GetCashReportParams = {
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
 };

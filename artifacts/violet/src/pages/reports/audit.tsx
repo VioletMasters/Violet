@@ -9,13 +9,12 @@ import { ChevronLeft, ChevronRight, Activity, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function ReportsAudit() {
-  const { startDate, endDate } = useReportsContext();
+  const { startDate } = useReportsContext();
   const [page, setPage] = useState(1);
   const limit = 50;
 
   const { data: response, isLoading } = useListAuditEvents({
     startDate,
-    endDate,
     page,
     limit
   });

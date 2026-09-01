@@ -12,7 +12,7 @@ import type { ReportRegisterIdParameter } from './reportRegisterIdParameter';
 import type { ReportStartDateParameter } from './reportStartDateParameter';
 import type { ReportStoreIdParameter } from './reportStoreIdParameter';
 
-export type GetProductReportParams = {
+export type GetEmployeeReportParams = {
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;

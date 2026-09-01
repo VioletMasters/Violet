@@ -5,18 +5,12 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
-import type { ReportCashierIdParameter } from './reportCashierIdParameter';
 import type { ReportEndDateParameter } from './reportEndDateParameter';
-import type { ReportPaymentMethodParameter } from './reportPaymentMethodParameter';
-import type { ReportRegisterIdParameter } from './reportRegisterIdParameter';
 import type { ReportStartDateParameter } from './reportStartDateParameter';
 import type { ReportStoreIdParameter } from './reportStoreIdParameter';
 
-export type GetProductReportParams = {
+export type GetInventoryMovementReportParams = {
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
-registerId?: ReportRegisterIdParameter;
-cashierId?: ReportCashierIdParameter;
-paymentMethod?: ReportPaymentMethodParameter;
 };

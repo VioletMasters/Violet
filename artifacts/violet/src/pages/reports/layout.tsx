@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { ReportsProvider, useReportsContext } from "./context";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useListStores, useListRegisters, useListEmployees } from "@workspace/api-client-react";
+import { getListRegistersQueryKey, useListStores, useListRegisters, useListEmployees } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Download, Printer, Filter } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,12 +31,13 @@ function ReportFilters() {
   } = useReportsContext();
 
   const { data: storesResponse } = useListStores();
-  const { data: registersResponse } = useListRegisters(storeId ? { storeId } : undefined, { query: { enabled: !!storeId } });
+  const registerParams = storeId ? { storeId } : undefined;
+  const { data: registersResponse } = useListRegisters(registerParams, { query: { queryKey: getListRegistersQueryKey(registerParams), enabled: !!storeId } });
   const { data: employeesResponse } = useListEmployees();
 
-  const stores = storesResponse?.data || [];
-  const registers = registersResponse?.data || [];
-  const employees = employeesResponse?.data || [];
+  const stores = (Array.isArray(storesResponse) ? storesResponse : (storesResponse as any)?.data || []) as any[];
+  const registers = (Array.isArray(registersResponse) ? registersResponse : (registersResponse as any)?.data || []) as any[];
+  const employees = (Array.isArray(employeesResponse) ? employeesResponse : (employeesResponse as any)?.data || []) as any[];
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-6 bg-card border rounded-lg p-2 shadow-sm">

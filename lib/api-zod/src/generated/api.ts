@@ -1519,7 +1519,8 @@ export const GetReportingSummaryQueryParams = zod.object({
   "endDate": zod.date(),
   "storeId": zod.coerce.string().optional(),
   "registerId": zod.coerce.string().optional(),
-  "cashierId": zod.coerce.string().optional()
+  "cashierId": zod.coerce.string().optional(),
+  "paymentMethod": zod.coerce.string().optional()
 })
 
 export const GetReportingSummaryResponse = zod.record(zod.string(), zod.unknown())
@@ -1539,6 +1540,9 @@ export const GetReportTransactionsQueryParams = zod.object({
   "startDate": zod.date(),
   "endDate": zod.date(),
   "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "cashierId": zod.coerce.string().optional(),
+  "paymentMethod": zod.coerce.string().optional(),
   "page": zod.coerce.number().int().min(1).default(getReportTransactionsQueryPageDefault),
   "limit": zod.coerce.number().int().min(1).max(getReportTransactionsQueryLimitMax).default(getReportTransactionsQueryLimitDefault)
 })
@@ -1552,10 +1556,28 @@ export const GetReportTransactionsResponse = zod.record(zod.string(), zod.unknow
 export const GetProductReportQueryParams = zod.object({
   "startDate": zod.date(),
   "endDate": zod.date(),
-  "storeId": zod.coerce.string().optional()
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "cashierId": zod.coerce.string().optional(),
+  "paymentMethod": zod.coerce.string().optional()
 })
 
 export const GetProductReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get cashier performance report
+ */
+export const GetEmployeeReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "cashierId": zod.coerce.string().optional(),
+  "paymentMethod": zod.coerce.string().optional()
+})
+
+export const GetEmployeeReportResponse = zod.record(zod.string(), zod.unknown())
 
 
 /**
@@ -1564,10 +1586,23 @@ export const GetProductReportResponse = zod.record(zod.string(), zod.unknown())
 export const GetCashReportQueryParams = zod.object({
   "startDate": zod.date(),
   "endDate": zod.date(),
-  "storeId": zod.coerce.string().optional()
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional()
 })
 
 export const GetCashReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get inventory movement audit trail
+ */
+export const GetInventoryMovementReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional()
+})
+
+export const GetInventoryMovementReportResponse = zod.record(zod.string(), zod.unknown())
 
 
 /**
@@ -1600,7 +1635,10 @@ export const ExportReportingTransactionsQueryParams = zod.object({
   "format": zod.enum(['csv', 'xlsx', 'pdf']),
   "startDate": zod.date(),
   "endDate": zod.date(),
-  "storeId": zod.coerce.string().optional()
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "cashierId": zod.coerce.string().optional(),
+  "paymentMethod": zod.coerce.string().optional()
 })
 
 export const ExportReportingTransactionsResponse = zod.unknown()

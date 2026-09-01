@@ -1166,6 +1166,8 @@ export type ReportRegisterIdParameter = string;
 
 export type ReportCashierIdParameter = string;
 
+export type ReportPaymentMethodParameter = string;
+
 export type ListPosProductsParams = {
 search?: string;
 page?: number;
@@ -1269,12 +1271,16 @@ endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
+paymentMethod?: ReportPaymentMethodParameter;
 };
 
 export type GetReportTransactionsParams = {
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+paymentMethod?: ReportPaymentMethodParameter;
 /**
  * @minimum 1
  */
@@ -1290,9 +1296,28 @@ export type GetProductReportParams = {
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+paymentMethod?: ReportPaymentMethodParameter;
+};
+
+export type GetEmployeeReportParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+paymentMethod?: ReportPaymentMethodParameter;
 };
 
 export type GetCashReportParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+};
+
+export type GetInventoryMovementReportParams = {
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
@@ -1308,6 +1333,9 @@ format: ExportReportingTransactionsFormat;
 startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+paymentMethod?: ReportPaymentMethodParameter;
 };
 
 export type ExportReportingTransactionsFormat = typeof ExportReportingTransactionsFormat[keyof typeof ExportReportingTransactionsFormat];
