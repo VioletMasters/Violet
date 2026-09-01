@@ -106,6 +106,8 @@ import type {
   SettingsUpdate,
   ShiftCloseInput,
   ShiftOpenInput,
+  StagingCleanupConfirmation,
+  StagingTenantCleanupResponse,
   StoreCreateInput,
   Subscription,
   SuccessResponse,
@@ -6453,6 +6455,79 @@ export const useUpdateAdminTenant = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateAdminTenantMutationOptions(options));
+    }
+
+export const getDeleteStagingTenantUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/staging/tenants/${id}`
+}
+
+/**
+ * Staging-only self-cleanup for the onboarding smoke suite. The server must have staging cleanup explicitly enabled and the request must confirm the staging cleanup operation.
+ * @summary Delete the authenticated disposable staging tenant
+ */
+export const deleteStagingTenant = async (id: string,
+    stagingCleanupConfirmation: StagingCleanupConfirmation, options?: Parameters<typeof customFetch>[1]): Promise<StagingTenantCleanupResponse> => {
+
+  return customFetch<StagingTenantCleanupResponse>(getDeleteStagingTenantUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(stagingCleanupConfirmation)
+  }
+);}
+
+
+
+
+
+export const getDeleteStagingTenantMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStagingTenant>>, TError,{id: string;data: BodyType<StagingCleanupConfirmation>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStagingTenant>>, TError,{id: string;data: BodyType<StagingCleanupConfirmation>}, TContext> => {
+
+const mutationKey = ['deleteStagingTenant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStagingTenant>>, {id: string;data: BodyType<StagingCleanupConfirmation>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  deleteStagingTenant(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStagingTenantMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStagingTenant>>>
+    export type DeleteStagingTenantMutationBody = BodyType<StagingCleanupConfirmation>
+    export type DeleteStagingTenantMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete the authenticated disposable staging tenant
+ */
+export const useDeleteStagingTenant = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStagingTenant>>, TError,{id: string;data: BodyType<StagingCleanupConfirmation>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStagingTenant>>,
+        TError,
+        {id: string;data: BodyType<StagingCleanupConfirmation>},
+        TContext
+      > => {
+      return useMutation(getDeleteStagingTenantMutationOptions(options));
     }
 
 export const getListAdminPlansUrl = () => {

@@ -1829,6 +1829,24 @@ export const UpdateAdminTenantResponse = zod.object({
 
 
 /**
+ * Staging-only self-cleanup for the onboarding smoke suite. The server must have staging cleanup explicitly enabled and the request must confirm the staging cleanup operation.
+ * @summary Delete the authenticated disposable staging tenant
+ */
+export const DeleteStagingTenantParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteStagingTenantBody = zod.object({
+  "confirmStagingCleanup": zod.literal(true)
+})
+
+export const DeleteStagingTenantResponse = zod.object({
+  "success": zod.boolean(),
+  "tenantId": zod.string()
+})
+
+
+/**
  * @summary List all plans (admin)
  */
 export const ListAdminPlansResponseItem = zod.object({

@@ -1626,6 +1626,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/Tenant"
 
+  /admin/staging/tenants/{id}:
+    delete:
+      operationId: deleteStagingTenant
+      tags: [admin]
+      summary: Delete the authenticated disposable staging tenant
+      description: >
+        Staging-only self-cleanup for the onboarding smoke suite. The server
+        must have staging cleanup explicitly enabled and the request must
+        confirm the staging cleanup operation.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StagingCleanupConfirmation"
+      responses:
+        "200":
+          description: Disposable staging tenant deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StagingTenantCleanupResponse"
+        "403":
+          description: Cleanup is disabled or the account is not eligible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/plans:
     get:
       operationId: listAdminPlans
@@ -1965,6 +2000,23 @@ components:
         success:
           type: boolean
       required: [success]
+
+    StagingCleanupConfirmation:
+      type: object
+      properties:
+        confirmStagingCleanup:
+          type: boolean
+          enum: [true]
+      required: [confirmStagingCleanup]
+
+    StagingTenantCleanupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tenantId:
+          type: string
+      required: [success, tenantId]
 
     ErrorResponse:
       type: object

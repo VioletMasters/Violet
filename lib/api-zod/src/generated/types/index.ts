@@ -136,6 +136,8 @@ export * from './settings';
 export * from './settingsUpdate';
 export * from './shiftCloseInput';
 export * from './shiftOpenInput';
+export * from './stagingCleanupConfirmation';
+export * from './stagingTenantCleanupResponse';
 export * from './storeCreateInput';
 export * from './subscription';
 export * from './subscriptionPaymentStatus';

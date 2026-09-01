@@ -3,6 +3,12 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 
 type RegistrationResponse = {
   token?: string;
+  user?: {
+    tenantId?: string;
+  };
+  tenant?: {
+    id?: string;
+  };
 };
 
 type ReleaseAsset = {
@@ -104,26 +110,115 @@ async function register(
   return (await response.json()) as RegistrationResponse;
 }
 
-async function signOut(
+function manualRecoveryMessage(
+  account: ReturnType<typeof disposableAccount>,
+  tenantId: string | undefined,
+  reason: string,
+) {
+  return [
+    `Staging teardown was interrupted for ${account.email}.`,
+    `Manual recovery: cancel any pending hosted checkout for this account, then remove tenant ${tenantId ?? "(tenant ID unavailable)"}`,
+    `(${account.email}) and its related records through the approved staging admin process.`,
+    `Reason: ${reason}`,
+  ].join(" ");
+}
+
+async function cleanupDisposableAccount(
   request: APIRequestContext,
+  account: ReturnType<typeof disposableAccount>,
+  registration: RegistrationResponse | undefined,
+  baseURL: string,
+) {
+  if (!registration) return;
+  const token = registration?.token;
+  const tenantId = registration?.tenant?.id ?? registration?.user?.tenantId;
+  if (!token || !tenantId) {
+    throw new Error(manualRecoveryMessage(account, tenantId, "registration did not return a cleanup token and tenant ID"));
+  }
+
+  const response = await request.delete(
+    new URL(`/api/admin/staging/tenants/${encodeURIComponent(tenantId)}`, baseURL).toString(),
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { confirmStagingCleanup: true },
+    },
+  );
+  if (!response.ok()) {
+    const responseBody = await response.text().catch(() => "");
+    throw new Error(
+      manualRecoveryMessage(
+        account,
+        tenantId,
+        `cleanup endpoint returned HTTP ${response.status()}${responseBody ? `: ${responseBody}` : ""}`,
+      ),
+    );
+  }
+}
+
+async function cancelPendingCheckout(
+  request: APIRequestContext,
+  account: ReturnType<typeof disposableAccount>,
   token: string | undefined,
+  tenantId: string | undefined,
   baseURL: string,
 ) {
   if (!token) return;
-  const response = await request.post(new URL("/api/auth/logout", baseURL).toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  expect(response.ok(), "staging cleanup should remove the test session").toBeTruthy();
+  const response = await request.delete(
+    new URL("/api/billing/checkout", baseURL).toString(),
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!response.ok()) {
+    const responseBody = await response.text().catch(() => "");
+    throw new Error(
+      manualRecoveryMessage(
+        account,
+        tenantId,
+        `pending checkout cancellation returned HTTP ${response.status()}${responseBody ? `: ${responseBody}` : ""}`,
+      ),
+    );
+  }
+}
+
+function registrationTenantId(registration: RegistrationResponse | undefined) {
+  return registration?.tenant?.id ?? registration?.user?.tenantId;
+}
+
+async function assertCleanup(
+  request: APIRequestContext,
+  account: ReturnType<typeof disposableAccount>,
+  registration: RegistrationResponse | undefined,
+  baseURL: string,
+) {
+  try {
+    await cleanupDisposableAccount(request, account, registration, baseURL);
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(manualRecoveryMessage(account, registrationTenantId(registration), String(error)));
+  }
+}
+
+async function assertCheckoutCancellation(
+  request: APIRequestContext,
+  account: ReturnType<typeof disposableAccount>,
+  token: string | undefined,
+  baseURL: string,
+  tenantId: string | undefined,
+) {
+  try {
+    await cancelPendingCheckout(request, account, token, tenantId, baseURL);
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(manualRecoveryMessage(account, tenantId, String(error)));
+  }
 }
 
 test("disposable free registration reaches the real download page", async ({ page }) => {
   const account = disposableAccount("free");
-  let token: string | undefined;
+  let registration: RegistrationResponse | undefined;
 
   try {
     await page.goto("/register");
-    const registration = await register(page, account);
-    token = registration.token;
+    registration = await register(page, account);
 
     await expect(page).toHaveURL(`${stagingBaseURL}/download`);
     await expect(
@@ -131,18 +226,19 @@ test("disposable free registration reaches the real download page", async ({ pag
     ).toBeVisible();
     await expect(page.getByRole("link", { name: /Download (Windows|macOS|Linux|Docker)/ }).first()).toBeVisible();
   } finally {
-    await signOut(page.context().request, token, stagingBaseURL);
+    await assertCleanup(page.context().request, account, registration, stagingBaseURL);
   }
 });
 
 test("paid registration reaches the configured hosted checkout without charging", async ({ page }) => {
   const account = disposableAccount("paid");
   let token: string | undefined;
+  let registration: RegistrationResponse | undefined;
   let checkoutUrl: string | undefined;
 
   try {
     await page.goto("/register?plan=professional");
-    const registration = await register(page, account, "Continue to Professional checkout");
+    registration = await register(page, account, "Continue to Professional checkout");
     token = registration.token;
 
     const checkoutResponsePromise = page.waitForResponse(
@@ -161,18 +257,14 @@ test("paid registration reaches the configured hosted checkout without charging"
     await page.waitForURL((url) => url.origin === checkoutOrigin, { timeout: 60_000 });
     expect(new URL(page.url()).origin).toBe(checkoutOrigin);
   } finally {
-    if (token) {
-      const request = page.context().request;
-      const cancelResponse = await request.delete(
-        new URL("/api/billing/checkout", stagingBaseURL).toString(),
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      expect(
-        cancelResponse.ok(),
-        "staging cleanup should cancel the uncompleted hosted checkout",
-      ).toBeTruthy();
-    }
-    await signOut(page.context().request, token, stagingBaseURL);
+    await assertCheckoutCancellation(
+      page.context().request,
+      account,
+      token,
+      stagingBaseURL,
+      registrationTenantId(registration),
+    );
+    await assertCleanup(page.context().request, account, registration, stagingBaseURL);
   }
 });
 

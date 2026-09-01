@@ -1,11 +1,12 @@
 import { Router } from "express";
 import {
   db, tenantsTable, usersTable, plansTable,
-  subscriptionsTable, productsTable, customersTable,
+  subscriptionsTable, productsTable, customersTable, sessionsTable,
+  storesTable, registersTable,
   salesTable, releasesTable, releaseAssetsTable, platformAuditLogsTable, settingsTable,
 } from "@workspace/db";
 import { eq, ilike, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
-import { requireSuperAdmin } from "../middlewares/auth";
+import { requireSession, requireSuperAdmin } from "../middlewares/auth";
 import { getWhopClient } from "../lib/whopClient";
 import fs from "node:fs";
 import path from "node:path";
@@ -15,6 +16,7 @@ const router = Router();
 const RELEASE_ROOT = path.join(process.cwd(), "data", "platform-releases");
 const RELEASE_PLATFORMS = new Set(["windows", "macos", "linux", "docker"]);
 const RELEASE_CHANNELS = new Set(["stable", "beta", "nightly"]);
+const STAGING_EMAIL_SUFFIX = "@staging.invalid";
 
 function publicPlan(p: typeof plansTable.$inferSelect) {
   return {
@@ -487,6 +489,144 @@ router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<
     subscriptionStatus: subscription?.status ?? null,
     subscriptionStart: subscription?.currentPeriodStart?.toISOString() ?? null,
     createdAt: tenant.createdAt.toISOString(),
+  });
+});
+
+// DELETE /admin/staging/tenants/:id
+//
+// This is intentionally not a super-admin operation. The staging onboarding
+// suite authenticates as the disposable owner, and the owner may only delete
+// its own synthetic staging account. The server-side flag keeps this route
+// disabled unless an operator explicitly enables it on a staging deployment.
+router.delete("/admin/staging/tenants/:id", requireSession, async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const confirmed = req.body?.confirmStagingCleanup === true;
+
+  if (process.env.VIOLET_STAGING_CLEANUP_ENABLED !== "true" || !confirmed) {
+    res.status(403).json({
+      error: "Staging cleanup is disabled or was not explicitly confirmed.",
+    });
+    return;
+  }
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    res.status(400).json({ error: "A valid staging tenant ID is required." });
+    return;
+  }
+
+  if (!req.user || req.tenantId !== id || req.user.role !== "owner") {
+    res.status(403).json({ error: "Only the staging account owner can clean up this tenant." });
+    return;
+  }
+
+  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, id)).limit(1);
+  if (!tenant) {
+    res.status(404).json({ error: "Tenant not found" });
+    return;
+  }
+
+  if (
+    !tenant.email.toLowerCase().endsWith(STAGING_EMAIL_SUFFIX) ||
+    req.user.email.toLowerCase() !== tenant.email.toLowerCase()
+  ) {
+    res.status(403).json({ error: "Only synthetic staging accounts can be cleaned up." });
+    return;
+  }
+
+  const tenantUsers = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    role: usersTable.role,
+  }).from(usersTable).where(eq(usersTable.tenantId, id));
+  if (
+    tenantUsers.length === 0 ||
+    tenantUsers.some((user) => !user.email.toLowerCase().endsWith(STAGING_EMAIL_SUFFIX)) ||
+    tenantUsers.some((user) => user.role === "super_admin")
+  ) {
+    res.status(403).json({ error: "The tenant contains a non-test account and cannot be cleaned up." });
+    return;
+  }
+
+  const userIds = tenantUsers.map((user) => user.id);
+  const [
+    subscriptionCount,
+    settingsCount,
+    storeCount,
+    registerCount,
+    sessionCount,
+  ] = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`);
+
+    const [sessionResult] = await tx
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(sessionsTable)
+      .where(inArray(sessionsTable.userId, userIds));
+    const [subscriptionResult] = await tx
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, id));
+    const [settingsResult] = await tx
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(settingsTable)
+      .where(eq(settingsTable.tenantId, id));
+    const [storeResult] = await tx
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(storesTable)
+      .where(eq(storesTable.tenantId, id));
+    const [registerResult] = await tx
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(registersTable)
+      .where(eq(registersTable.tenantId, id));
+
+    if (userIds.length > 0) {
+      await tx.delete(sessionsTable).where(inArray(sessionsTable.userId, userIds));
+    }
+    await tx.delete(subscriptionsTable).where(eq(subscriptionsTable.tenantId, id));
+    await tx.delete(registersTable).where(eq(registersTable.tenantId, id));
+    await tx.delete(storesTable).where(eq(storesTable.tenantId, id));
+    await tx.delete(settingsTable).where(eq(settingsTable.tenantId, id));
+    await tx.delete(usersTable).where(eq(usersTable.tenantId, id));
+    await tx.delete(tenantsTable).where(eq(tenantsTable.id, id));
+
+    await tx.insert(platformAuditLogsTable).values({
+      actorId: req.user!.id,
+      action: "tenant.staging_deleted",
+      entityType: "tenant",
+      entityId: id,
+      summary: `Deleted disposable staging tenant ${tenant.email}`,
+      metadata: JSON.stringify({
+        email: tenant.email,
+        userCount: tenantUsers.length,
+        sessionCount: Number(sessionResult?.count ?? 0),
+        subscriptionCount: Number(subscriptionResult?.count ?? 0),
+        settingsCount: Number(settingsResult?.count ?? 0),
+        storeCount: Number(storeResult?.count ?? 0),
+        registerCount: Number(registerResult?.count ?? 0),
+      }),
+    });
+
+    return [
+      Number(subscriptionResult?.count ?? 0),
+      Number(settingsResult?.count ?? 0),
+      Number(storeResult?.count ?? 0),
+      Number(registerResult?.count ?? 0),
+      Number(sessionResult?.count ?? 0),
+    ];
+  });
+
+  req.log.info({ tenantId: id, email: tenant.email }, "Disposable staging tenant deleted");
+  res.json({
+    success: true,
+    tenantId: id,
+    deleted: {
+      users: tenantUsers.length,
+      sessions: sessionCount,
+      subscriptions: subscriptionCount,
+      settings: settingsCount,
+      stores: storeCount,
+      registers: registerCount,
+      tenant: 1,
+    },
   });
 });
 

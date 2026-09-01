@@ -13,6 +13,15 @@ export interface SuccessResponse {
   success: boolean;
 }
 
+export interface StagingCleanupConfirmation {
+  confirmStagingCleanup: true;
+}
+
+export interface StagingTenantCleanupResponse {
+  success: boolean;
+  tenantId: string;
+}
+
 export interface ErrorResponse {
   error: string;
 }
