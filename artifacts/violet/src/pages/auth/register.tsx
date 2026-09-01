@@ -37,7 +37,7 @@ export default function RegisterPage() {
         setAuth(data.user, data.tenant, data.token);
         toast.success("Business account created successfully!");
         if (!selectedTier) {
-          setLocation("/pos");
+          setLocation("/download");
           return;
         }
 

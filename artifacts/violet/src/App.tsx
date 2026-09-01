@@ -7,6 +7,7 @@ import { useTheme } from './hooks/use-theme';
 
 import LoginPage from './pages/auth/login';
 import RegisterPage from './pages/auth/register';
+import DownloadPage from './pages/download';
 
 import Dashboard from './pages/dashboard';
 import POS from './pages/pos';
@@ -43,6 +44,7 @@ function AppRoutes() {
       <Switch>
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/pos" component={POS} />
+        <Route path="/download" component={DownloadPage} />
         <Route path="/products" component={Products} />
         <Route path="/inventory" component={Inventory} />
         <Route path="/customers" component={Customers} />
