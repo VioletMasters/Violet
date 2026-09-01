@@ -21,7 +21,7 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-packages = ["webkitgtk_4_1", "librsvg", "gtk3", "glib", "openssl", "pkg-config", "zlib"]
+packages = ["webkitgtk_4_1", "librsvg", "gtk3", "glib", "openssl", "pkg-config", "zlib", "nss", "nspr", "atk", "at-spi2-atk", "cups", "libdrm", "pango", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb", "xorg.libX11", "mesa", "alsa-lib", "libgbm", "libxkbcommon"]
 
 [userenv]
 
