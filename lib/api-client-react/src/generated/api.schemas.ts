@@ -810,6 +810,101 @@ export interface BillingReconcileResponse {
   message: string;
 }
 
+export interface StoreCreateInput {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  name: string;
+  address?: string;
+  timezone?: string;
+}
+
+export interface RegisterCreateInput {
+  storeId: string;
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  name: string;
+}
+
+export interface ShiftOpenInput {
+  registerId: string;
+  cashierId?: string;
+  /** @minimum 0 */
+  openingCash: number;
+}
+
+export interface ShiftCloseInput {
+  /** @minimum 0 */
+  closingCash: number;
+}
+
+export type CashEventInputType = typeof CashEventInputType[keyof typeof CashEventInputType];
+
+
+export const CashEventInputType = {
+  drop: 'drop',
+  payout: 'payout',
+} as const;
+
+export interface CashEventInput {
+  type: CashEventInputType;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @minLength 1 */
+  reason: string;
+}
+
+export interface PurchaseOrderItemInput {
+  productId: string;
+  /** @minimum 1 */
+  quantity: number;
+  /** @minimum 0 */
+  unitCost: number;
+  /** @minimum 0 */
+  taxAmount?: number;
+}
+
+export interface PurchaseOrderCreateInput {
+  supplierId: string;
+  storeId?: string;
+  orderNumber?: string;
+  expectedAt?: string;
+  /** @minItems 1 */
+  items: PurchaseOrderItemInput[];
+}
+
+export type PurchaseOrderStatusInputStatus = typeof PurchaseOrderStatusInputStatus[keyof typeof PurchaseOrderStatusInputStatus];
+
+
+export const PurchaseOrderStatusInputStatus = {
+  ordered: 'ordered',
+  cancelled: 'cancelled',
+} as const;
+
+export interface PurchaseOrderStatusInput {
+  status: PurchaseOrderStatusInputStatus;
+}
+
+export interface PurchaseReceiptItemInput {
+  purchaseOrderItemId: string;
+  /** @minimum 0 */
+  quantityReceived: number;
+  /** @minimum 0 */
+  unitCost: number;
+  discrepancyReason?: string;
+}
+
+export interface PurchaseReceiptInput {
+  reference?: string;
+  /** Close receiving even with documented shortages; every outstanding line must be supplied. */
+  finalize?: boolean;
+  /** @minItems 1 */
+  items: PurchaseReceiptItemInput[];
+}
+
+export interface ReportData { [key: string]: unknown }
+
 export interface SalesReport {
   totalRevenue: number;
   totalOrders: number;
@@ -1061,6 +1156,16 @@ export interface PlatformAuditLog {
   actorName: string;
 }
 
+export type ReportStartDateParameter = string;
+
+export type ReportEndDateParameter = string;
+
+export type ReportStoreIdParameter = string;
+
+export type ReportRegisterIdParameter = string;
+
+export type ReportCashierIdParameter = string;
+
 export type ListPosProductsParams = {
 search?: string;
 page?: number;
@@ -1093,6 +1198,54 @@ page?: number;
 limit?: number;
 };
 
+export type ListRegistersParams = {
+storeId?: string;
+};
+
+export type ListRegisterShiftsParams = {
+storeId?: string;
+registerId?: string;
+status?: ListRegisterShiftsStatus;
+};
+
+export type ListRegisterShiftsStatus = typeof ListRegisterShiftsStatus[keyof typeof ListRegisterShiftsStatus];
+
+
+export const ListRegisterShiftsStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export type ListPurchaseOrdersParams = {
+storeId?: string;
+supplierId?: string;
+status?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+};
+
+export type ListAuditEventsParams = {
+action?: string;
+entityType?: string;
+startDate?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+};
+
 export type GetSalesReportParams = {
 startDate: string;
 endDate: string;
@@ -1106,6 +1259,64 @@ export const GetSalesReportGroupBy = {
   day: 'day',
   week: 'week',
   month: 'month',
+} as const;
+
+export type GetReportDefinitions200 = {[key: string]: string};
+
+export type GetReportingSummaryParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+};
+
+export type GetReportTransactionsParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+};
+
+export type GetProductReportParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+};
+
+export type GetCashReportParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+};
+
+export type GetStoreReportParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+};
+
+export type ExportReportingTransactionsParams = {
+format: ExportReportingTransactionsFormat;
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+};
+
+export type ExportReportingTransactionsFormat = typeof ExportReportingTransactionsFormat[keyof typeof ExportReportingTransactionsFormat];
+
+
+export const ExportReportingTransactionsFormat = {
+  csv: 'csv',
+  xlsx: 'xlsx',
+  pdf: 'pdf',
 } as const;
 
 export type ListTenantsParams = {

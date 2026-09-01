@@ -34,6 +34,10 @@ tags:
     description: Subscription plans
   - name: reports
     description: Reports
+  - name: operations
+    description: Stores, registers, shifts, and cash management
+  - name: purchasing
+    description: Purchase orders and receiving
   - name: settings
     description: Settings
   - name: admin
@@ -1061,6 +1065,198 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ─── Reports ────────────────────────────────────────────────────────────────
+  /stores:
+    get:
+      operationId: listStores
+      tags: [operations]
+      summary: List tenant stores
+      responses:
+        "200":
+          description: Store list
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+    post:
+      operationId: createStore
+      tags: [operations]
+      summary: Create a tenant store
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/StoreCreateInput" } } }
+      responses:
+        "201":
+          description: Store created
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /registers:
+    get:
+      operationId: listRegisters
+      tags: [operations]
+      summary: List tenant registers
+      parameters:
+        - name: storeId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Register list
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+    post:
+      operationId: createRegister
+      tags: [operations]
+      summary: Create a register
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RegisterCreateInput" } } }
+      responses:
+        "201":
+          description: Register created
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /register-shifts:
+    get:
+      operationId: listRegisterShifts
+      tags: [operations]
+      summary: List register shifts
+      parameters:
+        - { name: storeId, in: query, schema: { type: string } }
+        - { name: registerId, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [open, closed] } }
+      responses:
+        "200":
+          description: Shift list
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /register-shifts/open:
+    post:
+      operationId: openRegisterShift
+      tags: [operations]
+      summary: Open a register shift; returns the existing open shift idempotently
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ShiftOpenInput" } } }
+      responses:
+        "201":
+          description: Open shift
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /register-shifts/{id}/close:
+    post:
+      operationId: closeRegisterShift
+      tags: [operations]
+      summary: Close a shift and calculate expected cash and variance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ShiftCloseInput" } } }
+      responses:
+        "200":
+          description: Closed shift
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /register-shifts/{id}/cash-events:
+    post:
+      operationId: createShiftCashEvent
+      tags: [operations]
+      summary: Record a cash drop or payout
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: idempotency-key, in: header, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CashEventInput" } } }
+      responses:
+        "201":
+          description: Cash event created
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /purchase-orders:
+    get:
+      operationId: listPurchaseOrders
+      tags: [purchasing]
+      summary: List purchase orders
+      parameters:
+        - { name: storeId, in: query, schema: { type: string } }
+        - { name: supplierId, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        "200":
+          description: Purchase order page
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+    post:
+      operationId: createPurchaseOrder
+      tags: [purchasing]
+      summary: Create a draft purchase order
+      parameters:
+        - { name: idempotency-key, in: header, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PurchaseOrderCreateInput" } } }
+      responses:
+        "201":
+          description: Purchase order created
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /purchase-orders/{id}:
+    get:
+      operationId: getPurchaseOrder
+      tags: [purchasing]
+      summary: Get purchase order, lines, receipts, and discrepancies
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Purchase order detail
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /purchase-orders/{id}/status:
+    patch:
+      operationId: updatePurchaseOrderStatus
+      tags: [purchasing]
+      summary: Order or cancel a purchase order
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PurchaseOrderStatusInput" } } }
+      responses:
+        "200":
+          description: Updated purchase order
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /purchase-orders/{id}/receipts:
+    post:
+      operationId: receivePurchaseOrder
+      tags: [purchasing]
+      summary: Receive purchase-order lines and update inventory cost
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: idempotency-key, in: header, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PurchaseReceiptInput" } } }
+      responses:
+        "201":
+          description: Receipt created
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /audit-events:
+    get:
+      operationId: listAuditEvents
+      tags: [operations]
+      summary: List tenant audit events
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: entityType, in: query, schema: { type: string } }
+        - { name: startDate, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        "200":
+          description: Audit event page
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
   /reports/sales:
     get:
       operationId: getSalesReport
@@ -1103,6 +1299,153 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InventoryReport"
+
+  /reports/definitions:
+    get:
+      operationId: getReportDefinitions
+      tags: [reports]
+      summary: Get canonical financial definitions
+      responses:
+        "200":
+          description: Financial definitions
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /reports/summary:
+    get:
+      operationId: getReportingSummary
+      tags: [reports]
+      summary: Get comprehensive financial summary
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+        - $ref: "#/components/parameters/ReportRegisterId"
+        - $ref: "#/components/parameters/ReportCashierId"
+      responses:
+        "200":
+          description: Reporting summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportData"
+
+  /reports/transactions:
+    get:
+      operationId: getReportTransactions
+      tags: [reports]
+      summary: Get paginated report drill-down transactions
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: Transaction page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportData" }
+
+  /reports/products:
+    get:
+      operationId: getProductReport
+      tags: [reports]
+      summary: Get product profitability report
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+      responses:
+        "200":
+          description: Product report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportData" }
+
+  /reports/cash:
+    get:
+      operationId: getCashReport
+      tags: [reports]
+      summary: Get cash management report
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+      responses:
+        "200":
+          description: Cash report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportData" }
+
+  /reports/purchasing:
+    get:
+      operationId: getPurchasingReport
+      tags: [reports]
+      summary: Get purchase order and receiving report
+      responses:
+        "200":
+          description: Purchasing report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportData" }
+
+  /reports/stores:
+    get:
+      operationId: getStoreReport
+      tags: [reports]
+      summary: Compare store performance
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+      responses:
+        "200":
+          description: Store report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportData" }
+
+  /reports/audit:
+    get:
+      operationId: getAuditReport
+      tags: [reports]
+      summary: Get tenant audit trail
+      responses:
+        "200":
+          description: Audit event page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportData" }
+
+  /reports/export:
+    get:
+      operationId: exportReportingTransactions
+      tags: [reports]
+      summary: Export filtered transaction report
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [csv, xlsx, pdf] }
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+      responses:
+        "200":
+          description: Valid CSV, XLSX, or PDF document
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
 
   # ─── Settings ───────────────────────────────────────────────────────────────
   /settings/pos-tax:
@@ -1505,6 +1848,29 @@ paths:
                   $ref: "#/components/schemas/PlatformAuditLog"
 
 components:
+  parameters:
+    ReportStartDate:
+      name: startDate
+      in: query
+      required: true
+      schema: { type: string, format: date-time }
+    ReportEndDate:
+      name: endDate
+      in: query
+      required: true
+      schema: { type: string, format: date-time }
+    ReportStoreId:
+      name: storeId
+      in: query
+      schema: { type: string }
+    ReportRegisterId:
+      name: registerId
+      in: query
+      schema: { type: string }
+    ReportCashierId:
+      name: cashierId
+      in: query
+      schema: { type: string }
   schemas:
     # ── Shared ─────────────────────────────────────────────────────────────────
     HealthStatus:
@@ -2580,6 +2946,90 @@ components:
           type: string
 
     # ── Reports ────────────────────────────────────────────────────────────────
+    StoreCreateInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        address: { type: string }
+        timezone: { type: string }
+    RegisterCreateInput:
+      type: object
+      required: [storeId, code, name]
+      properties:
+        storeId: { type: string }
+        code: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+    ShiftOpenInput:
+      type: object
+      required: [registerId, openingCash]
+      properties:
+        registerId: { type: string }
+        cashierId: { type: string }
+        openingCash: { type: number, minimum: 0 }
+    ShiftCloseInput:
+      type: object
+      required: [closingCash]
+      properties:
+        closingCash: { type: number, minimum: 0 }
+    CashEventInput:
+      type: object
+      required: [type, amount, reason]
+      properties:
+        type: { type: string, enum: [drop, payout] }
+        amount: { type: number, exclusiveMinimum: 0 }
+        reason: { type: string, minLength: 1 }
+    PurchaseOrderItemInput:
+      type: object
+      required: [productId, quantity, unitCost]
+      properties:
+        productId: { type: string }
+        quantity: { type: number, minimum: 1, multipleOf: 1 }
+        unitCost: { type: number, minimum: 0 }
+        taxAmount: { type: number, minimum: 0 }
+    PurchaseOrderCreateInput:
+      type: object
+      required: [supplierId, items]
+      properties:
+        supplierId: { type: string }
+        storeId: { type: string }
+        orderNumber: { type: string }
+        expectedAt: { type: string, format: date-time }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PurchaseOrderItemInput" }
+    PurchaseOrderStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ordered, cancelled] }
+    PurchaseReceiptItemInput:
+      type: object
+      required: [purchaseOrderItemId, quantityReceived, unitCost]
+      properties:
+        purchaseOrderItemId: { type: string }
+        quantityReceived: { type: number, minimum: 0, multipleOf: 1 }
+        unitCost: { type: number, minimum: 0 }
+        discrepancyReason: { type: string }
+    PurchaseReceiptInput:
+      type: object
+      required: [items]
+      properties:
+        reference: { type: string }
+        finalize:
+          type: boolean
+          description: Close receiving even with documented shortages; every outstanding line must be supplied.
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PurchaseReceiptItemInput" }
+
+    ReportData:
+      type: object
+      additionalProperties: true
+
     SalesReport:
       type: object
       required: [totalRevenue, totalOrders, averageOrderValue, data]

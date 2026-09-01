@@ -16,6 +16,8 @@ import settingsRouter from "./settings";
 import adminRouter from "./admin";
 import downloadRouter from "./download";
 import billingRouter from "./billing";
+import operationsRouter from "./operations";
+import purchasingRouter from "./purchasing";
 
 const router: IRouter = Router();
 
@@ -36,5 +38,7 @@ router.use(settingsRouter);
 router.use(adminRouter);
 router.use(downloadRouter);
 router.use(billingRouter);
+router.use(operationsRouter);
+router.use(purchasingRouter);
 
 export default router;

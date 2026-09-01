@@ -177,6 +177,18 @@ async function main() {
     ON CONFLICT (tenant_id) DO NOTHING
   `, [tenantId, ADMIN_EMAIL]);
 
+  const storeRes = await client.query(`
+    INSERT INTO stores (tenant_id, code, name)
+    VALUES ($1, 'MAIN', 'Main Store')
+    ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id
+  `, [tenantId]);
+  await client.query(`
+    INSERT INTO registers (tenant_id, store_id, code, name)
+    VALUES ($1, $2, 'REG-1', 'Register 1')
+    ON CONFLICT (tenant_id, store_id, code) DO NOTHING
+  `, [tenantId, storeRes.rows[0].id]);
+
   await client.end();
   console.log("✅  Seed complete.");
 }

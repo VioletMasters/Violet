@@ -9,3 +9,7 @@ export * from "./sales";
 export * from "./employees";
 export * from "./settings";
 export * from "./platform";
+export * from "./operations";
+export * from "./financial";
+export * from "./purchasing";
+export * from "./audit";

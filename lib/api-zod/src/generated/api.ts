@@ -1219,6 +1219,253 @@ export const ReconcileBillingCheckoutResponse = zod.object({
 
 
 /**
+ * @summary List tenant stores
+ */
+export const ListStoresResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Create a tenant store
+ */
+
+
+
+
+export const CreateStoreBody = zod.object({
+  "code": zod.string().min(1),
+  "name": zod.string().min(1),
+  "address": zod.string().optional(),
+  "timezone": zod.string().optional()
+})
+
+export const CreateStoreResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary List tenant registers
+ */
+export const ListRegistersQueryParams = zod.object({
+  "storeId": zod.coerce.string().optional()
+})
+
+export const ListRegistersResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Create a register
+ */
+
+
+
+
+export const CreateRegisterBody = zod.object({
+  "storeId": zod.string(),
+  "code": zod.string().min(1),
+  "name": zod.string().min(1)
+})
+
+export const CreateRegisterResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary List register shifts
+ */
+export const ListRegisterShiftsQueryParams = zod.object({
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "status": zod.enum(['open', 'closed']).optional()
+})
+
+export const ListRegisterShiftsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Open a register shift; returns the existing open shift idempotently
+ */
+export const openRegisterShiftBodyOpeningCashMin = 0;
+
+
+
+export const OpenRegisterShiftBody = zod.object({
+  "registerId": zod.string(),
+  "cashierId": zod.string().optional(),
+  "openingCash": zod.number().min(openRegisterShiftBodyOpeningCashMin)
+})
+
+export const OpenRegisterShiftResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Close a shift and calculate expected cash and variance
+ */
+export const CloseRegisterShiftParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const closeRegisterShiftBodyClosingCashMin = 0;
+
+
+
+export const CloseRegisterShiftBody = zod.object({
+  "closingCash": zod.number().min(closeRegisterShiftBodyClosingCashMin)
+})
+
+export const CloseRegisterShiftResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Record a cash drop or payout
+ */
+export const CreateShiftCashEventParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CreateShiftCashEventHeader = zod.object({
+  "idempotency-key": zod.string().optional()
+})
+
+export const createShiftCashEventBodyAmountExclusiveMin = 0;
+
+
+
+
+export const CreateShiftCashEventBody = zod.object({
+  "type": zod.enum(['drop', 'payout']),
+  "amount": zod.number().gt(createShiftCashEventBodyAmountExclusiveMin),
+  "reason": zod.string().min(1)
+})
+
+export const CreateShiftCashEventResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary List purchase orders
+ */
+
+export const listPurchaseOrdersQueryLimitMax = 200;
+
+
+
+export const ListPurchaseOrdersQueryParams = zod.object({
+  "storeId": zod.coerce.string().optional(),
+  "supplierId": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().int().min(1).optional(),
+  "limit": zod.coerce.number().int().min(1).max(listPurchaseOrdersQueryLimitMax).optional()
+})
+
+export const ListPurchaseOrdersResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Create a draft purchase order
+ */
+export const CreatePurchaseOrderHeader = zod.object({
+  "idempotency-key": zod.string().optional()
+})
+
+export const createPurchaseOrderBodyItemsItemQuantityMultipleOf = 1;
+
+export const createPurchaseOrderBodyItemsItemUnitCostMin = 0;
+
+export const createPurchaseOrderBodyItemsItemTaxAmountMin = 0;
+
+
+
+
+export const CreatePurchaseOrderBody = zod.object({
+  "supplierId": zod.string(),
+  "storeId": zod.string().optional(),
+  "orderNumber": zod.string().optional(),
+  "expectedAt": zod.coerce.date().optional(),
+  "items": zod.array(zod.object({
+  "productId": zod.string(),
+  "quantity": zod.number().min(1).multipleOf(createPurchaseOrderBodyItemsItemQuantityMultipleOf),
+  "unitCost": zod.number().min(createPurchaseOrderBodyItemsItemUnitCostMin),
+  "taxAmount": zod.number().min(createPurchaseOrderBodyItemsItemTaxAmountMin).optional()
+})).min(1)
+})
+
+export const CreatePurchaseOrderResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get purchase order, lines, receipts, and discrepancies
+ */
+export const GetPurchaseOrderParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetPurchaseOrderResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Order or cancel a purchase order
+ */
+export const UpdatePurchaseOrderStatusParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdatePurchaseOrderStatusBody = zod.object({
+  "status": zod.enum(['ordered', 'cancelled'])
+})
+
+export const UpdatePurchaseOrderStatusResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Receive purchase-order lines and update inventory cost
+ */
+export const ReceivePurchaseOrderParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReceivePurchaseOrderHeader = zod.object({
+  "idempotency-key": zod.string().optional()
+})
+
+export const receivePurchaseOrderBodyItemsItemQuantityReceivedMin = 0;
+export const receivePurchaseOrderBodyItemsItemQuantityReceivedMultipleOf = 1;
+
+export const receivePurchaseOrderBodyItemsItemUnitCostMin = 0;
+
+
+
+
+export const ReceivePurchaseOrderBody = zod.object({
+  "reference": zod.string().optional(),
+  "finalize": zod.boolean().optional().describe('Close receiving even with documented shortages; every outstanding line must be supplied.'),
+  "items": zod.array(zod.object({
+  "purchaseOrderItemId": zod.string(),
+  "quantityReceived": zod.number().min(receivePurchaseOrderBodyItemsItemQuantityReceivedMin).multipleOf(receivePurchaseOrderBodyItemsItemQuantityReceivedMultipleOf),
+  "unitCost": zod.number().min(receivePurchaseOrderBodyItemsItemUnitCostMin),
+  "discrepancyReason": zod.string().optional()
+})).min(1)
+})
+
+export const ReceivePurchaseOrderResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary List tenant audit events
+ */
+
+export const listAuditEventsQueryLimitMax = 200;
+
+
+
+export const ListAuditEventsQueryParams = zod.object({
+  "action": zod.coerce.string().optional(),
+  "entityType": zod.coerce.string().optional(),
+  "startDate": zod.date().optional(),
+  "page": zod.coerce.number().int().min(1).optional(),
+  "limit": zod.coerce.number().int().min(1).max(listAuditEventsQueryLimitMax).optional()
+})
+
+export const ListAuditEventsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
  * @summary Get sales report
  */
 export const getSalesReportQueryGroupByDefault = `day`;
@@ -1256,6 +1503,107 @@ export const GetInventoryReportResponse = zod.object({
   "totalValue": zod.number().optional()
 })).optional()
 })
+
+
+/**
+ * @summary Get canonical financial definitions
+ */
+export const GetReportDefinitionsResponse = zod.record(zod.string(), zod.string())
+
+
+/**
+ * @summary Get comprehensive financial summary
+ */
+export const GetReportingSummaryQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "cashierId": zod.coerce.string().optional()
+})
+
+export const GetReportingSummaryResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get paginated report drill-down transactions
+ */
+export const getReportTransactionsQueryPageDefault = 1;
+
+export const getReportTransactionsQueryLimitDefault = 50;
+export const getReportTransactionsQueryLimitMax = 200;
+
+
+
+export const GetReportTransactionsQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional(),
+  "page": zod.coerce.number().int().min(1).default(getReportTransactionsQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(getReportTransactionsQueryLimitMax).default(getReportTransactionsQueryLimitDefault)
+})
+
+export const GetReportTransactionsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get product profitability report
+ */
+export const GetProductReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional()
+})
+
+export const GetProductReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get cash management report
+ */
+export const GetCashReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional()
+})
+
+export const GetCashReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get purchase order and receiving report
+ */
+export const GetPurchasingReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Compare store performance
+ */
+export const GetStoreReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date()
+})
+
+export const GetStoreReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Get tenant audit trail
+ */
+export const GetAuditReportResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Export filtered transaction report
+ */
+export const ExportReportingTransactionsQueryParams = zod.object({
+  "format": zod.enum(['csv', 'xlsx', 'pdf']),
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional()
+})
+
+export const ExportReportingTransactionsResponse = zod.unknown()
 
 
 /**

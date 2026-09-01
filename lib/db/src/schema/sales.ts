@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, numeric, integer } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uuid, numeric, integer } from "drizzle-orm/pg-core";
 
 export const salesTable = pgTable("sales", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -6,6 +6,9 @@ export const salesTable = pgTable("sales", {
   receiptNumber: text("receipt_number").notNull(),
   customerId: uuid("customer_id"),
   cashierId: uuid("cashier_id").notNull(),
+  storeId: uuid("store_id"),
+  registerId: uuid("register_id"),
+  shiftId: uuid("shift_id"),
   subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
   taxAmount: numeric("tax_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull().default("0"),
@@ -15,7 +18,11 @@ export const salesTable = pgTable("sales", {
   cashTendered: numeric("cash_tendered", { precision: 10, scale: 2 }),
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("sales_tenant_created_idx").on(table.tenantId, table.createdAt),
+  index("sales_tenant_store_created_idx").on(table.tenantId, table.storeId, table.createdAt),
+  index("sales_tenant_cashier_created_idx").on(table.tenantId, table.cashierId, table.createdAt),
+]);
 
 export const saleItemsTable = pgTable("sale_items", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -26,6 +33,8 @@ export const saleItemsTable = pgTable("sale_items", {
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
   discount: numeric("discount", { precision: 10, scale: 2 }).notNull().default("0"),
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
+  unitCostSnapshot: numeric("unit_cost_snapshot", { precision: 14, scale: 4 }),
+  categoryIdSnapshot: uuid("category_id_snapshot"),
 });
 
 export const inventoryMovementsTable = pgTable("inventory_movements", {
@@ -36,8 +45,13 @@ export const inventoryMovementsTable = pgTable("inventory_movements", {
   reason: text("reason").notNull(), // purchase, damage, theft, correction, return, transfer
   note: text("note"),
   createdBy: uuid("created_by").notNull(),
+  storeId: uuid("store_id"),
+  saleId: uuid("sale_id"),
+  purchaseReceiptId: uuid("purchase_receipt_id"),
+  referenceType: text("reference_type"),
+  referenceId: uuid("reference_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [index("inventory_movements_tenant_created_idx").on(table.tenantId, table.createdAt)]);
 
 export type Sale = typeof salesTable.$inferSelect;
 export type InsertSale = typeof salesTable.$inferInsert;

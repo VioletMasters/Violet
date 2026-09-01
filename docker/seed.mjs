@@ -111,6 +111,17 @@ async function main() {
   `, [tenantId, ADMIN_EMAIL]);
   console.log("  ✓ Default settings");
 
+  const { rows: [{ id: storeId }] } = await client.query(`
+    INSERT INTO stores (tenant_id, code, name) VALUES ($1, 'MAIN', 'Main Store')
+    ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id
+  `, [tenantId]);
+  await client.query(`
+    INSERT INTO registers (tenant_id, store_id, code, name) VALUES ($1, $2, 'REG-1', 'Register 1')
+    ON CONFLICT (tenant_id, store_id, code) DO NOTHING
+  `, [tenantId, storeId]);
+  console.log("  ✓ Default store and register");
+
   await client.end();
   console.log("✅  Seed complete");
 }

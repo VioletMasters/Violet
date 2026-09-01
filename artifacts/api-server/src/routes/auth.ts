@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, tenantsTable, usersTable, sessionsTable, plansTable, subscriptionsTable, settingsTable } from "@workspace/db";
+import { db, tenantsTable, usersTable, sessionsTable, plansTable, subscriptionsTable, settingsTable, storesTable, registersTable } from "@workspace/db";
 import {
   ConfirmManagerPasswordBody,
   ConfirmManagerPasswordResponse,
@@ -68,6 +68,15 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     tenantId: tenant.id,
     businessName,
     businessEmail: email,
+  });
+
+  // New tenants receive a usable operating hierarchy. Existing tenants retain
+  // null attribution until an administrator deliberately assigns a store.
+  const [store] = await db.insert(storesTable).values({
+    tenantId: tenant.id, code: "MAIN", name: "Main Store",
+  }).returning();
+  await db.insert(registersTable).values({
+    tenantId: tenant.id, storeId: store.id, code: "REG-1", name: "Register 1",
   });
 
   // Create session
