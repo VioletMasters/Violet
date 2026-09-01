@@ -44,6 +44,19 @@ function validPlatform(value: unknown): value is string {
   return typeof value === "string" && RELEASE_PLATFORMS.has(value);
 }
 
+function validDownloadUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.length > 2048) return false;
+  try {
+    return new URL(value.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function hasUsableAsset(asset: { downloadUrl: string | null; storagePath: string }) {
+  return Boolean(asset.downloadUrl) || fs.existsSync(asset.storagePath);
+}
+
 // ─── Platform release management ─────────────────────────────────────────────
 router.get("/admin/releases", requireSuperAdmin, async (_req, res): Promise<void> => {
   const releases = await db.select().from(releasesTable).orderBy(desc(releasesTable.createdAt));
@@ -93,9 +106,13 @@ router.patch("/admin/releases/:id", requireSuperAdmin, async (req, res): Promise
       res.status(400).json({ error: "Invalid release status." }); return;
     }
     if (req.body.status === "published") {
-      const [asset] = await db.select({ id: releaseAssetsTable.id })
+      const [asset] = await db.select({
+        id: releaseAssetsTable.id,
+        downloadUrl: releaseAssetsTable.downloadUrl,
+        storagePath: releaseAssetsTable.storagePath,
+      })
         .from(releaseAssetsTable).where(eq(releaseAssetsTable.releaseId, id)).limit(1);
-      if (!asset) {
+      if (!asset || !hasUsableAsset(asset)) {
         res.status(400).json({ error: "Upload at least one platform package before publishing this release." });
         return;
       }
@@ -132,7 +149,7 @@ router.put("/admin/releases/:id/assets/:platform", requireSuperAdmin, async (req
       if (oldAsset.storagePath !== storagePath) await fs.promises.rm(oldAsset.storagePath, { force: true });
     }
     const [asset] = await db.insert(releaseAssetsTable).values({
-      releaseId: id, platform, fileName, contentType, sizeBytes: stat.size, storagePath,
+      releaseId: id, platform, fileName, contentType, sizeBytes: stat.size, storagePath, downloadUrl: null,
     }).returning();
     await audit(req, "release.asset_uploaded", "release_asset", asset.id, `Uploaded ${platform} package for Violet ${release.version}`, { fileName, sizeBytes: stat.size });
     res.status(201).json({ ...asset, createdAt: asset.createdAt.toISOString() });
@@ -143,11 +160,55 @@ router.put("/admin/releases/:id/assets/:platform", requireSuperAdmin, async (req
   }
 });
 
+router.patch("/admin/releases/:id/assets/:platform", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const platform = Array.isArray(req.params.platform) ? req.params.platform[0] : req.params.platform;
+  if (!validPlatform(platform)) { res.status(400).json({ error: "Invalid release platform." }); return; }
+  if (!Object.prototype.hasOwnProperty.call(req.body ?? {}, "downloadUrl")) {
+    res.status(400).json({ error: "Provide a secure HTTPS download URL, or null to clear it." });
+    return;
+  }
+  const rawUrl = req.body.downloadUrl;
+  if (rawUrl !== null && rawUrl !== "" && !validDownloadUrl(rawUrl)) {
+    res.status(400).json({ error: "Download URL must be a valid HTTPS URL no longer than 2048 characters." });
+    return;
+  }
+  const downloadUrl = typeof rawUrl === "string" && rawUrl.trim() ? rawUrl.trim() : null;
+  const [release] = await db.select().from(releasesTable).where(eq(releasesTable.id, id)).limit(1);
+  if (!release) { res.status(404).json({ error: "Release not found" }); return; }
+  const [existing] = await db.select().from(releaseAssetsTable)
+    .where(and(eq(releaseAssetsTable.releaseId, id), eq(releaseAssetsTable.platform, platform))).limit(1);
+
+  const [asset] = existing
+    ? await db.update(releaseAssetsTable).set({ downloadUrl }).where(eq(releaseAssetsTable.id, existing.id)).returning()
+    : await db.insert(releaseAssetsTable).values({
+      releaseId: id,
+      platform,
+      fileName: `${platform}-external-download`,
+      contentType: "text/uri-list",
+      sizeBytes: 0,
+      storagePath: "",
+      downloadUrl,
+    }).returning();
+
+  await audit(
+    req,
+    "release.asset_link_updated",
+    "release_asset",
+    asset.id,
+    `${downloadUrl ? "Set" : "Cleared"} ${platform} download link for Violet ${release.version}`,
+    { platform, downloadUrl },
+  );
+  res.json({ ...asset, createdAt: asset.createdAt.toISOString() });
+});
+
 router.get("/admin/releases/:id/assets/:platform", requireSuperAdmin, async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const platform = Array.isArray(req.params.platform) ? req.params.platform[0] : req.params.platform;
   const [asset] = await db.select().from(releaseAssetsTable).where(and(eq(releaseAssetsTable.releaseId, id), eq(releaseAssetsTable.platform, platform))).limit(1);
-  if (!asset || !fs.existsSync(asset.storagePath)) { res.status(404).json({ error: "Release package not found" }); return; }
+  if (!asset) { res.status(404).json({ error: "Release package not found" }); return; }
+  if (asset.downloadUrl) { res.redirect(asset.downloadUrl); return; }
+  if (!fs.existsSync(asset.storagePath)) { res.status(404).json({ error: "Release package not found" }); return; }
   res.setHeader("Content-Type", asset.contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${safeFileName(asset.fileName)}"`);
   res.setHeader("Content-Length", asset.sizeBytes);
@@ -164,9 +225,9 @@ router.get("/releases/latest", async (req, res): Promise<void> => {
   res.json({
     id: release.id, version: release.version, channel: release.channel, releaseNotes: release.releaseNotes ?? "",
     publishedAt: release.publishedAt?.toISOString() ?? null,
-    assets: assets.filter(asset => fs.existsSync(asset.storagePath)).map(asset => ({
+    assets: assets.filter(asset => asset.downloadUrl || fs.existsSync(asset.storagePath)).map(asset => ({
       platform: asset.platform, fileName: asset.fileName, sizeBytes: asset.sizeBytes,
-      downloadUrl: `/api/releases/${release.id}/assets/${asset.platform}`,
+      downloadUrl: asset.downloadUrl ?? `/api/releases/${release.id}/assets/${asset.platform}`,
     })),
   });
 });
@@ -176,7 +237,9 @@ router.get("/releases/:id/assets/:platform", async (req, res): Promise<void> => 
   const platform = Array.isArray(req.params.platform) ? req.params.platform[0] : req.params.platform;
   const [release] = await db.select().from(releasesTable).where(and(eq(releasesTable.id, id), eq(releasesTable.status, "published"))).limit(1);
   const [asset] = await db.select().from(releaseAssetsTable).where(and(eq(releaseAssetsTable.releaseId, id), eq(releaseAssetsTable.platform, platform))).limit(1);
-  if (!release || !asset || !fs.existsSync(asset.storagePath)) { res.status(404).json({ error: "Published release package not found." }); return; }
+  if (!release || !asset) { res.status(404).json({ error: "Published release package not found." }); return; }
+  if (asset.downloadUrl) { res.redirect(asset.downloadUrl); return; }
+  if (!fs.existsSync(asset.storagePath)) { res.status(404).json({ error: "Published release package not found." }); return; }
   res.setHeader("Content-Type", asset.contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${safeFileName(asset.fileName)}"`);
   res.setHeader("Content-Length", asset.sizeBytes);

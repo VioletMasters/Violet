@@ -95,6 +95,7 @@ import type {
   RegisterCreateInput,
   RegisterInput,
   ReleaseAsset,
+  ReleaseAssetUpdate,
   ReportData,
   Sale,
   SaleInput,
@@ -6966,6 +6967,80 @@ export const useUploadAdminReleaseAsset = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUploadAdminReleaseAssetMutationOptions(options));
+    }
+
+export const getUpdateAdminReleaseAssetUrl = (id: string,
+    platform: 'windows' | 'macos' | 'linux' | 'docker',) => {
+
+
+
+
+  return `/api/admin/releases/${id}/assets/${platform}`
+}
+
+/**
+ * @summary Set or clear an external release download URL
+ */
+export const updateAdminReleaseAsset = async (id: string,
+    platform: 'windows' | 'macos' | 'linux' | 'docker',
+    releaseAssetUpdate: ReleaseAssetUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ReleaseAsset> => {
+
+  return customFetch<ReleaseAsset>(getUpdateAdminReleaseAssetUrl(id,platform),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(releaseAssetUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminReleaseAssetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminReleaseAsset>>, TError,{id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<ReleaseAssetUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminReleaseAsset>>, TError,{id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<ReleaseAssetUpdate>}, TContext> => {
+
+const mutationKey = ['updateAdminReleaseAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminReleaseAsset>>, {id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<ReleaseAssetUpdate>}> = (props) => {
+          const {id,platform,data} = props ?? {};
+
+          return  updateAdminReleaseAsset(id,platform,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminReleaseAssetMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminReleaseAsset>>>
+    export type UpdateAdminReleaseAssetMutationBody = BodyType<ReleaseAssetUpdate>
+    export type UpdateAdminReleaseAssetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set or clear an external release download URL
+ */
+export const useUpdateAdminReleaseAsset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminReleaseAsset>>, TError,{id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<ReleaseAssetUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminReleaseAsset>>,
+        TError,
+        {id: string;platform: 'windows' | 'macos' | 'linux' | 'docker';data: BodyType<ReleaseAssetUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminReleaseAssetMutationOptions(options));
     }
 
 export const getDownloadAdminReleaseAssetUrl = (id: string,

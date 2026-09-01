@@ -114,6 +114,7 @@ export * from './registerCreateInput';
 export * from './registerInput';
 export * from './releaseAsset';
 export * from './releaseAssetPlatform';
+export * from './releaseAssetUpdate';
 export * from './reportCashierIdParameter';
 export * from './reportData';
 export * from './reportEndDateParameter';

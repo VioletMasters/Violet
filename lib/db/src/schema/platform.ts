@@ -20,6 +20,7 @@ export const releaseAssetsTable = pgTable("platform_release_assets", {
   contentType: text("content_type").notNull().default("application/octet-stream"),
   sizeBytes: integer("size_bytes").notNull().default(0),
   storagePath: text("storage_path").notNull(),
+  downloadUrl: text("download_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

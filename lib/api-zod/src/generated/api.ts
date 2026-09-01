@@ -1972,6 +1972,7 @@ export const ListAdminReleasesResponseItem = zod.object({
   "contentType": zod.string(),
   "sizeBytes": zod.number(),
   "storagePath": zod.string(),
+  "downloadUrl": zod.string().nullable(),
   "createdAt": zod.string().optional()
 }))
 })
@@ -2005,6 +2006,7 @@ export const CreateAdminReleaseResponse = zod.object({
   "contentType": zod.string(),
   "sizeBytes": zod.number(),
   "storagePath": zod.string(),
+  "downloadUrl": zod.string().nullable(),
   "createdAt": zod.string().optional()
 }))
 })
@@ -2041,6 +2043,7 @@ export const UpdateAdminReleaseResponse = zod.object({
   "contentType": zod.string(),
   "sizeBytes": zod.number(),
   "storagePath": zod.string(),
+  "downloadUrl": zod.string().nullable(),
   "createdAt": zod.string().optional()
 }))
 })
@@ -2062,6 +2065,36 @@ export const UploadAdminReleaseAssetResponse = zod.object({
   "contentType": zod.string(),
   "sizeBytes": zod.number(),
   "storagePath": zod.string(),
+  "downloadUrl": zod.string().nullable(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Set or clear an external release download URL
+ */
+export const UpdateAdminReleaseAssetParams = zod.object({
+  "id": zod.coerce.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker'])
+})
+
+export const updateAdminReleaseAssetBodyDownloadUrlMax = 2048;
+
+
+
+export const UpdateAdminReleaseAssetBody = zod.object({
+  "downloadUrl": zod.string().max(updateAdminReleaseAssetBodyDownloadUrlMax).nullable()
+})
+
+export const UpdateAdminReleaseAssetResponse = zod.object({
+  "id": zod.string(),
+  "releaseId": zod.string(),
+  "platform": zod.enum(['windows', 'macos', 'linux', 'docker']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storagePath": zod.string(),
+  "downloadUrl": zod.string().nullable(),
   "createdAt": zod.string().optional()
 })
 
@@ -2104,6 +2137,7 @@ export const GetLatestReleaseResponse = zod.object({
   "contentType": zod.string(),
   "sizeBytes": zod.number(),
   "storagePath": zod.string(),
+  "downloadUrl": zod.string().nullable(),
   "createdAt": zod.string().optional()
 }))
 })

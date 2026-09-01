@@ -11,6 +11,7 @@ import {
   useCreateAdminRelease,
   useUpdateAdminRelease,
   useUploadAdminReleaseAsset,
+  useUpdateAdminReleaseAsset,
   useGetAdminBilling,
   useListAdminSales,
   useListAdminAuditLogs,
@@ -50,7 +51,7 @@ import {
   Search, ShieldAlert, Building2, TrendingUp, Users,
   Plus, Edit2, CheckCircle2, XCircle, Star, AlertTriangle,
   Package, UserCog, ShoppingBag, CalendarDays, CreditCard,
-  PauseCircle, GitBranch, Upload, Download, FileText, RefreshCw,
+  PauseCircle, GitBranch, Upload, Download, FileText, RefreshCw, ExternalLink,
   Filter, Database, CircleDot,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -928,7 +929,7 @@ function ReleaseEditor({ open, release, onClose }: ReleaseEditorProps) {
           <SheetDescription>
             {release
               ? "Keep the release metadata aligned before publishing it to customers."
-              : "Create the semantic version first, then attach one package for each platform."}
+              : "Create the semantic version first, then attach a package or external download link for each platform."}
           </SheetDescription>
         </SheetHeader>
         <form onSubmit={submit} className="space-y-6">
@@ -977,6 +978,83 @@ function ReleaseEditor({ open, release, onClose }: ReleaseEditorProps) {
         </form>
       </SheetContent>
     </Sheet>
+  );
+}
+
+interface ExternalReleaseLinkEditorProps {
+  release: PlatformRelease;
+  platform: typeof releasePlatforms[number]["value"];
+  asset: PlatformRelease["assets"][number] | undefined;
+}
+
+function ExternalReleaseLinkEditor({ release, platform, asset }: ExternalReleaseLinkEditorProps) {
+  const queryClient = useQueryClient();
+  const [url, setUrl] = useState(asset?.downloadUrl ?? "");
+  const updateAsset = useUpdateAdminReleaseAsset({
+    mutation: {
+      onSuccess: () => {
+        toast.success(`${releasePlatforms.find((item) => item.value === platform)?.label ?? "Platform"} download link saved`);
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/releases"] });
+      },
+      onError: (error: Error) => toast.error(error.message || "Could not save download link"),
+    },
+  });
+
+  React.useEffect(() => {
+    setUrl(asset?.downloadUrl ?? "");
+  }, [asset?.id, asset?.downloadUrl]);
+
+  const currentUrl = asset?.downloadUrl ?? "";
+  const cleanUrl = url.trim();
+  const save = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (cleanUrl) {
+      try {
+        if (new URL(cleanUrl).protocol !== "https:") throw new Error();
+      } catch {
+        toast.error("Use a valid HTTPS URL, such as a GitHub release or Actions artifact link");
+        return;
+      }
+    }
+    updateAsset.mutate({ id: release.id, platform, data: { downloadUrl: cleanUrl || null } });
+  };
+
+  return (
+    <form onSubmit={save} className="mt-3 space-y-2 border-t pt-3">
+      <Label htmlFor={`release-${release.id}-${platform}-url`} className="text-xs text-muted-foreground">
+        External download URL
+      </Label>
+      <div className="flex gap-2">
+        <Input
+          id={`release-${release.id}-${platform}-url`}
+          type="url"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="https://github.com/.../artifacts/..."
+          className="min-w-0 text-xs"
+          maxLength={2048}
+          disabled={updateAsset.isPending}
+        />
+        <Button type="submit" size="sm" variant="outline" disabled={updateAsset.isPending || cleanUrl === currentUrl}>
+          {updateAsset.isPending ? "Saving..." : "Save link"}
+        </Button>
+      </div>
+      {asset?.downloadUrl ? (
+        <a
+          href={asset.downloadUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+        >
+          <span className="truncate">{asset.downloadUrl}</span>
+          <ExternalLink className="h-3 w-3 shrink-0" />
+        </a>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Add a secure HTTPS link when the installer is hosted on GitHub or another trusted service.
+        </p>
+      )}
+    </form>
   );
 }
 
@@ -1032,7 +1110,7 @@ function ReleasesTab() {
         <div>
           <p className="text-sm font-semibold">Release pipeline</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Draft, package, and publish desktop updates from one controlled surface.
+            Draft, package, and publish desktop updates from one controlled surface. You can upload packages or point each platform to an external download link.
           </p>
         </div>
         <Button onClick={openNewRelease} className="gap-2 shrink-0">
@@ -1099,7 +1177,7 @@ function ReleasesTab() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 pt-5">
-                <div className="rounded-lg border bg-background/60 p-4">
+                  <div className="rounded-lg border bg-background/60 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm font-semibold"><Package className="h-4 w-4 text-primary" /> Platform packages</div>
                     <span className="text-xs text-muted-foreground">{release.assets.length}/4 attached</span>
@@ -1108,26 +1186,34 @@ function ReleasesTab() {
                     {releasePlatforms.map((platform) => {
                       const asset = release.assets.find((item) => item.platform === platform.value);
                       return (
-                        <label key={platform.value} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.03]">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{platform.label}</p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {asset ? `${asset.fileName} · ${formatBytes(asset.sizeBytes)}` : platform.hint}
-                            </p>
+                          <div key={platform.value} className="rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.03]">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{platform.label}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {asset?.downloadUrl
+                                    ? "External download link is active"
+                                    : asset
+                                      ? `${asset.fileName} · ${formatBytes(asset.sizeBytes)}`
+                                      : platform.hint}
+                                </p>
+                              </div>
+                              <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border bg-background px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+                                <Upload className="h-3.5 w-3.5" />
+                                Upload
+                                <Input
+                                  type="file"
+                                  className="sr-only"
+                                  onChange={(event) => {
+                                    upload(release, platform.value, event.target.files?.[0]);
+                                    event.currentTarget.value = "";
+                                  }}
+                                  disabled={uploadAsset.isPending}
+                                />
+                              </label>
+                            </div>
+                            <ExternalReleaseLinkEditor release={release} platform={platform.value} asset={asset} />
                           </div>
-                          <div className="shrink-0 rounded-md border bg-background p-1.5 text-muted-foreground">
-                            <Upload className="h-3.5 w-3.5" />
-                          </div>
-                          <Input
-                            type="file"
-                            className="sr-only"
-                            onChange={(event) => {
-                              upload(release, platform.value, event.target.files?.[0]);
-                              event.currentTarget.value = "";
-                            }}
-                            disabled={uploadAsset.isPending}
-                          />
-                        </label>
                       );
                     })}
                   </div>

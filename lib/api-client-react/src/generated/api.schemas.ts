@@ -1004,7 +1004,17 @@ export interface ReleaseAsset {
   contentType: string;
   sizeBytes: number;
   storagePath: string;
+  /** @nullable */
+  downloadUrl: string | null;
   createdAt?: string;
+}
+
+export interface ReleaseAssetUpdate {
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  downloadUrl: string | null;
 }
 
 export type PlatformReleaseChannel = typeof PlatformReleaseChannel[keyof typeof PlatformReleaseChannel];

@@ -19,6 +19,10 @@ router.get("/download", async (_req, res) => {
   if (release) {
     const [asset] = await db.select().from(releaseAssetsTable)
       .where(and(eq(releaseAssetsTable.releaseId, release.id), eq(releaseAssetsTable.platform, "docker"))).limit(1);
+    if (asset?.downloadUrl) {
+      res.redirect(asset.downloadUrl);
+      return;
+    }
     if (asset && fs.existsSync(asset.storagePath)) {
       res.setHeader("Content-Type", asset.contentType);
       res.setHeader("Content-Disposition", `attachment; filename="${asset.fileName.replace(/[^a-zA-Z0-9._-]/g, "-")}"`);

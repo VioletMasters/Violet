@@ -1771,6 +1771,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReleaseAsset"
+    patch:
+      operationId: updateAdminReleaseAsset
+      tags: [admin]
+      summary: Set or clear an external release download URL
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: platform
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [windows, macos, linux, docker]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseAssetUpdate"
+      responses:
+        "200":
+          description: Updated release asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseAsset"
     get:
       operationId: downloadAdminReleaseAsset
       tags: [admin]
@@ -3226,7 +3255,7 @@ components:
 
     ReleaseAsset:
       type: object
-      required: [id, releaseId, platform, fileName, contentType, sizeBytes, storagePath]
+      required: [id, releaseId, platform, fileName, contentType, sizeBytes, storagePath, downloadUrl]
       properties:
         id: { type: string }
         releaseId: { type: string }
@@ -3237,7 +3266,14 @@ components:
         contentType: { type: string }
         sizeBytes: { type: number }
         storagePath: { type: string }
+        downloadUrl: { type: ["string", "null"] }
         createdAt: { type: string }
+
+    ReleaseAssetUpdate:
+      type: object
+      required: [downloadUrl]
+      properties:
+        downloadUrl: { type: ["string", "null"], maxLength: 2048 }
 
     PlatformRelease:
       type: object

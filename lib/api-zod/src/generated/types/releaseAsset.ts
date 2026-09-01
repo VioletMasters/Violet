@@ -15,5 +15,7 @@ export interface ReleaseAsset {
   contentType: string;
   sizeBytes: number;
   storagePath: string;
+  /** @nullable */
+  downloadUrl: string | null;
   createdAt?: string;
 }
