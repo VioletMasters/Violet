@@ -1,6 +1,14 @@
 import { Router } from "express";
-import { db, plansTable, subscriptionsTable, usersTable, productsTable, customersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  db,
+  plansTable,
+  subscriptionsTable,
+  subscriptionEventsTable,
+  usersTable,
+  productsTable,
+  customersTable,
+} from "@workspace/db";
+import { desc, eq, inArray } from "drizzle-orm";
 import { isManagerRole, requireSession } from "../middlewares/auth";
 import { refreshWhopMembershipIfStale } from "../lib/subscriptionSync";
 
@@ -94,6 +102,8 @@ router.get("/subscription", requireSession, async (req, res): Promise<void> => {
     status: sub.status,
     currentPeriodStart: sub.currentPeriodStart?.toISOString() ?? null,
     currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+    cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+    cancelRequestedAt: sub.cancelRequestedAt?.toISOString() ?? null,
     paymentStatus: sub.paymentStatus ?? null,
     checkoutPending: Boolean(sub.pendingWhopCheckoutConfigurationId),
     lastWhopSyncAt: sub.lastWhopSyncAt?.toISOString() ?? null,
@@ -103,6 +113,45 @@ router.get("/subscription", requireSession, async (req, res): Promise<void> => {
       customers: customers.length,
     },
   });
+});
+
+// GET /billing/history
+router.get("/billing/history", requireSession, async (req, res): Promise<void> => {
+  if (!req.user || !isManagerRole(req.user.role)) {
+    res.status(403).json({ error: "Only an account owner or manager can view billing." });
+    return;
+  }
+
+  const events = await db
+    .select()
+    .from(subscriptionEventsTable)
+    .where(eq(subscriptionEventsTable.tenantId, req.tenantId!))
+    .orderBy(desc(subscriptionEventsTable.createdAt))
+    .limit(50);
+
+  const planIds = Array.from(
+    new Set(events.flatMap((event) => [event.fromPlanId, event.toPlanId].filter(Boolean) as string[])),
+  );
+  const plans = planIds.length
+    ? await db.select({ id: plansTable.id, name: plansTable.name }).from(plansTable).where(inArray(plansTable.id, planIds))
+    : [];
+  const planNames = new Map(plans.map((plan) => [plan.id, plan.name]));
+
+  res.json(events.map((event) => ({
+    id: event.id,
+    tenantId: event.tenantId,
+    eventType: event.eventType,
+    fromPlanId: event.fromPlanId,
+    toPlanId: event.toPlanId,
+    fromPlanName: event.fromPlanId ? planNames.get(event.fromPlanId) ?? null : null,
+    toPlanName: event.toPlanId ? planNames.get(event.toPlanId) ?? null : null,
+    source: event.source,
+    reason: event.reason ?? null,
+    whopMembershipId: event.whopMembershipId ?? null,
+    effectiveAt: event.effectiveAt?.toISOString() ?? null,
+    actorId: event.actorId ?? null,
+    createdAt: event.createdAt.toISOString(),
+  })));
 });
 
 export default router;

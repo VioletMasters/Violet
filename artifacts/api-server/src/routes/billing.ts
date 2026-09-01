@@ -3,9 +3,16 @@ import { Router, type Request } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import {
   CreateBillingCheckoutBody,
+  CancelBillingSubscriptionBody,
   ReconcileBillingCheckoutBody,
 } from "@workspace/api-zod";
-import { db, plansTable, subscriptionsTable } from "@workspace/db";
+import {
+  db,
+  plansTable,
+  subscriptionsTable,
+  subscriptionEventsTable,
+  tenantsTable,
+} from "@workspace/db";
 import { isManagerRole, requireSession } from "../middlewares/auth";
 import { getWhopClient } from "../lib/whopClient";
 import {
@@ -324,6 +331,191 @@ router.post("/billing/reconcile", requireSession, async (req, res): Promise<void
         : 502;
     res.status(statusCode).json({
       error: error instanceof Error ? error.message : "Unable to verify the payment right now.",
+    });
+  }
+});
+
+router.post("/billing/cancel", requireSession, async (req, res): Promise<void> => {
+  const parsed = CancelBillingSubscriptionBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid cancellation request." });
+    return;
+  }
+  if (!req.user || !isManagerRole(req.user.role)) {
+    res.status(403).json({ error: "Only an account owner or manager can change billing." });
+    return;
+  }
+
+  const immediate = parsed.data.immediate === true;
+  const reason = parsed.data.reason?.trim() || null;
+
+  try {
+    const [subscription] = await db
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, req.tenantId!))
+      .limit(1);
+    if (!subscription) {
+      res.status(404).json({ error: "No subscription found for this account." });
+      return;
+    }
+    const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, subscription.planId)).limit(1);
+    if (plan?.tier === "free") {
+      res.status(409).json({ error: "Free accounts do not have a paid subscription to cancel." });
+      return;
+    }
+    if (subscription.cancelAtPeriodEnd && !immediate) {
+      res.json({
+        success: true,
+        status: "scheduled",
+        message: "Cancellation is already scheduled for the end of the current billing period.",
+      });
+      return;
+    }
+
+    let membership = null;
+    if (subscription.whopMembershipId) {
+      const client = await getWhopClient();
+      membership = await client.memberships.cancel({
+        id: subscription.whopMembershipId,
+        cancel_at_period_end: !immediate,
+      });
+    }
+
+    const now = new Date();
+    const eventType = immediate ? "cancelled" : "cancellation_requested";
+    await db.transaction(async (tx) => {
+      await tx
+        .update(subscriptionsTable)
+        .set({
+          status: immediate ? "cancelled" : subscription.status,
+          paymentStatus: immediate ? "failed" : subscription.paymentStatus,
+          cancelAtPeriodEnd: !immediate,
+          cancelRequestedAt: now,
+          cancelReason: reason,
+          lastWhopSyncAt: now,
+          updatedAt: now,
+        })
+        .where(eq(subscriptionsTable.tenantId, req.tenantId!));
+
+      if (immediate) {
+        await tx
+          .update(tenantsTable)
+          .set({
+            licenseStatus: "revoked",
+            licenseValidatedAt: now,
+            licenseValidUntil: now,
+            updatedAt: now,
+          })
+          .where(eq(tenantsTable.id, req.tenantId!));
+      }
+
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId: req.tenantId!,
+        subscriptionId: subscription.id,
+        eventType,
+        fromPlanId: subscription.planId,
+        toPlanId: immediate ? null : subscription.planId,
+        source: "customer",
+        reason,
+        whopMembershipId: membership?.id ?? subscription.whopMembershipId,
+        effectiveAt: immediate ? now : subscription.currentPeriodEnd,
+        actorId: req.user!.id,
+      });
+    });
+
+    res.json({
+      success: true,
+      status: immediate ? "cancelled" : "scheduled",
+      message: immediate
+        ? "The subscription was cancelled and access was revoked immediately."
+        : subscription.currentPeriodEnd
+          ? `Auto-renewal is off. Access remains available until ${subscription.currentPeriodEnd.toISOString()}.`
+          : "Auto-renewal is off for this subscription.",
+    });
+  } catch (error) {
+    req.log.error({ err: error, tenantId: req.tenantId }, "Whop subscription cancellation failed");
+    const statusCode =
+      typeof error === "object" && error !== null && "statusCode" in error && typeof error.statusCode === "number"
+        ? error.statusCode
+        : 502;
+    res.status(statusCode).json({
+      error: error instanceof Error ? error.message : "Unable to cancel the subscription right now.",
+    });
+  }
+});
+
+router.post("/billing/reactivate", requireSession, async (req, res): Promise<void> => {
+  if (!req.user || !isManagerRole(req.user.role)) {
+    res.status(403).json({ error: "Only an account owner or manager can change billing." });
+    return;
+  }
+
+  try {
+    const [subscription] = await db
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, req.tenantId!))
+      .limit(1);
+    if (!subscription?.whopMembershipId || !subscription.cancelAtPeriodEnd) {
+      res.status(409).json({ error: "This subscription does not have a scheduled cancellation." });
+      return;
+    }
+
+    const client = await getWhopClient();
+    const membership = await client.memberships.update({
+      id: subscription.whopMembershipId,
+      cancel_at_period_end: false,
+    });
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(subscriptionsTable)
+        .set({
+          status: "active",
+          paymentStatus: "paid",
+          cancelAtPeriodEnd: false,
+          cancelRequestedAt: null,
+          cancelReason: null,
+          lastWhopSyncAt: now,
+          updatedAt: now,
+        })
+        .where(eq(subscriptionsTable.tenantId, req.tenantId!));
+      await tx
+        .update(tenantsTable)
+        .set({
+          licenseStatus: "valid",
+          licenseValidatedAt: now,
+          licenseValidUntil: subscription.currentPeriodEnd,
+          updatedAt: now,
+        })
+        .where(eq(tenantsTable.id, req.tenantId!));
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId: req.tenantId!,
+        subscriptionId: subscription.id,
+        eventType: "reactivated",
+        fromPlanId: subscription.planId,
+        toPlanId: subscription.planId,
+        source: "customer",
+        reason: "Scheduled cancellation reversed.",
+        whopMembershipId: membership.id,
+        effectiveAt: now,
+        actorId: req.user!.id,
+      });
+    });
+    res.json({
+      success: true,
+      status: "active",
+      message: "Your subscription will continue renewing normally.",
+    });
+  } catch (error) {
+    req.log.error({ err: error, tenantId: req.tenantId }, "Whop subscription reactivation failed");
+    const statusCode =
+      typeof error === "object" && error !== null && "statusCode" in error && typeof error.statusCode === "number"
+        ? error.statusCode
+        : 502;
+    res.status(statusCode).json({
+      error: error instanceof Error ? error.message : "Unable to reactivate the subscription right now.",
     });
   }
 });

@@ -1,4 +1,10 @@
-import { db, plansTable, subscriptionsTable, tenantsTable } from "@workspace/db";
+import {
+  db,
+  plansTable,
+  subscriptionsTable,
+  subscriptionEventsTable,
+  tenantsTable,
+} from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { getWhopClient } from "./whopClient";
 
@@ -158,8 +164,16 @@ async function applyMembership(
   const now = new Date();
   const currentPeriodEnd = membership.current_period_end ? new Date(membership.current_period_end) : null;
   const currentPeriodStart = payment?.paid_at ? new Date(payment.paid_at) : new Date(membership.created_at);
+  const cancelAtPeriodEnd = Boolean(
+    (membership as unknown as { cancel_at_period_end?: boolean }).cancel_at_period_end,
+  );
 
   await db.transaction(async (tx) => {
+    const [previous] = await tx
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, tenantId))
+      .limit(1);
     const updatedSubscriptions = await tx
       .update(subscriptionsTable)
       .set({
@@ -175,6 +189,9 @@ async function applyMembership(
         whopMembershipId: membership.id,
         whopPlanId: membership.plan_id,
         paymentStatus: access.paymentStatus,
+        cancelAtPeriodEnd,
+        cancelRequestedAt: cancelAtPeriodEnd ? previous?.cancelRequestedAt ?? now : null,
+        cancelReason: cancelAtPeriodEnd ? previous?.cancelReason ?? null : null,
         lastWhopSyncAt: now,
         updatedAt: now,
       })
@@ -187,6 +204,22 @@ async function applyMembership(
     if (updatedSubscriptions.length === 0) {
       throw Object.assign(new Error("This checkout was cancelled or superseded."), {
         statusCode: 409,
+      });
+    }
+
+    if (
+      previous &&
+      (previous.planId !== planId || !previous.whopMembershipId)
+    ) {
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId,
+        subscriptionId: previous.id,
+        eventType: previous.whopMembershipId ? "plan_changed" : "activated",
+        fromPlanId: previous.planId,
+        toPlanId: planId,
+        source: "whop",
+        whopMembershipId: membership.id,
+        effectiveAt: currentPeriodStart,
       });
     }
 

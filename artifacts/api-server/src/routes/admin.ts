@@ -1,7 +1,8 @@
 import { Router } from "express";
+import { CancelBillingSubscriptionBody } from "@workspace/api-zod";
 import {
   db, tenantsTable, usersTable, plansTable,
-  subscriptionsTable, productsTable, customersTable, sessionsTable,
+  subscriptionsTable, subscriptionEventsTable, productsTable, customersTable, sessionsTable,
   storesTable, registersTable,
   salesTable, releasesTable, releaseAssetsTable, platformAuditLogsTable, settingsTable,
 } from "@workspace/db";
@@ -414,6 +415,7 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
     [{ productCount }],
     [{ customerCount }],
     subscription,
+    subscriptionEvents,
   ] = await Promise.all([
     db.select({ userCount: sql<number>`COUNT(*)` })
       .from(usersTable).where(eq(usersTable.tenantId, tenant.id)),
@@ -424,10 +426,23 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
     db.select().from(subscriptionsTable)
       .where(eq(subscriptionsTable.tenantId, tenant.id)).limit(1)
       .then(r => r[0] ?? null),
+    db.select().from(subscriptionEventsTable)
+      .where(eq(subscriptionEventsTable.tenantId, tenant.id))
+      .orderBy(desc(subscriptionEventsTable.createdAt))
+      .limit(25),
   ]);
 
   // Subscription is authoritative for plan — fall back to tenant.planId for legacy rows
   const plan = await resolvePlan(subscription, tenant);
+  const eventPlanIds = Array.from(
+    new Set(subscriptionEvents.flatMap((event) => [event.fromPlanId, event.toPlanId].filter(Boolean) as string[])),
+  );
+  const eventPlans = eventPlanIds.length
+    ? await db.select({ id: plansTable.id, name: plansTable.name })
+      .from(plansTable)
+      .where(inArray(plansTable.id, eventPlanIds))
+    : [];
+  const eventPlanNames = new Map(eventPlans.map((eventPlan) => [eventPlan.id, eventPlan.name]));
 
   res.json({
     id: tenant.id,
@@ -444,6 +459,20 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
     subscriptionStatus: subscription?.status ?? null,
     subscriptionStart: subscription?.currentPeriodStart?.toISOString() ?? null,
     subscriptionEnd: subscription?.currentPeriodEnd?.toISOString() ?? null,
+    cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+    cancelRequestedAt: subscription?.cancelRequestedAt?.toISOString() ?? null,
+    licenseStatus: tenant.licenseStatus,
+    whopMembershipId: subscription?.whopMembershipId ?? null,
+    subscriptionHistory: subscriptionEvents.map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      fromPlanName: event.fromPlanId ? eventPlanNames.get(event.fromPlanId) ?? null : null,
+      toPlanName: event.toPlanId ? eventPlanNames.get(event.toPlanId) ?? null : null,
+      source: event.source,
+      reason: event.reason,
+      effectiveAt: event.effectiveAt?.toISOString() ?? null,
+      createdAt: event.createdAt.toISOString(),
+    })),
     maxUsers: plan?.maxUsers ?? 2,
     maxProducts: plan?.maxProducts ?? 250,
     maxCustomers: plan?.maxCustomers ?? 500,
@@ -456,23 +485,99 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
 router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { status, planId } = req.body;
+  const [existingTenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, id)).limit(1);
+  if (!existingTenant) {
+    res.status(404).json({ error: "Tenant not found" });
+    return;
+  }
+  const [subscription] = await db.select().from(subscriptionsTable)
+    .where(eq(subscriptionsTable.tenantId, existingTenant.id)).limit(1);
   const updates: Record<string, unknown> = {};
   if (status !== undefined) updates.status = status;
-  if (planId !== undefined) updates.planId = planId;
 
-  const [tenant] = await db.update(tenantsTable).set(updates)
-    .where(eq(tenantsTable.id, id)).returning();
+  let selectedPlan: typeof plansTable.$inferSelect | null = null;
+  if (planId !== undefined) {
+    if (typeof planId !== "string") {
+      res.status(400).json({ error: "A valid plan is required." });
+      return;
+    }
+    [selectedPlan] = await db.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1);
+    if (!selectedPlan) {
+      res.status(404).json({ error: "Plan not found." });
+      return;
+    }
+    if (
+      subscription?.whopMembershipId &&
+      ["active", "trial"].includes(subscription.status) &&
+      subscription.planId !== selectedPlan.id
+    ) {
+      res.status(409).json({
+        error: "This tenant has an active Whop membership. Schedule cancellation first, then change the plan after the current period ends.",
+      });
+      return;
+    }
+    updates.planId = selectedPlan.id;
+  }
+
+  const planChanged = Boolean(selectedPlan && selectedPlan.id !== (subscription?.planId ?? existingTenant.planId));
+  const now = new Date();
+  const [tenant] = await db.transaction(async (tx) => {
+    const [updatedTenant] = await tx.update(tenantsTable)
+      .set({
+        ...updates,
+        ...(selectedPlan ? {
+          planId: selectedPlan.id,
+          licenseStatus: "valid",
+          licenseValidatedAt: now,
+          licenseValidUntil: null,
+        } : {}),
+        updatedAt: now,
+      })
+      .where(eq(tenantsTable.id, id))
+      .returning();
+    if (selectedPlan && subscription && planChanged) {
+      await tx.update(subscriptionsTable)
+        .set({
+          planId: selectedPlan.id,
+          status: "active",
+          paymentStatus: "not_required",
+          ...(selectedPlan.tier === "free" ? {
+            whopMembershipId: null,
+            whopPlanId: null,
+            whopCheckoutConfigurationId: null,
+          } : {}),
+          cancelAtPeriodEnd: false,
+          cancelRequestedAt: null,
+          cancelReason: null,
+          lastWhopSyncAt: now,
+          updatedAt: now,
+        })
+        .where(eq(subscriptionsTable.tenantId, id));
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId: id,
+        subscriptionId: subscription.id,
+        eventType: "admin_override",
+        fromPlanId: subscription.planId,
+        toPlanId: selectedPlan.id,
+        source: "admin",
+        reason: "Plan changed by a super administrator.",
+        effectiveAt: now,
+        actorId: req.user!.id,
+      });
+    }
+    return [updatedTenant];
+  });
   if (!tenant) {
     res.status(404).json({ error: "Tenant not found" });
     return;
   }
-  await audit(req, "tenant.updated", "tenant", id, `Updated ${tenant.name} tenant account`, updates);
+  await audit(req, planChanged ? "tenant.plan_changed" : "tenant.updated", "tenant", id, `Updated ${tenant.name} tenant account`, updates);
 
   // Fetch subscription to use as authoritative plan source
-  const subscription = await db.select().from(subscriptionsTable)
+  const currentSubscription = await db.select().from(subscriptionsTable)
     .where(eq(subscriptionsTable.tenantId, tenant.id)).limit(1)
     .then(r => r[0] ?? null);
-  const plan = await resolvePlan(subscription, tenant);
+  const plan = await resolvePlan(currentSubscription, tenant);
 
   res.json({
     id: tenant.id,
@@ -486,10 +591,141 @@ router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<
     userCount: 0,
     productCount: 0,
     customerCount: 0,
-    subscriptionStatus: subscription?.status ?? null,
-    subscriptionStart: subscription?.currentPeriodStart?.toISOString() ?? null,
+    subscriptionStatus: currentSubscription?.status ?? null,
+    subscriptionStart: currentSubscription?.currentPeriodStart?.toISOString() ?? null,
     createdAt: tenant.createdAt.toISOString(),
   });
+});
+
+router.post("/admin/tenants/:id/subscription/cancel", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const parsed = CancelBillingSubscriptionBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid cancellation request." });
+    return;
+  }
+  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, id)).limit(1);
+  const [subscription] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.tenantId, id)).limit(1);
+  if (!tenant || !subscription) {
+    res.status(404).json({ error: "Tenant subscription not found." });
+    return;
+  }
+  const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, subscription.planId)).limit(1);
+  if (plan?.tier === "free") {
+    res.status(409).json({ error: "Free accounts do not have a paid subscription to cancel." });
+    return;
+  }
+
+  const immediate = parsed.data.immediate === true;
+  const reason = parsed.data.reason?.trim() || "Cancellation requested by a super administrator.";
+  try {
+    if (subscription.whopMembershipId) {
+      const client = await getWhopClient();
+      await client.memberships.cancel({
+        id: subscription.whopMembershipId,
+        cancel_at_period_end: !immediate,
+      });
+    }
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(subscriptionsTable).set({
+        status: immediate ? "cancelled" : subscription.status,
+        paymentStatus: immediate ? "failed" : subscription.paymentStatus,
+        cancelAtPeriodEnd: !immediate,
+        cancelRequestedAt: now,
+        cancelReason: reason,
+        lastWhopSyncAt: now,
+        updatedAt: now,
+      }).where(eq(subscriptionsTable.tenantId, id));
+      if (immediate) {
+        await tx.update(tenantsTable).set({
+          licenseStatus: "revoked",
+          licenseValidatedAt: now,
+          licenseValidUntil: now,
+          updatedAt: now,
+        }).where(eq(tenantsTable.id, id));
+      }
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId: id,
+        subscriptionId: subscription.id,
+        eventType: immediate ? "cancelled" : "cancellation_requested",
+        fromPlanId: subscription.planId,
+        toPlanId: immediate ? null : subscription.planId,
+        source: "admin",
+        reason,
+        whopMembershipId: subscription.whopMembershipId,
+        effectiveAt: immediate ? now : subscription.currentPeriodEnd,
+        actorId: req.user!.id,
+      });
+    });
+    await audit(req, immediate ? "subscription.cancelled" : "subscription.cancellation_requested", "subscription", subscription.id, `${immediate ? "Cancelled" : "Scheduled cancellation for"} ${tenant.name}`, { reason });
+    res.json({
+      success: true,
+      status: immediate ? "cancelled" : "scheduled",
+      message: immediate
+        ? "The subscription was cancelled and access was revoked immediately."
+        : "Auto-renewal is off and the tenant remains active through the current billing period.",
+    });
+  } catch (error) {
+    req.log.error({ err: error, tenantId: id }, "Admin subscription cancellation failed");
+    res.status(502).json({ error: error instanceof Error ? error.message : "Unable to cancel this subscription." });
+  }
+});
+
+router.post("/admin/tenants/:id/subscription/reactivate", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, id)).limit(1);
+  const [subscription] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.tenantId, id)).limit(1);
+  if (!tenant || !subscription) {
+    res.status(404).json({ error: "Tenant subscription not found." });
+    return;
+  }
+  if (!subscription.whopMembershipId || !subscription.cancelAtPeriodEnd) {
+    res.status(409).json({ error: "This subscription does not have a scheduled cancellation." });
+    return;
+  }
+  try {
+    const client = await getWhopClient();
+    const membership = await client.memberships.update({
+      id: subscription.whopMembershipId,
+      cancel_at_period_end: false,
+    });
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(subscriptionsTable).set({
+        status: "active",
+        paymentStatus: "paid",
+        cancelAtPeriodEnd: false,
+        cancelRequestedAt: null,
+        cancelReason: null,
+        lastWhopSyncAt: now,
+        updatedAt: now,
+      }).where(eq(subscriptionsTable.tenantId, id));
+      await tx.update(tenantsTable).set({
+        licenseStatus: "valid",
+        licenseValidatedAt: now,
+        licenseValidUntil: subscription.currentPeriodEnd,
+        updatedAt: now,
+      }).where(eq(tenantsTable.id, id));
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId: id,
+        subscriptionId: subscription.id,
+        eventType: "reactivated",
+        fromPlanId: subscription.planId,
+        toPlanId: subscription.planId,
+        source: "admin",
+        reason: "Scheduled cancellation reversed by a super administrator.",
+        whopMembershipId: membership.id,
+        effectiveAt: now,
+        actorId: req.user!.id,
+      });
+    });
+    await audit(req, "subscription.reactivated", "subscription", subscription.id, `Reactivated ${tenant.name} subscription`);
+    res.json({ success: true, status: "active", message: "The subscription will continue renewing normally." });
+  } catch (error) {
+    req.log.error({ err: error, tenantId: id }, "Admin subscription reactivation failed");
+    res.status(502).json({ error: error instanceof Error ? error.message : "Unable to reactivate this subscription." });
+  }
 });
 
 // DELETE /admin/staging/tenants/:id

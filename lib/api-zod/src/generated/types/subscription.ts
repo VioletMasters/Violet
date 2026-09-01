@@ -20,6 +20,9 @@ export interface Subscription {
   currentPeriodStart?: string | null;
   /** @nullable */
   currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** @nullable */
+  cancelRequestedAt?: string | null;
   /** @nullable */
   paymentStatus?: SubscriptionPaymentStatus;
   checkoutPending?: boolean;

@@ -22,6 +22,11 @@ export interface Tenant {
   subscriptionStatus?: string;
   /** @nullable */
   subscriptionStart?: string | null;
+  /** @nullable */
+  subscriptionEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** @nullable */
+  cancelRequestedAt?: string | null;
   /** True when the account may only access billing recovery until its Whop subscription is restored. */
   requiresBillingAction?: boolean;
   /** @nullable */

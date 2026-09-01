@@ -58,6 +58,9 @@ export const RegisterResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "subscriptionEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
   "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
   "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
@@ -99,6 +102,9 @@ export const LoginResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "subscriptionEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
   "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
   "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1171,6 +1177,8 @@ export const GetSubscriptionResponse = zod.object({
   "status": zod.enum(['active', 'trial', 'expired', 'cancelled']),
   "currentPeriodStart": zod.string().nullish(),
   "currentPeriodEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
   "paymentStatus": zod.union([zod.literal('not_required'),zod.literal('pending'),zod.literal('paid'),zod.literal('failed'),zod.literal('refunded'),zod.literal('past_due'),zod.literal(null)]).nullish(),
   "checkoutPending": zod.boolean().optional(),
   "lastWhopSyncAt": zod.string().nullish(),
@@ -1216,6 +1224,57 @@ export const ReconcileBillingCheckoutResponse = zod.object({
   "status": zod.enum(['active', 'pending', 'failed', 'past_due', 'cancelled', 'refunded']),
   "message": zod.string()
 })
+
+
+/**
+ * @summary Cancel the current Whop subscription
+ */
+export const cancelBillingSubscriptionBodyImmediateDefault = false;
+export const cancelBillingSubscriptionBodyReasonMax = 500;
+
+
+
+export const CancelBillingSubscriptionBody = zod.object({
+  "immediate": zod.boolean().default(cancelBillingSubscriptionBodyImmediateDefault),
+  "reason": zod.string().max(cancelBillingSubscriptionBodyReasonMax).optional()
+})
+
+export const CancelBillingSubscriptionResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['scheduled', 'cancelled', 'active']),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Reverse a scheduled Whop subscription cancellation
+ */
+export const ReactivateBillingSubscriptionResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['scheduled', 'cancelled', 'active']),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Get the current tenant's subscription history
+ */
+export const GetBillingHistoryResponseItem = zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "eventType": zod.enum(['activated', 'plan_changed', 'cancellation_requested', 'cancelled', 'reactivated', 'admin_override']),
+  "fromPlanId": zod.string().nullish(),
+  "toPlanId": zod.string().nullish(),
+  "fromPlanName": zod.string().nullish(),
+  "toPlanName": zod.string().nullish(),
+  "source": zod.string(),
+  "reason": zod.string().nullish(),
+  "whopMembershipId": zod.string().nullish(),
+  "effectiveAt": zod.string().nullish(),
+  "actorId": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const GetBillingHistoryResponse = zod.array(GetBillingHistoryResponseItem)
 
 
 /**
@@ -1756,6 +1815,9 @@ export const ListTenantsResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "subscriptionEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
   "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
   "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1788,6 +1850,20 @@ export const GetAdminTenantResponse = zod.object({
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
   "subscriptionEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
+  "licenseStatus": zod.string().optional(),
+  "whopMembershipId": zod.string().nullish(),
+  "subscriptionHistory": zod.array(zod.object({
+  "id": zod.string(),
+  "eventType": zod.string(),
+  "fromPlanName": zod.string().nullish(),
+  "toPlanName": zod.string().nullish(),
+  "source": zod.string(),
+  "reason": zod.string().nullish(),
+  "effectiveAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})).optional(),
   "maxUsers": zod.number().optional(),
   "maxProducts": zod.number().optional(),
   "maxCustomers": zod.number().optional(),
@@ -1822,9 +1898,50 @@ export const UpdateAdminTenantResponse = zod.object({
   "customerCount": zod.number().optional(),
   "subscriptionStatus": zod.string().optional(),
   "subscriptionStart": zod.string().nullish(),
+  "subscriptionEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
   "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
   "billingMessage": zod.string().nullish(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Cancel a tenant's Whop subscription
+ */
+export const CancelAdminTenantSubscriptionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const cancelAdminTenantSubscriptionBodyImmediateDefault = false;
+export const cancelAdminTenantSubscriptionBodyReasonMax = 500;
+
+
+
+export const CancelAdminTenantSubscriptionBody = zod.object({
+  "immediate": zod.boolean().default(cancelAdminTenantSubscriptionBodyImmediateDefault),
+  "reason": zod.string().max(cancelAdminTenantSubscriptionBodyReasonMax).optional()
+})
+
+export const CancelAdminTenantSubscriptionResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['scheduled', 'cancelled', 'active']),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Reverse a scheduled tenant subscription cancellation
+ */
+export const ReactivateAdminTenantSubscriptionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReactivateAdminTenantSubscriptionResponse = zod.object({
+  "success": zod.boolean(),
+  "status": zod.enum(['scheduled', 'cancelled', 'active']),
+  "message": zod.string()
 })
 
 

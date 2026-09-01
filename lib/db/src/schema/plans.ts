@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, numeric, integer, boolean } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uuid, numeric, integer, boolean } from "drizzle-orm/pg-core";
 
 export const plansTable = pgTable("subscription_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -41,11 +41,34 @@ export const subscriptionsTable = pgTable("subscriptions", {
   lastWhopSyncAt: timestamp("last_whop_sync_at", { withTimezone: true }),
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
+  cancelReason: text("cancel_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const subscriptionEventsTable = pgTable("subscription_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  subscriptionId: uuid("subscription_id"),
+  eventType: text("event_type").notNull(), // activated, plan_changed, cancellation_requested, cancelled, reactivated, admin_override
+  fromPlanId: uuid("from_plan_id"),
+  toPlanId: uuid("to_plan_id"),
+  source: text("source").notNull().default("system"), // whop, admin, customer, system
+  reason: text("reason"),
+  whopMembershipId: text("whop_membership_id"),
+  effectiveAt: timestamp("effective_at", { withTimezone: true }),
+  actorId: uuid("actor_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("subscription_events_tenant_created_idx").on(table.tenantId, table.createdAt),
+  index("subscription_events_tenant_effective_idx").on(table.tenantId, table.effectiveAt),
+]);
 
 export type Plan = typeof plansTable.$inferSelect;
 export type InsertPlan = typeof plansTable.$inferInsert;
 export type Subscription = typeof subscriptionsTable.$inferSelect;
 export type InsertSubscription = typeof subscriptionsTable.$inferInsert;
+export type SubscriptionEvent = typeof subscriptionEventsTable.$inferSelect;
+export type InsertSubscriptionEvent = typeof subscriptionEventsTable.$inferInsert;

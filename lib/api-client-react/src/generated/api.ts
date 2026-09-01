@@ -24,10 +24,12 @@ import type {
   AdminSalesPage,
   AdminStats,
   AuthResponse,
+  BillingCancelInput,
   BillingCheckout,
   BillingCheckoutInput,
   BillingReconcileInput,
   BillingReconcileResponse,
+  BillingSubscriptionAction,
   Brand,
   BrandInput,
   BrandUpdate,
@@ -110,6 +112,7 @@ import type {
   StagingTenantCleanupResponse,
   StoreCreateInput,
   Subscription,
+  SubscriptionEvent,
   SuccessResponse,
   Supplier,
   SupplierInput,
@@ -3796,6 +3799,225 @@ export const useReconcileBillingCheckout = <TError = ErrorType<ErrorResponse>,
       return useMutation(getReconcileBillingCheckoutMutationOptions(options));
     }
 
+export const getCancelBillingSubscriptionUrl = () => {
+
+
+
+
+  return `/api/billing/cancel`
+}
+
+/**
+ * @summary Cancel the current Whop subscription
+ */
+export const cancelBillingSubscription = async (billingCancelInput?: BillingCancelInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingSubscriptionAction> => {
+
+  return customFetch<BillingSubscriptionAction>(getCancelBillingSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billingCancelInput)
+  }
+);}
+
+
+
+
+
+export const getCancelBillingSubscriptionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBillingSubscription>>, TError,{data?: BodyType<BillingCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelBillingSubscription>>, TError,{data?: BodyType<BillingCancelInput>}, TContext> => {
+
+const mutationKey = ['cancelBillingSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelBillingSubscription>>, {data?: BodyType<BillingCancelInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  cancelBillingSubscription(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelBillingSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelBillingSubscription>>>
+    export type CancelBillingSubscriptionMutationBody = BodyType<BillingCancelInput> | undefined
+    export type CancelBillingSubscriptionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Cancel the current Whop subscription
+ */
+export const useCancelBillingSubscription = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBillingSubscription>>, TError,{data?: BodyType<BillingCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelBillingSubscription>>,
+        TError,
+        {data?: BodyType<BillingCancelInput>},
+        TContext
+      > => {
+      return useMutation(getCancelBillingSubscriptionMutationOptions(options));
+    }
+
+export const getReactivateBillingSubscriptionUrl = () => {
+
+
+
+
+  return `/api/billing/reactivate`
+}
+
+/**
+ * @summary Reverse a scheduled Whop subscription cancellation
+ */
+export const reactivateBillingSubscription = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingSubscriptionAction> => {
+
+  return customFetch<BillingSubscriptionAction>(getReactivateBillingSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateBillingSubscriptionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateBillingSubscription>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateBillingSubscription>>, TError,void, TContext> => {
+
+const mutationKey = ['reactivateBillingSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateBillingSubscription>>, void> = () => {
+
+
+          return  reactivateBillingSubscription(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateBillingSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateBillingSubscription>>>
+
+    export type ReactivateBillingSubscriptionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reverse a scheduled Whop subscription cancellation
+ */
+export const useReactivateBillingSubscription = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateBillingSubscription>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateBillingSubscription>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getReactivateBillingSubscriptionMutationOptions(options));
+    }
+
+export const getGetBillingHistoryUrl = () => {
+
+
+
+
+  return `/api/billing/history`
+}
+
+/**
+ * @summary Get the current tenant's subscription history
+ */
+export const getBillingHistory = async ( options?: Parameters<typeof customFetch>[1]): Promise<SubscriptionEvent[]> => {
+
+  return customFetch<SubscriptionEvent[]>(getGetBillingHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillingHistoryQueryKey = () => {
+    return [
+    `/api/billing/history`
+    ] as const;
+    }
+
+
+export const getGetBillingHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getBillingHistory>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillingHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingHistory>>> = ({ signal }) => getBillingHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillingHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBillingHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getBillingHistory>>>
+export type GetBillingHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current tenant's subscription history
+ */
+
+export function useGetBillingHistory<TData = Awaited<ReturnType<typeof getBillingHistory>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBillingHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListStoresUrl = () => {
 
 
@@ -6455,6 +6677,149 @@ export const useUpdateAdminTenant = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateAdminTenantMutationOptions(options));
+    }
+
+export const getCancelAdminTenantSubscriptionUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/tenants/${id}/subscription/cancel`
+}
+
+/**
+ * @summary Cancel a tenant's Whop subscription
+ */
+export const cancelAdminTenantSubscription = async (id: string,
+    billingCancelInput?: BillingCancelInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingSubscriptionAction> => {
+
+  return customFetch<BillingSubscriptionAction>(getCancelAdminTenantSubscriptionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billingCancelInput)
+  }
+);}
+
+
+
+
+
+export const getCancelAdminTenantSubscriptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAdminTenantSubscription>>, TError,{id: string;data?: BodyType<BillingCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelAdminTenantSubscription>>, TError,{id: string;data?: BodyType<BillingCancelInput>}, TContext> => {
+
+const mutationKey = ['cancelAdminTenantSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelAdminTenantSubscription>>, {id: string;data?: BodyType<BillingCancelInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  cancelAdminTenantSubscription(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelAdminTenantSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelAdminTenantSubscription>>>
+    export type CancelAdminTenantSubscriptionMutationBody = BodyType<BillingCancelInput> | undefined
+    export type CancelAdminTenantSubscriptionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Cancel a tenant's Whop subscription
+ */
+export const useCancelAdminTenantSubscription = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAdminTenantSubscription>>, TError,{id: string;data?: BodyType<BillingCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelAdminTenantSubscription>>,
+        TError,
+        {id: string;data?: BodyType<BillingCancelInput>},
+        TContext
+      > => {
+      return useMutation(getCancelAdminTenantSubscriptionMutationOptions(options));
+    }
+
+export const getReactivateAdminTenantSubscriptionUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/tenants/${id}/subscription/reactivate`
+}
+
+/**
+ * @summary Reverse a scheduled tenant subscription cancellation
+ */
+export const reactivateAdminTenantSubscription = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<BillingSubscriptionAction> => {
+
+  return customFetch<BillingSubscriptionAction>(getReactivateAdminTenantSubscriptionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateAdminTenantSubscriptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateAdminTenantSubscription>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateAdminTenantSubscription>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['reactivateAdminTenantSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateAdminTenantSubscription>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reactivateAdminTenantSubscription(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateAdminTenantSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateAdminTenantSubscription>>>
+
+    export type ReactivateAdminTenantSubscriptionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reverse a scheduled tenant subscription cancellation
+ */
+export const useReactivateAdminTenantSubscription = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateAdminTenantSubscription>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateAdminTenantSubscription>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getReactivateAdminTenantSubscriptionMutationOptions(options));
     }
 
 export const getDeleteStagingTenantUrl = (id: string,) => {

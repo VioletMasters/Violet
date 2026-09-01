@@ -103,6 +103,11 @@ export interface Tenant {
   subscriptionStatus?: string;
   /** @nullable */
   subscriptionStart?: string | null;
+  /** @nullable */
+  subscriptionEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** @nullable */
+  cancelRequestedAt?: string | null;
   /** True when the account may only access billing recovery until its Whop subscription is restored. */
   requiresBillingAction?: boolean;
   /** @nullable */
@@ -126,6 +131,21 @@ export const TenantDetailStatus = {
   expired: 'expired',
 } as const;
 
+export type TenantDetailSubscriptionHistoryItem = {
+  id: string;
+  eventType: string;
+  /** @nullable */
+  fromPlanName?: string | null;
+  /** @nullable */
+  toPlanName?: string | null;
+  source: string;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  effectiveAt?: string | null;
+  createdAt: string;
+};
+
 export interface TenantDetail {
   id: string;
   name: string;
@@ -143,6 +163,13 @@ export interface TenantDetail {
   subscriptionStart?: string | null;
   /** @nullable */
   subscriptionEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** @nullable */
+  cancelRequestedAt?: string | null;
+  licenseStatus?: string;
+  /** @nullable */
+  whopMembershipId?: string | null;
+  subscriptionHistory?: TenantDetailSubscriptionHistoryItem[];
   maxUsers?: number;
   maxProducts?: number;
   maxCustomers?: number;
@@ -760,12 +787,72 @@ export interface Subscription {
   currentPeriodStart?: string | null;
   /** @nullable */
   currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** @nullable */
+  cancelRequestedAt?: string | null;
   /** @nullable */
   paymentStatus?: SubscriptionPaymentStatus;
   checkoutPending?: boolean;
   /** @nullable */
   lastWhopSyncAt?: string | null;
   usage?: SubscriptionUsage;
+}
+
+export type SubscriptionEventEventType = typeof SubscriptionEventEventType[keyof typeof SubscriptionEventEventType];
+
+
+export const SubscriptionEventEventType = {
+  activated: 'activated',
+  plan_changed: 'plan_changed',
+  cancellation_requested: 'cancellation_requested',
+  cancelled: 'cancelled',
+  reactivated: 'reactivated',
+  admin_override: 'admin_override',
+} as const;
+
+export interface SubscriptionEvent {
+  id: string;
+  tenantId: string;
+  eventType: SubscriptionEventEventType;
+  /** @nullable */
+  fromPlanId?: string | null;
+  /** @nullable */
+  toPlanId?: string | null;
+  /** @nullable */
+  fromPlanName?: string | null;
+  /** @nullable */
+  toPlanName?: string | null;
+  source: string;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  whopMembershipId?: string | null;
+  /** @nullable */
+  effectiveAt?: string | null;
+  /** @nullable */
+  actorId?: string | null;
+  createdAt: string;
+}
+
+export interface BillingCancelInput {
+  immediate?: boolean;
+  /** @maxLength 500 */
+  reason?: string;
+}
+
+export type BillingSubscriptionActionStatus = typeof BillingSubscriptionActionStatus[keyof typeof BillingSubscriptionActionStatus];
+
+
+export const BillingSubscriptionActionStatus = {
+  scheduled: 'scheduled',
+  cancelled: 'cancelled',
+  active: 'active',
+} as const;
+
+export interface BillingSubscriptionAction {
+  success: boolean;
+  status: BillingSubscriptionActionStatus;
+  message: string;
 }
 
 export type BillingCheckoutInputTier = typeof BillingCheckoutInputTier[keyof typeof BillingCheckoutInputTier];

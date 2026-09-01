@@ -5,3 +5,4 @@
 - [Self-hosted schema parity](self-hosted-schema-parity.md) — Docker bootstrap SQL must evolve with Drizzle schemas to keep LAN databases compatible.
 - [Whop SDK and transport](whop-sdk-transport.md) — installed SDK uses WhopClient token auth and connector proxy calls need an explicit Accept header.
 - [OpenAPI codegen compatibility](openapi-codegen.md) — Zod generation is pinned to Zod 3; avoid UUID formats and inline body schema collisions.
+- [Subscription lifecycle](subscription-lifecycle.md) — Whop is billing authority; paid tier changes wait for cancellation or an inactive membership.

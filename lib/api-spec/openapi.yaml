@@ -1064,6 +1064,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /billing/cancel:
+    post:
+      operationId: cancelBillingSubscription
+      tags: [plans]
+      summary: Cancel the current Whop subscription
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingCancelInput"
+      responses:
+        "200":
+          description: Subscription cancellation applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSubscriptionAction"
+        "409":
+          description: Subscription cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/reactivate:
+    post:
+      operationId: reactivateBillingSubscription
+      tags: [plans]
+      summary: Reverse a scheduled Whop subscription cancellation
+      responses:
+        "200":
+          description: Subscription reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSubscriptionAction"
+        "409":
+          description: Subscription cannot be reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/history:
+    get:
+      operationId: getBillingHistory
+      tags: [plans]
+      summary: Get the current tenant's subscription history
+      responses:
+        "200":
+          description: Subscription history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SubscriptionEvent"
+
   # ─── Reports ────────────────────────────────────────────────────────────────
   /stores:
     get:
@@ -1626,6 +1685,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/Tenant"
 
+  /admin/tenants/{id}/subscription/cancel:
+    post:
+      operationId: cancelAdminTenantSubscription
+      tags: [admin]
+      summary: Cancel a tenant's Whop subscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingCancelInput"
+      responses:
+        "200":
+          description: Tenant subscription cancellation applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSubscriptionAction"
+
+  /admin/tenants/{id}/subscription/reactivate:
+    post:
+      operationId: reactivateAdminTenantSubscription
+      tags: [admin]
+      summary: Reverse a scheduled tenant subscription cancellation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant subscription reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSubscriptionAction"
+
   /admin/staging/tenants/{id}:
     delete:
       operationId: deleteStagingTenant
@@ -2139,6 +2242,12 @@ components:
           type: string
         subscriptionStart:
           type: ["string", "null"]
+        subscriptionEnd:
+          type: ["string", "null"]
+        cancelAtPeriodEnd:
+          type: boolean
+        cancelRequestedAt:
+          type: ["string", "null"]
         requiresBillingAction:
           type: boolean
           description: True when the account may only access billing recovery until its Whop subscription is restored.
@@ -2180,6 +2289,36 @@ components:
           type: ["string", "null"]
         subscriptionEnd:
           type: ["string", "null"]
+        cancelAtPeriodEnd:
+          type: boolean
+        cancelRequestedAt:
+          type: ["string", "null"]
+        licenseStatus:
+          type: string
+        whopMembershipId:
+          type: ["string", "null"]
+        subscriptionHistory:
+          type: array
+          items:
+            type: object
+            required: [id, eventType, source, createdAt]
+            properties:
+              id:
+                type: string
+              eventType:
+                type: string
+              fromPlanName:
+                type: ["string", "null"]
+              toPlanName:
+                type: ["string", "null"]
+              source:
+                type: string
+              reason:
+                type: ["string", "null"]
+              effectiveAt:
+                type: ["string", "null"]
+              createdAt:
+                type: string
         maxUsers:
           type: number
         maxProducts:
@@ -3020,6 +3159,10 @@ components:
           type: ["string", "null"]
         currentPeriodEnd:
           type: ["string", "null"]
+        cancelAtPeriodEnd:
+          type: boolean
+        cancelRequestedAt:
+          type: ["string", "null"]
         paymentStatus:
           type: ["string", "null"]
           enum: [not_required, pending, paid, failed, refunded, past_due, null]
@@ -3036,6 +3179,60 @@ components:
               type: number
             customers:
               type: number
+
+    SubscriptionEvent:
+      type: object
+      required: [id, tenantId, eventType, source, createdAt]
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        eventType:
+          type: string
+          enum: [activated, plan_changed, cancellation_requested, cancelled, reactivated, admin_override]
+        fromPlanId:
+          type: ["string", "null"]
+        toPlanId:
+          type: ["string", "null"]
+        fromPlanName:
+          type: ["string", "null"]
+        toPlanName:
+          type: ["string", "null"]
+        source:
+          type: string
+        reason:
+          type: ["string", "null"]
+        whopMembershipId:
+          type: ["string", "null"]
+        effectiveAt:
+          type: ["string", "null"]
+        actorId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    BillingCancelInput:
+      type: object
+      properties:
+        immediate:
+          type: boolean
+          default: false
+        reason:
+          type: string
+          maxLength: 500
+
+    BillingSubscriptionAction:
+      type: object
+      required: [success, status, message]
+      properties:
+        success:
+          type: boolean
+        status:
+          type: string
+          enum: [scheduled, cancelled, active]
+        message:
+          type: string
 
     BillingCheckoutInput:
       type: object

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TenantDetailStatus } from './tenantDetailStatus';
+import type { TenantDetailSubscriptionHistoryItem } from './tenantDetailSubscriptionHistoryItem';
 
 export interface TenantDetail {
   id: string;
@@ -24,6 +25,13 @@ export interface TenantDetail {
   subscriptionStart?: string | null;
   /** @nullable */
   subscriptionEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** @nullable */
+  cancelRequestedAt?: string | null;
+  licenseStatus?: string;
+  /** @nullable */
+  whopMembershipId?: string | null;
+  subscriptionHistory?: TenantDetailSubscriptionHistoryItem[];
   maxUsers?: number;
   maxProducts?: number;
   maxCustomers?: number;

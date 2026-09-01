@@ -4,6 +4,8 @@ import {
   useListTenants,
   useGetAdminTenant,
   useUpdateAdminTenant,
+  useCancelAdminTenantSubscription,
+  useReactivateAdminTenantSubscription,
   useListAdminPlans,
   useCreateAdminPlan,
   useUpdateAdminPlan,
@@ -52,7 +54,7 @@ import {
   Plus, Edit2, CheckCircle2, XCircle, Star, AlertTriangle,
   Package, UserCog, ShoppingBag, CalendarDays, CreditCard,
   PauseCircle, GitBranch, Upload, Download, FileText, RefreshCw, ExternalLink,
-  Filter, Database, CircleDot,
+  Filter, Database, CircleDot, Ban, History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -154,9 +156,69 @@ interface TenantDetailDrawerProps {
 function TenantDetailDrawer({
   tenantId, onClose, onStatusChange, statusChangePending,
 }: TenantDetailDrawerProps) {
+  const queryClient = useQueryClient();
   const { data: tenant, isLoading } = useGetAdminTenant(tenantId ?? "", {
     query: { ...getGetAdminTenantQueryOptions(tenantId ?? ""), enabled: !!tenantId },
   });
+  const { data: plans } = useListAdminPlans();
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+
+  React.useEffect(() => {
+    setSelectedPlanId(tenant?.planId ?? "");
+  }, [tenant?.planId]);
+
+  const updatePlan = useUpdateAdminTenant({
+    mutation: {
+      onSuccess: async () => {
+        toast.success("Account type updated");
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getGetAdminTenantQueryOptions(tenantId ?? "").queryKey }),
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/tenants"] }),
+        ]);
+      },
+      onError: (error: Error) => {
+        setSelectedPlanId(tenant?.planId ?? "");
+        toast.error(error.message || "Could not change account type");
+      },
+    },
+  });
+
+  const cancelSubscription = useCancelAdminTenantSubscription({
+    mutation: {
+      onSuccess: async (result) => {
+        toast.success(result.status === "cancelled" ? "Subscription cancelled" : "Cancellation scheduled");
+        await queryClient.invalidateQueries({ queryKey: getGetAdminTenantQueryOptions(tenantId ?? "").queryKey });
+      },
+      onError: (error: Error) => toast.error(error.message || "Could not cancel subscription"),
+    },
+  });
+
+  const reactivateSubscription = useReactivateAdminTenantSubscription({
+    mutation: {
+      onSuccess: async () => {
+        toast.success("Subscription reactivated");
+        await queryClient.invalidateQueries({ queryKey: getGetAdminTenantQueryOptions(tenantId ?? "").queryKey });
+      },
+      onError: (error: Error) => toast.error(error.message || "Could not reactivate subscription"),
+    },
+  });
+
+  function changeAccountType(planId: string) {
+    const nextPlan = plans?.find((plan) => plan.id === planId);
+    if (!nextPlan || planId === tenant?.planId) return;
+    if (!window.confirm(`Change this account to the ${nextPlan.name} account type?`)) {
+      setSelectedPlanId(tenant?.planId ?? "");
+      return;
+    }
+    updatePlan.mutate({ id: tenant!.id, data: { planId } });
+  }
+
+  function cancelTenantSubscription() {
+    if (!tenant || !window.confirm(
+      "Turn off automatic renewal for this tenant? The account stays active until the current period ends.",
+    )) return;
+    cancelSubscription.mutate({ id: tenant.id, data: { immediate: false } });
+  }
 
   const statusColor: Record<string, string> = {
     active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
@@ -272,6 +334,57 @@ function TenantDetailDrawer({
                     <span className="font-medium">{formatDate(tenant.subscriptionEnd)}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">License</span>
+                  <span className={`font-medium capitalize ${tenant.licenseStatus === "valid" ? "text-emerald-600" : "text-destructive"}`}>
+                    {tenant.licenseStatus ?? "unknown"}
+                  </span>
+                </div>
+                {tenant.whopMembershipId && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Whop membership</span>
+                    <span className="max-w-[190px] truncate font-mono text-xs" title={tenant.whopMembershipId}>
+                      {tenant.whopMembershipId}
+                    </span>
+                  </div>
+                )}
+                {tenant.cancelAtPeriodEnd && (
+                  <Alert className="mt-3 border-amber-500/30 bg-amber-500/10">
+                    <AlertDescription className="text-xs text-amber-700 dark:text-amber-300">
+                      Cancellation is scheduled for the end of the current billing period.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Account type */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Account type
+              </h3>
+              <div className="rounded-lg border p-4 space-y-3">
+                <Select
+                  value={selectedPlanId}
+                  onValueChange={changeAccountType}
+                  disabled={updatePlan.isPending}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose account type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(plans ?? []).map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id}>
+                        {plan.name} · {plan.tier}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Paid Whop memberships must be cancelled before an account type can be changed, preventing mismatched billing.
+                </p>
               </div>
             </div>
 
@@ -320,12 +433,61 @@ function TenantDetailDrawer({
                   <><PauseCircle className="w-4 h-4" /> Suspend account</>
                 )}
               </Button>
+              {tenant.cancelAtPeriodEnd ? (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={reactivateSubscription.isPending}
+                  onClick={() => reactivateSubscription.mutate({ id: tenant.id })}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  {reactivateSubscription.isPending ? "Reactivating subscription..." : "Reactivate subscription"}
+                </Button>
+              ) : tenant.subscriptionStatus === "active" && tenant.planTier !== "free" ? (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2 border-amber-500/40 text-amber-700 hover:text-amber-800 dark:text-amber-300"
+                  disabled={cancelSubscription.isPending}
+                  onClick={cancelTenantSubscription}
+                >
+                  <Ban className="w-4 h-4" />
+                  {cancelSubscription.isPending ? "Scheduling cancellation..." : "Cancel renewal"}
+                </Button>
+              ) : null}
               <p className="text-xs text-muted-foreground text-center">
                 {tenant.status === "suspended"
                   ? "Activating restores the tenant's access to Violet."
                   : "Suspending blocks all logins for this tenant's users."}
               </p>
             </div>
+
+            {(tenant.subscriptionHistory?.length ?? 0) > 0 && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5" /> Subscription history
+                  </h3>
+                  <div className="space-y-3">
+                    {tenant.subscriptionHistory?.slice(0, 8).map((event) => (
+                      <div key={event.id} className="rounded-lg border p-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium capitalize">{event.eventType.replaceAll("_", " ")}</span>
+                          <span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {event.fromPlanName && event.toPlanName
+                            ? `${event.fromPlanName} → ${event.toPlanName}`
+                            : event.toPlanName ?? event.fromPlanName ?? "No plan"}
+                          {" · "}{event.source}
+                        </p>
+                        {event.reason && <p className="mt-1 text-xs text-muted-foreground">{event.reason}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">Tenant not found.</p>

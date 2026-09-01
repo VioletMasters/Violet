@@ -2,11 +2,15 @@ import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetSubscriptionQueryKey,
+  getGetBillingHistoryQueryKey,
   reconcileBillingCheckout,
+  useCancelBillingSubscription,
   useCancelBillingCheckout,
   useCreateBillingCheckout,
+  useGetBillingHistory,
   useGetSubscription,
   useListPlans,
+  useReactivateBillingSubscription,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +18,17 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { paidTiers, planLabel, type PaidTier } from "@/lib/billing";
-import { AlertCircle, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, Zap } from "lucide-react";
+import {
+  AlertCircle,
+  Ban,
+  CheckCircle2,
+  History,
+  LoaderCircle,
+  RefreshCw,
+  ShieldCheck,
+  Undo2,
+  Zap,
+} from "lucide-react";
 
 type CheckoutNotice = {
   tone: "success" | "warning" | "error" | "info";
@@ -30,6 +44,7 @@ export default function SubscriptionPage() {
   const { user, tenant, token, updateTenant } = useAuth();
   const { data: sub, isLoading, isError } = useGetSubscription();
   const { data: plans } = useListPlans();
+  const { data: history } = useGetBillingHistory();
   const [notice, setNotice] = React.useState<CheckoutNotice>(() => {
     const checkout = new URLSearchParams(window.location.search).get("checkout");
     return checkout === "error"
@@ -147,10 +162,76 @@ export default function SubscriptionPage() {
     },
   });
 
+  const cancelSubscriptionMutation = useCancelBillingSubscription({
+    mutation: {
+      onSuccess: async (result) => {
+        setNotice({
+          tone: result.status === "cancelled" ? "warning" : "success",
+          title: result.status === "cancelled" ? "Subscription cancelled" : "Cancellation scheduled",
+          message: result.message,
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getGetSubscriptionQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetBillingHistoryQueryKey() }),
+        ]);
+      },
+      onError: (error) => {
+        setNotice({
+          tone: "error",
+          title: "Subscription could not be cancelled",
+          message: error.message || "Violet could not update the Whop subscription.",
+        });
+      },
+    },
+  });
+
+  const reactivateSubscriptionMutation = useReactivateBillingSubscription({
+    mutation: {
+      onSuccess: async (result) => {
+        setNotice({ tone: "success", title: "Subscription reactivated", message: result.message });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getGetSubscriptionQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetBillingHistoryQueryKey() }),
+        ]);
+      },
+      onError: (error) => {
+        setNotice({
+          tone: "error",
+          title: "Subscription could not be reactivated",
+          message: error.message || "Violet could not reverse the scheduled cancellation.",
+        });
+      },
+    },
+  });
+
   function startCheckout(tier: PaidTier) {
+    if (
+      currentPlan?.tier !== tier &&
+      sub?.status === "active" &&
+      sub?.paymentStatus === "paid"
+    ) {
+      setNotice({
+        tone: "warning",
+        title: "Finish the current billing period first",
+        message:
+          "To avoid double billing, Violet keeps one Whop membership at a time. Cancel renewal above, then choose the new plan after the current period ends.",
+      });
+      return;
+    }
     setCheckoutTier(tier);
     setNotice(null);
     checkoutMutation.mutate({ data: { tier } });
+  }
+
+  function requestCancellation() {
+    if (
+      !window.confirm(
+        "Cancel automatic renewal for this Violet plan? Your access will remain available until the current billing period ends.",
+      )
+    ) {
+      return;
+    }
+    cancelSubscriptionMutation.mutate({ data: { immediate: false } });
   }
 
   if (isLoading) {
@@ -287,13 +368,81 @@ export default function SubscriptionPage() {
                 {cancelCheckoutMutation.isPending ? "Cancelling..." : "Cancel checkout"}
               </Button>
             </div>
+          ) : sub.cancelAtPeriodEnd ? (
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <span className="text-xs text-amber-700 dark:text-amber-300">
+                Renewal is scheduled to stop
+              </span>
+              <Button
+                onClick={() => reactivateSubscriptionMutation.mutate()}
+                disabled={reactivateSubscriptionMutation.isPending}
+                variant="outline"
+                className="w-full gap-2 sm:w-auto"
+              >
+                {reactivateSubscriptionMutation.isPending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Undo2 className="h-4 w-4" />
+                )}
+                {reactivateSubscriptionMutation.isPending ? "Reactivating..." : "Keep my plan"}
+              </Button>
+            </div>
           ) : !tenant?.requiresBillingAction ? (
-            <Button onClick={() => window.location.assign("/pos")} variant="outline" className="w-full sm:w-auto">
-              Go to Point of Sale
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              {!isFree && sub.status === "active" && (
+                <Button
+                  onClick={requestCancellation}
+                  disabled={cancelSubscriptionMutation.isPending}
+                  variant="ghost"
+                  className="w-full gap-2 text-destructive hover:text-destructive sm:w-auto"
+                >
+                  {cancelSubscriptionMutation.isPending ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Ban className="h-4 w-4" />
+                  )}
+                  {cancelSubscriptionMutation.isPending ? "Cancelling..." : "Cancel renewal"}
+                </Button>
+              )}
+              <Button onClick={() => window.location.assign("/pos")} variant="outline" className="w-full sm:w-auto">
+                Go to Point of Sale
+              </Button>
+            </div>
           ) : null}
         </div>
       </Card>
+
+      {(history?.length ?? 0) > 0 && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-xl font-semibold">
+              <History className="h-5 w-5 text-primary" />
+              Account history
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Verified plan and billing changes for this business.
+            </p>
+          </div>
+          <Card>
+            <CardContent className="divide-y p-0">
+              {history?.slice(0, 8).map((event) => (
+                <div key={event.id} className="flex flex-col gap-1 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium capitalize">
+                      {event.eventType.replaceAll("_", " ")}
+                      {event.toPlanName ? ` · ${event.toPlanName}` : ""}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {event.reason || `Source: ${event.source}`}
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <section className="space-y-4">
         <div>
@@ -307,6 +456,10 @@ export default function SubscriptionPage() {
             const tier = plan.tier as PaidTier;
             const isCurrent = currentPlan.tier === tier && !billingNeedsAttention;
             const isOpening = checkoutMutation.isPending && checkoutTier === tier;
+            const planChangeBlocked =
+              currentPlan.tier !== tier &&
+              sub.status === "active" &&
+              sub.paymentStatus === "paid";
             return (
               <Card key={plan.id} className={plan.isPopular ? "border-primary/50" : ""}>
                 <CardHeader>
@@ -329,6 +482,7 @@ export default function SubscriptionPage() {
                     variant={isCurrent ? "outline" : "default"}
                     disabled={
                       isCurrent ||
+                      planChangeBlocked ||
                       checkoutMutation.isPending ||
                       isReconciling ||
                       cancelCheckoutMutation.isPending ||
@@ -343,6 +497,8 @@ export default function SubscriptionPage() {
                       </>
                     ) : isCurrent ? (
                       "Current plan"
+                    ) : planChangeBlocked ? (
+                      "Available after current plan ends"
                     ) : (
                       <>
                         <Zap className="h-4 w-4" />
