@@ -118,6 +118,7 @@ export * from './refundInput';
 export * from './refundInputItemsItem';
 export * from './registerCreateInput';
 export * from './registerInput';
+export * from './registerInputRequestedPaidTier';
 export * from './releaseAsset';
 export * from './releaseAssetPlatform';
 export * from './releaseAssetUpdate';

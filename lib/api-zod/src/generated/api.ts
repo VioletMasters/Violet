@@ -30,7 +30,8 @@ export const RegisterBody = zod.object({
   "email": zod.string(),
   "password": zod.string().min(registerBodyPasswordMin),
   "firstName": zod.string(),
-  "lastName": zod.string()
+  "lastName": zod.string(),
+  "requestedPaidTier": zod.enum(['starter', 'professional', 'enterprise']).optional().describe('Paid plan selected before registration; the account is removed if checkout is not completed within the grace period.')
 })
 
 export const RegisterResponse = zod.object({

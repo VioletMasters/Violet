@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     license_status text DEFAULT 'valid'::text NOT NULL,
     license_validated_at timestamp with time zone DEFAULT now() NOT NULL,
     license_valid_until timestamp with time zone,
+    pending_paid_signup boolean DEFAULT false NOT NULL,
+    pending_paid_signup_expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -195,6 +197,8 @@ ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS pending_whop_claim tex
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS pending_whop_user_id uuid;
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS whop_membership_id text;
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS last_whop_sync_at timestamp with time zone;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS pending_paid_signup boolean DEFAULT false NOT NULL;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS pending_paid_signup_expires_at timestamp with time zone;
 
 CREATE TABLE IF NOT EXISTS public.customers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

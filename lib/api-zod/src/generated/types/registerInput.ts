@@ -5,6 +5,7 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { RegisterInputRequestedPaidTier } from './registerInputRequestedPaidTier';
 
 export interface RegisterInput {
   /** @minLength 2 */
@@ -14,4 +15,6 @@ export interface RegisterInput {
   password: string;
   firstName: string;
   lastName: string;
+  /** Paid plan selected before registration; the account is removed if checkout is not completed within the grace period. */
+  requestedPaidTier?: RegisterInputRequestedPaidTier;
 }

@@ -237,6 +237,8 @@ async function applyMembership(
         licenseStatus: access.licenseStatus,
         licenseValidatedAt: now,
         licenseValidUntil: currentPeriodEnd,
+        pendingPaidSignup: false,
+        pendingPaidSignupExpiresAt: null,
         updatedAt: now,
       })
       .where(eq(tenantsTable.id, tenantId));

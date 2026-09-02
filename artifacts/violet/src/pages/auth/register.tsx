@@ -57,7 +57,12 @@ export default function RegisterPage() {
   });
 
   const onSubmit = (data: RegisterForm) => {
-    registerMutation.mutate({ data });
+    registerMutation.mutate({
+      data: {
+        ...data,
+        requestedPaidTier: selectedTier ?? undefined,
+      },
+    });
   };
 
   return (
@@ -72,9 +77,14 @@ export default function RegisterPage() {
           <h1 className="text-3xl font-display font-bold text-center tracking-tight">Create your account</h1>
           <p className="text-muted-foreground mt-2">Set up Violet Enterprise for your business</p>
           {selectedTier && (
-            <p className="mt-3 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
-              {planLabel(selectedTier)} plan selected — checkout follows account creation
-            </p>
+            <div className="mt-3 space-y-2 text-center">
+              <p className="rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+                {planLabel(selectedTier)} plan selected — checkout follows account creation
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Unfinished paid signups are removed after 24 hours.
+              </p>
+            </div>
           )}
         </div>
 

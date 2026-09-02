@@ -2214,6 +2214,10 @@ components:
           type: string
         lastName:
           type: string
+        requestedPaidTier:
+          type: string
+          enum: [starter, professional, enterprise]
+          description: Paid plan selected before registration; the account is removed if checkout is not completed within the grace period.
 
     LoginInput:
       type: object

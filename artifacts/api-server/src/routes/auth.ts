@@ -10,6 +10,7 @@ import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
 import { getLicenseFailure, isManagerRole, requireAuth, requireSession } from "../middlewares/auth";
 import { issueManagerAccess } from "../lib/manager-access";
+import { isPaidTier } from "../lib/subscriptionSync";
 import {
   isSelfHostedRuntime,
   syncLocalLicenseSnapshot,
@@ -28,6 +29,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const { businessName, email, password, firstName, lastName } = req.body;
+  const requestedPaidTier = isPaidTier(req.body?.requestedPaidTier)
+    ? req.body.requestedPaidTier
+    : null;
   if (!businessName || !email || !password || !firstName || !lastName) {
     res.status(400).json({ error: "All fields are required" });
     return;
@@ -51,6 +55,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     planId: freePlan?.id ?? undefined,
     licenseStatus: "valid",
     licenseValidatedAt: new Date(),
+    pendingPaidSignup: Boolean(requestedPaidTier),
+    pendingPaidSignupExpiresAt: requestedPaidTier
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000)
+      : null,
   }).returning();
 
   // Create user (owner)

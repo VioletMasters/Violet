@@ -26,6 +26,18 @@ export interface ErrorResponse {
   error: string;
 }
 
+/**
+ * Paid plan selected before registration; the account is removed if checkout is not completed within the grace period.
+ */
+export type RegisterInputRequestedPaidTier = typeof RegisterInputRequestedPaidTier[keyof typeof RegisterInputRequestedPaidTier];
+
+
+export const RegisterInputRequestedPaidTier = {
+  starter: 'starter',
+  professional: 'professional',
+  enterprise: 'enterprise',
+} as const;
+
 export interface RegisterInput {
   /** @minLength 2 */
   businessName: string;
@@ -34,6 +46,8 @@ export interface RegisterInput {
   password: string;
   firstName: string;
   lastName: string;
+  /** Paid plan selected before registration; the account is removed if checkout is not completed within the grace period. */
+  requestedPaidTier?: RegisterInputRequestedPaidTier;
 }
 
 export interface LoginInput {
