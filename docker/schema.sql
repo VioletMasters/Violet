@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     role text DEFAULT 'employee'::text NOT NULL,
     avatar_url text,
     is_active text DEFAULT 'true'::text NOT NULL,
+    must_change_password boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -88,11 +89,14 @@ CREATE TABLE IF NOT EXISTS public.sessions (
 ALTER TABLE public.sessions
     ADD COLUMN IF NOT EXISTS license_token text,
     ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone;
+ALTER TABLE public.users
+    ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.license_sessions (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     token_hash text NOT NULL UNIQUE,
     tenant_id uuid NOT NULL,
+    user_id uuid,
     user_id uuid NOT NULL,
     installation_id text NOT NULL,
     last_verified_at timestamp with time zone DEFAULT now() NOT NULL,
