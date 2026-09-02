@@ -5,12 +5,37 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { InventoryReportDataItem } from './inventoryReportDataItem';
+import type { InventoryReportPurchaseOrderTotalsByStatusItem } from './inventoryReportPurchaseOrderTotalsByStatusItem';
 import type { InventoryReportTopCategoriesItem } from './inventoryReportTopCategoriesItem';
 
 export interface InventoryReport {
   totalProducts: number;
+  /** Backward-compatible alias for totalCostValue. */
   totalValue: number;
+  /** Current on-hand units multiplied by recorded product cost. */
+  totalCostValue: number;
+  /** Current on-hand units multiplied by current selling price. */
+  totalRetailValue: number;
+  /**
+     * Retail value minus cost value; null when any on-hand product is missing cost.
+     * @nullable
+     */
+  projectedGrossProfit: number | null;
+  /**
+     * Projected gross profit as a percentage of retail value.
+     * @nullable
+     */
+  projectedGrossMargin: number | null;
+  missingCostCount: number;
+  /** Total received quantities multiplied by received unit cost. */
+  receivedInventoryCost: number;
+  /** Total ordered and partially received purchase-order value. */
+  purchaseOrderCommitments: number;
+  purchaseOrderTotalsByStatus: InventoryReportPurchaseOrderTotalsByStatusItem[];
+  supplierPaymentsTracked: boolean;
   lowStockCount: number;
   outOfStockCount: number;
   topCategories?: InventoryReportTopCategoriesItem[];
+  data: InventoryReportDataItem[];
 }

@@ -264,7 +264,11 @@ export const GetDashboardStatsResponse = zod.object({
   "lowStockCount": zod.number(),
   "totalSalesToday": zod.number(),
   "pendingRefunds": zod.number(),
-  "inventoryValue": zod.number()
+  "inventoryValue": zod.number(),
+  "inventoryCostValue": zod.number(),
+  "inventoryRetailValue": zod.number(),
+  "inventoryProjectedGrossProfit": zod.number().nullable(),
+  "inventoryMissingCostCount": zod.number()
 })
 
 
@@ -1645,14 +1649,41 @@ export const GetSalesReportResponse = zod.object({
  */
 export const GetInventoryReportResponse = zod.object({
   "totalProducts": zod.number(),
-  "totalValue": zod.number(),
+  "totalValue": zod.number().describe('Backward-compatible alias for totalCostValue.'),
+  "totalCostValue": zod.number().describe('Current on-hand units multiplied by recorded product cost.'),
+  "totalRetailValue": zod.number().describe('Current on-hand units multiplied by current selling price.'),
+  "projectedGrossProfit": zod.number().nullable().describe('Retail value minus cost value; null when any on-hand product is missing cost.'),
+  "projectedGrossMargin": zod.number().nullable().describe('Projected gross profit as a percentage of retail value.'),
+  "missingCostCount": zod.number(),
+  "receivedInventoryCost": zod.number().describe('Total received quantities multiplied by received unit cost.'),
+  "purchaseOrderCommitments": zod.number().describe('Total ordered and partially received purchase-order value.'),
+  "purchaseOrderTotalsByStatus": zod.array(zod.object({
+  "status": zod.string(),
+  "total": zod.number()
+})),
+  "supplierPaymentsTracked": zod.boolean(),
   "lowStockCount": zod.number(),
   "outOfStockCount": zod.number(),
   "topCategories": zod.array(zod.object({
   "categoryName": zod.string().optional(),
   "productCount": zod.number().optional(),
   "totalValue": zod.number().optional()
-})).optional()
+})).optional(),
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "sku": zod.string(),
+  "stock": zod.number(),
+  "minStock": zod.number().optional(),
+  "price": zod.number(),
+  "costPrice": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "valuation": zod.number().optional(),
+  "costValue": zod.number(),
+  "retailValue": zod.number(),
+  "projectedGrossProfit": zod.number().nullable(),
+  "costMissing": zod.boolean()
+}))
 })
 
 

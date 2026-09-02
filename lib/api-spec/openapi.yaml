@@ -2566,7 +2566,7 @@ components:
     # ── Dashboard ──────────────────────────────────────────────────────────────
     DashboardStats:
       type: object
-      required: [todayRevenue, weekRevenue, monthRevenue, totalProducts, totalCustomers, lowStockCount, totalSalesToday, pendingRefunds, inventoryValue]
+      required: [todayRevenue, weekRevenue, monthRevenue, totalProducts, totalCustomers, lowStockCount, totalSalesToday, pendingRefunds, inventoryValue, inventoryCostValue, inventoryRetailValue, inventoryProjectedGrossProfit, inventoryMissingCostCount]
       properties:
         todayRevenue:
           type: number
@@ -2585,6 +2585,14 @@ components:
         pendingRefunds:
           type: number
         inventoryValue:
+          type: number
+        inventoryCostValue:
+          type: number
+        inventoryRetailValue:
+          type: number
+        inventoryProjectedGrossProfit:
+          type: [number, "null"]
+        inventoryMissingCostCount:
           type: number
 
     TopProduct:
@@ -3601,12 +3609,45 @@ components:
 
     InventoryReport:
       type: object
-      required: [totalProducts, totalValue, lowStockCount, outOfStockCount]
+      required: [totalProducts, totalValue, totalCostValue, totalRetailValue, projectedGrossProfit, projectedGrossMargin, missingCostCount, receivedInventoryCost, purchaseOrderCommitments, purchaseOrderTotalsByStatus, supplierPaymentsTracked, lowStockCount, outOfStockCount, data]
       properties:
         totalProducts:
           type: number
         totalValue:
           type: number
+          description: Backward-compatible alias for totalCostValue.
+        totalCostValue:
+          type: number
+          description: Current on-hand units multiplied by recorded product cost.
+        totalRetailValue:
+          type: number
+          description: Current on-hand units multiplied by current selling price.
+        projectedGrossProfit:
+          type: [number, "null"]
+          description: Retail value minus cost value; null when any on-hand product is missing cost.
+        projectedGrossMargin:
+          type: [number, "null"]
+          description: Projected gross profit as a percentage of retail value.
+        missingCostCount:
+          type: number
+        receivedInventoryCost:
+          type: number
+          description: Total received quantities multiplied by received unit cost.
+        purchaseOrderCommitments:
+          type: number
+          description: Total ordered and partially received purchase-order value.
+        purchaseOrderTotalsByStatus:
+          type: array
+          items:
+            type: object
+            required: [status, total]
+            properties:
+              status:
+                type: string
+              total:
+                type: number
+        supplierPaymentsTracked:
+          type: boolean
         lowStockCount:
           type: number
         outOfStockCount:
@@ -3622,6 +3663,25 @@ components:
                 type: number
               totalValue:
                 type: number
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, name, sku, stock, price, costValue, retailValue, projectedGrossProfit, costMissing]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              sku: { type: string }
+              stock: { type: number }
+              minStock: { type: number }
+              price: { type: number }
+              costPrice: { type: [number, "null"] }
+              categoryName: { type: [string, "null"] }
+              valuation: { type: number }
+              costValue: { type: number }
+              retailValue: { type: number }
+              projectedGrossProfit: { type: [number, "null"] }
+              costMissing: { type: boolean }
 
     # ── Settings ───────────────────────────────────────────────────────────────
     Settings:

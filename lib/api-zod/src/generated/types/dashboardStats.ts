@@ -16,4 +16,9 @@ export interface DashboardStats {
   totalSalesToday: number;
   pendingRefunds: number;
   inventoryValue: number;
+  inventoryCostValue: number;
+  inventoryRetailValue: number;
+  /** @nullable */
+  inventoryProjectedGrossProfit: number | null;
+  inventoryMissingCostCount: number;
 }

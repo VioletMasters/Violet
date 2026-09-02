@@ -300,7 +300,7 @@ export default function ReportsPage() {
             </CardContent></Card>
           </div>
           <div className="grid gap-5 lg:grid-cols-3">
-            <Card><CardHeader><CardTitle>Inventory health</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex justify-between"><span className="text-muted-foreground">Inventory value</span><strong>{money(inventory.totalValue)}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Active products</span><strong>{number(inventory.totalProducts)}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Low stock</span><Badge variant="warning">{number(inventory.lowStockCount)}</Badge></div></CardContent></Card>
+            <Card><CardHeader><CardTitle>Inventory health</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex justify-between"><span className="text-muted-foreground">Inventory at cost</span><strong>{money(inventory.totalCostValue)}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Expected retail value</span><strong>{money(inventory.totalRetailValue)}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Projected gross profit</span><strong>{inventory.projectedGrossProfit == null ? "Incomplete" : money(inventory.projectedGrossProfit)}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Low stock</span><Badge variant="warning">{number(inventory.lowStockCount)}</Badge></div></CardContent></Card>
             <Card className="lg:col-span-2"><CardHeader><CardTitle>Management notes</CardTitle><CardDescription>Data quality signals to keep reporting trustworthy</CardDescription></CardHeader><CardContent className="space-y-3">{summary.legacy?.missingCostLines ? <div className="flex gap-3 rounded-lg bg-amber-500/10 p-3 text-sm"><AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" /><span>{number(summary.legacy.missingCostLines)} legacy sale lines have no historical cost snapshot, so COGS and profit exclude them.</span></div> : <div className="flex gap-3 rounded-lg bg-emerald-500/10 p-3 text-sm"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /><span>All reported sale lines have historical cost data available for profit calculations.</span></div>}<div className="flex gap-3 rounded-lg bg-muted p-3 text-sm"><BookOpen className="mt-0.5 h-4 w-4 text-muted-foreground" /><span>Legacy records without store, register, or shift attribution remain labeled as unknown rather than being guessed.</span></div></CardContent></Card>
           </div>
         </TabsContent>
@@ -313,7 +313,86 @@ export default function ReportsPage() {
 
         <TabsContent value="products" className="space-y-5"><SectionHeader title="Product performance" description="Best sellers, contribution, and margin by product" /><Card><CardHeader><CardTitle>Product profitability</CardTitle><CardDescription>Sorted by net sales; historical line cost is used for COGS.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "productName", label: "Product" }, { key: "units", label: "Units", align: "right" }, { key: "netSales", label: "Net sales", align: "right" }, { key: "cogs", label: "COGS", align: "right" }, { key: "grossProfit", label: "Gross profit", align: "right" }]} rows={products.map((row) => ({ ...row, units: number(row.units), netSales: money(row.netSales), cogs: money(row.cogs), grossProfit: money(row.grossProfit) }))} /></CardContent></Card></TabsContent>
 
-        <TabsContent value="inventory" className="space-y-5"><SectionHeader title="Inventory control" description="Current stock, valuation, and replenishment signals" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MetricCard label="Inventory value" value={money(inventory.totalValue)} icon={Landmark} /><MetricCard label="Products" value={number(inventory.totalProducts)} icon={Boxes} /><MetricCard label="Low stock" value={number(inventory.lowStockCount)} icon={AlertTriangle} tone="warning" /><MetricCard label="Out of stock" value={number(inventory.outOfStockCount)} icon={PackageSearch} tone="warning" /></div><Card><CardHeader><CardTitle>Stock valuation</CardTitle><CardDescription>Current inventory value uses the product's recorded cost price.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "name", label: "Product" }, { key: "sku", label: "SKU" }, { key: "stock", label: "On hand", align: "right" }, { key: "minStock", label: "Minimum", align: "right" }, { key: "valuation", label: "Value", align: "right" }]} rows={((inventory.data ?? []) as AnyRecord[]).map((row) => ({ ...row, valuation: money(row.valuation), stock: number(row.stock), minStock: number(row.minStock) }))} emptyTitle="No inventory records" /></CardContent></Card><Card><CardHeader><CardTitle>Movement trail</CardTitle><CardDescription>Adjustments, purchases, sales, and corrections in the selected period.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "createdAt", label: "When" }, { key: "productName", label: "Product" }, { key: "reason", label: "Reason" }, { key: "adjustment", label: "Change", align: "right" }, { key: "note", label: "Note" }]} rows={movementRows.map((row) => ({ ...row, createdAt: row.createdAt ? formatDateTime(row.createdAt) : "—", adjustment: Number(row.adjustment) > 0 ? `+${row.adjustment}` : String(row.adjustment), reason: String(row.reason ?? "").replace("_", " ") }))} emptyTitle="No movements in this period" /></CardContent></Card></TabsContent>
+        <TabsContent value="inventory" className="space-y-5">
+          <SectionHeader title="Inventory financial value" description="See the money tied up in stock, expected sales value, and projected gross profit" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Inventory at cost" value={money(inventory.totalCostValue)} detail="What current on-hand stock cost" icon={Landmark} />
+            <MetricCard label="Expected retail value" value={money(inventory.totalRetailValue)} detail="Revenue if all on-hand stock sells at current prices" icon={CircleDollarSign} />
+            <MetricCard
+              label="Projected gross profit"
+              value={inventory.projectedGrossProfit == null ? "Incomplete" : money(inventory.projectedGrossProfit)}
+              detail={inventory.projectedGrossMargin == null ? "Add missing product costs to calculate" : `${Number(inventory.projectedGrossMargin).toFixed(1)}% projected margin`}
+              icon={ArrowUpRight}
+              tone={inventory.projectedGrossProfit == null ? "warning" : "positive"}
+            />
+            <MetricCard label="Received inventory spend" value={money(inventory.receivedInventoryCost)} detail="Received units × their recorded unit cost" icon={ShoppingBag} />
+          </div>
+
+          {Number(inventory.missingCostCount ?? 0) > 0 && (
+            <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-medium">{number(inventory.missingCostCount)} on-hand products are missing a cost price.</p>
+                <p className="mt-1 text-muted-foreground">Inventory cost is understated, so projected profit and margin remain incomplete until those costs are entered.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+            <Card>
+              <CardHeader><CardTitle>How these numbers work</CardTitle><CardDescription>Current stock only—historical sales are not included.</CardDescription></CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Inventory at cost</span><span className="text-right">On hand × recorded cost</span></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Expected retail value</span><span className="text-right">On hand × current selling price</span></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Projected gross profit</span><span className="text-right">Retail value − inventory cost</span></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Received inventory spend</span><span className="text-right">All supplier units received × received cost</span></div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Purchase commitments</CardTitle><CardDescription>Purchase orders are not proof that a supplier was paid.</CardDescription></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Open commitments</span><strong>{money(inventory.purchaseOrderCommitments)}</strong></div>
+                {((inventory.purchaseOrderTotalsByStatus ?? []) as AnyRecord[]).map((row) => (
+                  <div key={row.status} className="flex justify-between text-sm">
+                    <span className="capitalize text-muted-foreground">{String(row.status).replace("_", " ")}</span>
+                    <span>{money(row.total)}</span>
+                  </div>
+                ))}
+                <p className="border-t pt-3 text-xs text-muted-foreground">Actual supplier payments are not tracked yet. Received spend measures inventory received, while open commitments measure ordered or partially received purchase orders.</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle>Product-level valuation</CardTitle><CardDescription>Reconcile each product to the totals above. Missing cost values are shown explicitly.</CardDescription></CardHeader>
+            <CardContent>
+              <ReportTable
+                columns={[
+                  { key: "name", label: "Product" },
+                  { key: "sku", label: "SKU" },
+                  { key: "stock", label: "On hand", align: "right" },
+                  { key: "unitCost", label: "Unit cost", align: "right" },
+                  { key: "unitPrice", label: "Sale price", align: "right" },
+                  { key: "costValueDisplay", label: "Cost value", align: "right" },
+                  { key: "retailValueDisplay", label: "Retail value", align: "right" },
+                  { key: "profitDisplay", label: "Projected profit", align: "right" },
+                ]}
+                rows={((inventory.data ?? []) as AnyRecord[]).map((row) => ({
+                  ...row,
+                  stock: number(row.stock),
+                  unitCost: row.costMissing ? "Missing" : money(row.costPrice),
+                  unitPrice: money(row.price),
+                  costValueDisplay: row.costMissing ? "Incomplete" : money(row.costValue),
+                  retailValueDisplay: money(row.retailValue),
+                  profitDisplay: row.projectedGrossProfit == null ? "Incomplete" : money(row.projectedGrossProfit),
+                }))}
+                emptyTitle="No inventory records"
+              />
+            </CardContent>
+          </Card>
+
+          <Card><CardHeader><CardTitle>Movement trail</CardTitle><CardDescription>Adjustments, purchases, sales, and corrections in the selected period.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "createdAt", label: "When" }, { key: "productName", label: "Product" }, { key: "reason", label: "Reason" }, { key: "adjustment", label: "Change", align: "right" }, { key: "note", label: "Note" }]} rows={movementRows.map((row) => ({ ...row, createdAt: row.createdAt ? formatDateTime(row.createdAt) : "—", adjustment: Number(row.adjustment) > 0 ? `+${row.adjustment}` : String(row.adjustment), reason: String(row.reason ?? "").replace("_", " ") }))} emptyTitle="No movements in this period" /></CardContent></Card>
+        </TabsContent>
 
         <TabsContent value="profit" className="space-y-5"><SectionHeader title="Profit & margin" description="A transparent view of net sales, historical cost, and contribution" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MetricCard label="Net sales" value={money(summary.netSales)} icon={ArrowUpRight} tone="positive" /><MetricCard label="COGS" value={money(summary.cogs)} icon={Archive} /><MetricCard label="Gross profit" value={money(summary.grossProfit)} icon={CircleDollarSign} tone="positive" /><MetricCard label="Gross margin" value={`${Number(summary.grossMargin ?? 0).toFixed(1)}%`} icon={BarChart3} /></div><Card><CardHeader><CardTitle>Contribution by product</CardTitle><CardDescription>Use the export controls above for the filtered result.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "productName", label: "Product" }, { key: "units", label: "Units", align: "right" }, { key: "grossProfit", label: "Profit", align: "right" }]} rows={products.map((row) => ({ ...row, units: number(row.units), grossProfit: money(row.grossProfit) }))} /></CardContent></Card></TabsContent>
 

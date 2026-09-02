@@ -277,6 +277,11 @@ export interface DashboardStats {
   totalSalesToday: number;
   pendingRefunds: number;
   inventoryValue: number;
+  inventoryCostValue: number;
+  inventoryRetailValue: number;
+  /** @nullable */
+  inventoryProjectedGrossProfit: number | null;
+  inventoryMissingCostCount: number;
 }
 
 export interface TopProduct {
@@ -1096,18 +1101,65 @@ export interface SalesReport {
   data: SalesTrendPoint[];
 }
 
+export type InventoryReportPurchaseOrderTotalsByStatusItem = {
+  status: string;
+  total: number;
+};
+
 export type InventoryReportTopCategoriesItem = {
   categoryName?: string;
   productCount?: number;
   totalValue?: number;
 };
 
+export type InventoryReportDataItem = {
+  id: string;
+  name: string;
+  sku: string;
+  stock: number;
+  minStock?: number;
+  price: number;
+  /** @nullable */
+  costPrice?: number | null;
+  /** @nullable */
+  categoryName?: string | null;
+  valuation?: number;
+  costValue: number;
+  retailValue: number;
+  /** @nullable */
+  projectedGrossProfit: number | null;
+  costMissing: boolean;
+};
+
 export interface InventoryReport {
   totalProducts: number;
+  /** Backward-compatible alias for totalCostValue. */
   totalValue: number;
+  /** Current on-hand units multiplied by recorded product cost. */
+  totalCostValue: number;
+  /** Current on-hand units multiplied by current selling price. */
+  totalRetailValue: number;
+  /**
+     * Retail value minus cost value; null when any on-hand product is missing cost.
+     * @nullable
+     */
+  projectedGrossProfit: number | null;
+  /**
+     * Projected gross profit as a percentage of retail value.
+     * @nullable
+     */
+  projectedGrossMargin: number | null;
+  missingCostCount: number;
+  /** Total received quantities multiplied by received unit cost. */
+  receivedInventoryCost: number;
+  /** Total ordered and partially received purchase-order value. */
+  purchaseOrderCommitments: number;
+  purchaseOrderTotalsByStatus: InventoryReportPurchaseOrderTotalsByStatusItem[];
+  supplierPaymentsTracked: boolean;
   lowStockCount: number;
   outOfStockCount: number;
   topCategories?: InventoryReportTopCategoriesItem[];
+  data: InventoryReportDataItem[];
 }
 
 export interface Settings {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import {
-  auditEventsTable, cashEventsTable, categoriesTable, db, inventoryMovementsTable, purchaseOrdersTable, receiptsTable,
+  auditEventsTable, cashEventsTable, categoriesTable, db, inventoryMovementsTable, purchaseOrdersTable, receiptItemsTable, receiptsTable,
   refundsTable, refundItemsTable, registersTable, saleItemsTable, salePaymentsTable, salesTable,
   storesTable, productsTable, usersTable,
 } from "@workspace/db";
@@ -141,15 +141,60 @@ router.get("/reports/employees", requireManagerAccess, async (req, res): Promise
 
 router.get("/reports/inventory", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const rows = await db.select({ product: productsTable, categoryName: categoriesTable.name }).from(productsTable)
-    .leftJoin(categoriesTable, and(eq(productsTable.categoryId, categoriesTable.id), eq(categoriesTable.tenantId, tenantId)))
-    .where(eq(productsTable.tenantId, tenantId));
-  const totalValue = rows.reduce((sum, r) => sum + Number(r.product.costPrice ?? 0) * r.product.stock, 0);
+  const [rows, receivedCostRows, orderTotals] = await Promise.all([
+    db.select({ product: productsTable, categoryName: categoriesTable.name }).from(productsTable)
+      .leftJoin(categoriesTable, and(eq(productsTable.categoryId, categoriesTable.id), eq(categoriesTable.tenantId, tenantId)))
+      .where(eq(productsTable.tenantId, tenantId)),
+    db.select({
+      total: sql<string>`COALESCE(SUM(${receiptItemsTable.quantityReceived} * ${receiptItemsTable.unitCost}::numeric), 0)`,
+    }).from(receiptItemsTable).where(eq(receiptItemsTable.tenantId, tenantId)),
+    db.select({
+      status: purchaseOrdersTable.status,
+      total: sql<string>`COALESCE(SUM(${purchaseOrdersTable.totalAmount}::numeric), 0)`,
+    }).from(purchaseOrdersTable)
+      .where(eq(purchaseOrdersTable.tenantId, tenantId))
+      .groupBy(purchaseOrdersTable.status),
+  ]);
+  const totalCostValue = rows.reduce((sum, r) => sum + Number(r.product.costPrice ?? 0) * r.product.stock, 0);
+  const totalRetailValue = rows.reduce((sum, r) => sum + Number(r.product.price) * r.product.stock, 0);
+  const missingCostCount = rows.filter((r) => r.product.stock > 0 && r.product.costPrice == null).length;
+  const projectedGrossProfit = missingCostCount === 0 ? money(totalRetailValue - totalCostValue) : null;
+  const projectedGrossMargin = projectedGrossProfit == null || totalRetailValue === 0
+    ? null
+    : money((projectedGrossProfit / totalRetailValue) * 100);
+  const purchaseOrderTotalsByStatus = orderTotals.map((row) => ({ status: row.status, total: money(row.total) }));
+  const purchaseOrderCommitments = purchaseOrderTotalsByStatus
+    .filter((row) => ["ordered", "partially_received"].includes(row.status))
+    .reduce((sum, row) => sum + row.total, 0);
+
   res.json({
-    totalProducts: rows.length, totalValue: money(totalValue),
+    totalProducts: rows.length,
+    totalValue: money(totalCostValue),
+    totalCostValue: money(totalCostValue),
+    totalRetailValue: money(totalRetailValue),
+    projectedGrossProfit,
+    projectedGrossMargin,
+    missingCostCount,
+    receivedInventoryCost: money(receivedCostRows[0]?.total),
+    purchaseOrderCommitments: money(purchaseOrderCommitments),
+    purchaseOrderTotalsByStatus,
+    supplierPaymentsTracked: false,
     lowStockCount: rows.filter((r) => r.product.stock > 0 && r.product.stock <= r.product.minStock).length,
     outOfStockCount: rows.filter((r) => r.product.stock === 0).length,
-    data: rows.map((r) => ({ ...r.product, categoryName: r.categoryName, valuation: money(Number(r.product.costPrice ?? 0) * r.product.stock) })),
+    data: rows.map((r) => {
+      const costMissing = r.product.stock > 0 && r.product.costPrice == null;
+      const costValue = money(Number(r.product.costPrice ?? 0) * r.product.stock);
+      const retailValue = money(Number(r.product.price) * r.product.stock);
+      return {
+        ...r.product,
+        categoryName: r.categoryName,
+        valuation: costValue,
+        costValue,
+        retailValue,
+        projectedGrossProfit: costMissing ? null : money(retailValue - costValue),
+        costMissing,
+      };
+    }),
   });
 });
 

@@ -66,6 +66,8 @@ export * from './inventoryItem';
 export * from './inventoryItemStatus';
 export * from './inventoryPage';
 export * from './inventoryReport';
+export * from './inventoryReportDataItem';
+export * from './inventoryReportPurchaseOrderTotalsByStatusItem';
 export * from './inventoryReportTopCategoriesItem';
 export * from './latestRelease';
 export * from './licenseRevalidateInput';

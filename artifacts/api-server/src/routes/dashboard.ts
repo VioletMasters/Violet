@@ -29,7 +29,9 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
   ]);
 
   const lowStockProducts = products.filter(p => p.stock <= p.minStock && p.stock > 0);
-  const inventoryValue = products.reduce((sum, p) => sum + (parseFloat(p.costPrice ?? p.price) * p.stock), 0);
+  const inventoryCostValue = products.reduce((sum, p) => sum + (parseFloat(p.costPrice ?? "0") * p.stock), 0);
+  const inventoryRetailValue = products.reduce((sum, p) => sum + (parseFloat(p.price) * p.stock), 0);
+  const inventoryMissingCostCount = products.filter((p) => p.stock > 0 && p.costPrice == null).length;
 
   res.json({
     todayRevenue: parseFloat(String(todaySales[0]?.revenue ?? 0)),
@@ -40,7 +42,11 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
     lowStockCount: lowStockProducts.length,
     totalSalesToday: Number(todaySales[0]?.count ?? 0),
     pendingRefunds: 0,
-    inventoryValue,
+    inventoryValue: inventoryCostValue,
+    inventoryCostValue,
+    inventoryRetailValue,
+    inventoryProjectedGrossProfit: inventoryMissingCostCount === 0 ? inventoryRetailValue - inventoryCostValue : null,
+    inventoryMissingCostCount,
   });
 });
 
