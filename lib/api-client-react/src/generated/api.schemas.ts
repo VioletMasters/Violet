@@ -125,6 +125,7 @@ export interface UserProfile {
   tenantId: string;
   /** @nullable */
   avatarUrl?: string | null;
+  mustChangePassword: boolean;
   createdAt?: string;
 }
 
@@ -169,6 +170,13 @@ export interface AuthResponse {
   user: UserProfile;
   tenant: Tenant;
   token: string;
+}
+
+export interface ChangePasswordInput {
+  /** @minLength 1 */
+  currentPassword: string;
+  /** @minLength 10 */
+  newPassword: string;
 }
 
 export type TenantDetailStatus = typeof TenantDetailStatus[keyof typeof TenantDetailStatus];
@@ -615,6 +623,15 @@ export interface InventoryAdjustInput {
   note?: string;
 }
 
+export type EmployeeLoginStatus = typeof EmployeeLoginStatus[keyof typeof EmployeeLoginStatus];
+
+
+export const EmployeeLoginStatus = {
+  password_change_required: 'password_change_required',
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
 export interface Employee {
   id: string;
   firstName: string;
@@ -627,9 +644,14 @@ export interface Employee {
   /** @nullable */
   department?: string | null;
   isActive: boolean;
+  loginStatus: EmployeeLoginStatus;
   tenantId: string;
   createdAt?: string;
 }
+
+export type EmployeeCreated = Employee & {
+  temporaryPassword: string;
+};
 
 export type EmployeeInputRole = typeof EmployeeInputRole[keyof typeof EmployeeInputRole];
 
@@ -646,7 +668,7 @@ export interface EmployeeInput {
   /** @minLength 1 */
   firstName: string;
   lastName: string;
-  email?: string;
+  email: string;
   phone?: string;
   role: EmployeeInputRole;
   department?: string;

@@ -25,6 +25,7 @@ export interface AuthUser {
   role: string;
   tenantId: string;
   avatarUrl: string | null;
+  mustChangePassword: boolean;
   createdAt: Date;
 }
 
@@ -152,6 +153,10 @@ declare global {
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authenticated = await authenticateSession(req, res);
   if (!authenticated) return;
+  if (req.user?.mustChangePassword) {
+    res.status(403).json({ error: "Password change required" });
+    return;
+  }
 
   let licenseFailure: string | null = null;
   if (isSelfHostedRuntime()) {
@@ -213,7 +218,7 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
       .where(eq(usersTable.id, session.userId))
       .limit(1);
 
-    if (!user) {
+    if (!user || user.isActive !== "true") {
       res.status(401).json({ error: "User not found" });
       return false;
     }
@@ -226,6 +231,7 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
       role: user.role,
       tenantId: user.tenantId,
       avatarUrl: user.avatarUrl ?? null,
+      mustChangePassword: user.mustChangePassword,
       createdAt: user.createdAt,
     };
     req.tenantId = user.tenantId;

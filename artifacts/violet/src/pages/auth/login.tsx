@@ -33,6 +33,10 @@ export default function LoginPage() {
       onSuccess: async (data) => {
         setAuth(data.user, data.tenant, data.token);
         toast.success("Welcome back to Violet Enterprise");
+        if (data.user.mustChangePassword) {
+          setLocation("/change-password");
+          return;
+        }
         if (selectedTier) {
           setIsOpeningCheckout(true);
           try {

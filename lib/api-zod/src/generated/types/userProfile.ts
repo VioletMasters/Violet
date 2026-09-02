@@ -16,5 +16,6 @@ export interface UserProfile {
   tenantId: string;
   /** @nullable */
   avatarUrl?: string | null;
+  mustChangePassword: boolean;
   createdAt?: string;
 }

@@ -43,6 +43,7 @@ export const RegisterResponse = zod.object({
   "role": zod.enum(['owner', 'administrator', 'manager', 'cashier', 'inventory_staff', 'accountant', 'employee', 'super_admin']),
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "mustChangePassword": zod.boolean(),
   "createdAt": zod.string().optional()
 }),
   "tenant": zod.object({
@@ -87,6 +88,7 @@ export const LoginResponse = zod.object({
   "role": zod.enum(['owner', 'administrator', 'manager', 'cashier', 'inventory_staff', 'accountant', 'employee', 'super_admin']),
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "mustChangePassword": zod.boolean(),
   "createdAt": zod.string().optional()
 }),
   "tenant": zod.object({
@@ -111,6 +113,32 @@ export const LoginResponse = zod.object({
   "createdAt": zod.string()
 }),
   "token": zod.string()
+})
+
+
+/**
+ * @summary Replace the current user's temporary password
+ */
+
+export const changePasswordBodyNewPasswordMin = 10;
+
+
+
+export const ChangePasswordBody = zod.object({
+  "currentPassword": zod.string().min(1),
+  "newPassword": zod.string().min(changePasswordBodyNewPasswordMin)
+})
+
+export const ChangePasswordResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "role": zod.enum(['owner', 'administrator', 'manager', 'cashier', 'inventory_staff', 'accountant', 'employee', 'super_admin']),
+  "tenantId": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "mustChangePassword": zod.boolean(),
+  "createdAt": zod.string().optional()
 })
 
 
@@ -219,6 +247,7 @@ export const GetMeResponse = zod.object({
   "role": zod.enum(['owner', 'administrator', 'manager', 'cashier', 'inventory_staff', 'accountant', 'employee', 'super_admin']),
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "mustChangePassword": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 
@@ -1019,6 +1048,7 @@ export const ListEmployeesResponseItem = zod.object({
   "role": zod.string(),
   "department": zod.string().nullish(),
   "isActive": zod.boolean(),
+  "loginStatus": zod.enum(['password_change_required', 'active', 'inactive']),
   "tenantId": zod.string(),
   "createdAt": zod.string().optional()
 })
@@ -1034,7 +1064,7 @@ export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 export const CreateEmployeeBody = zod.object({
   "firstName": zod.string().min(1),
   "lastName": zod.string(),
-  "email": zod.string().optional(),
+  "email": zod.string(),
   "phone": zod.string().optional(),
   "role": zod.enum(['manager', 'cashier', 'inventory_staff', 'accountant', 'employee']),
   "department": zod.string().optional()
@@ -1049,9 +1079,12 @@ export const CreateEmployeeResponse = zod.object({
   "role": zod.string(),
   "department": zod.string().nullish(),
   "isActive": zod.boolean(),
+  "loginStatus": zod.enum(['password_change_required', 'active', 'inactive']),
   "tenantId": zod.string(),
   "createdAt": zod.string().optional()
-})
+}).and(zod.object({
+  "temporaryPassword": zod.string()
+}))
 
 
 /**
@@ -1080,6 +1113,7 @@ export const UpdateEmployeeResponse = zod.object({
   "role": zod.string(),
   "department": zod.string().nullish(),
   "isActive": zod.boolean(),
+  "loginStatus": zod.enum(['password_change_required', 'active', 'inactive']),
   "tenantId": zod.string(),
   "createdAt": zod.string().optional()
 })

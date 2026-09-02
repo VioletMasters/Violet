@@ -114,6 +114,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       role: user.role,
       tenantId: user.tenantId,
       avatarUrl: user.avatarUrl ?? null,
+      mustChangePassword: user.mustChangePassword,
       createdAt: user.createdAt.toISOString(),
     },
     tenant: {
@@ -138,8 +139,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
+  if (!user || user.isActive !== "true" || !verifyPassword(password, user.passwordHash)) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
@@ -205,6 +207,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       role: user.role,
       tenantId: user.tenantId,
       avatarUrl: user.avatarUrl ?? null,
+      mustChangePassword: user.mustChangePassword,
       createdAt: user.createdAt.toISOString(),
     },
     tenant: {
@@ -218,6 +221,43 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       billingMessage: licenseFailure,
       createdAt: tenant?.createdAt?.toISOString() ?? new Date().toISOString(),
     },
+  });
+});
+
+// POST /auth/change-password
+router.post("/auth/change-password", requireSession, async (req, res): Promise<void> => {
+  const { currentPassword, newPassword } = req.body;
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string" || newPassword.length < 10) {
+    res.status(400).json({ error: "Current password and a new password of at least 10 characters are required" });
+    return;
+  }
+  if (currentPassword === newPassword) {
+    res.status(400).json({ error: "The new password must be different" });
+    return;
+  }
+
+  const user = req.user!;
+  const [storedUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+  if (!storedUser || !verifyPassword(currentPassword, storedUser.passwordHash)) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  const [updated] = await db.update(usersTable).set({
+    passwordHash: hashPassword(newPassword),
+    mustChangePassword: false,
+  }).where(eq(usersTable.id, user.id)).returning();
+
+  res.json({
+    id: updated.id,
+    email: updated.email,
+    firstName: updated.firstName,
+    lastName: updated.lastName,
+    role: updated.role,
+    tenantId: updated.tenantId,
+    avatarUrl: updated.avatarUrl ?? null,
+    mustChangePassword: updated.mustChangePassword,
+    createdAt: updated.createdAt.toISOString(),
   });
 });
 
@@ -236,7 +276,7 @@ router.post("/auth/manager-unlock", requireAuth, async (req, res): Promise<void>
     .where(and(eq(usersTable.tenantId, req.tenantId!), eq(usersTable.email, email.trim())))
     .limit(1);
 
-  if (!manager || !isManagerRole(manager.role) || !verifyPassword(password, manager.passwordHash)) {
+  if (!manager || manager.isActive !== "true" || !isManagerRole(manager.role) || !verifyPassword(password, manager.passwordHash)) {
     res.status(401).json({ error: "Manager credentials were not accepted" });
     return;
   }
@@ -263,7 +303,7 @@ router.post("/auth/manager-confirmation", requireAuth, async (req, res): Promise
     .where(and(eq(usersTable.tenantId, req.tenantId!), eq(usersTable.email, body.data.email.trim())))
     .limit(1);
 
-  if (!manager || !isManagerRole(manager.role) || !verifyPassword(body.data.password, manager.passwordHash)) {
+  if (!manager || manager.isActive !== "true" || !isManagerRole(manager.role) || !verifyPassword(body.data.password, manager.passwordHash)) {
     res.status(401).json({ error: "Manager credentials were not accepted" });
     return;
   }
@@ -289,6 +329,7 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     role: user.role,
     tenantId: user.tenantId,
     avatarUrl: user.avatarUrl ?? null,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt.toISOString(),
   });
 });

@@ -16,3 +16,9 @@ export function verifyPassword(password: string, stored: string): boolean {
 export function generateToken(): string {
   return randomBytes(32).toString("hex");
 }
+
+export function generateTemporaryPassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = randomBytes(16);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}

@@ -7,6 +7,7 @@ import { useTheme } from './hooks/use-theme';
 
 import LoginPage from './pages/auth/login';
 import RegisterPage from './pages/auth/register';
+import ChangePasswordPage from './pages/change-password';
 import DownloadPage from './pages/download';
 
 import Dashboard from './pages/dashboard';
@@ -27,7 +28,7 @@ function RootRoute() {
   const { token, tenant, user } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
 
-  return <Redirect to={token ? (tenant?.requiresBillingAction && !isSuperAdmin ? "/subscription" : "/pos") : "/login"} />;
+  return <Redirect to={token ? (user?.mustChangePassword ? "/change-password" : tenant?.requiresBillingAction && !isSuperAdmin ? "/subscription" : "/pos") : "/login"} />;
 }
 
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
         <Route path="/subscription" component={Subscription} />
+        <Route path="/change-password" component={ChangePasswordPage} />
         <Route path="/admin" component={Admin} />
         <Route component={DefaultAppRoute} />
       </Switch>

@@ -5,6 +5,7 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { EmployeeLoginStatus } from './employeeLoginStatus';
 
 export interface Employee {
   id: string;
@@ -18,6 +19,7 @@ export interface Employee {
   /** @nullable */
   department?: string | null;
   isActive: boolean;
+  loginStatus: EmployeeLoginStatus;
   tenantId: string;
   createdAt?: string;
 }

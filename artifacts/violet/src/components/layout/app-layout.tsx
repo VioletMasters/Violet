@@ -24,10 +24,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) {
       setLocation("/login");
+    } else if (user?.mustChangePassword && location !== "/change-password") {
+      setLocation("/change-password");
     } else if (tenant?.requiresBillingAction && !isSuperAdmin && location !== "/subscription") {
       setLocation("/subscription");
     }
-  }, [token, tenant?.requiresBillingAction, isSuperAdmin, location, setLocation]);
+  }, [token, tenant?.requiresBillingAction, user?.mustChangePassword, isSuperAdmin, location, setLocation]);
 
   useEffect(() => {
     if (error) {
@@ -53,12 +55,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ].some((route) => location === route || location.startsWith(`${route}/`));
 
   useEffect(() => {
-    if (token && isManagementRoute && !isManagerAccessActive) {
+    if (token && !user?.mustChangePassword && isManagementRoute && !isManagerAccessActive) {
       setLocation("/settings");
     }
-  }, [isManagementRoute, isManagerAccessActive, setLocation, token]);
+  }, [isManagementRoute, isManagerAccessActive, setLocation, token, user?.mustChangePassword]);
 
   if (!token) return null;
+  if (user?.mustChangePassword && location !== "/change-password") return null;
   if (isManagementRoute && !isManagerAccessActive) return null;
 
   const isPosRoute = location === "/pos" || location.startsWith("/pos/");

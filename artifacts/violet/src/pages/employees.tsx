@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/use-auth";
 const employeeSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  email: z.string().email("A valid email is required"),
   phone: z.string().optional().or(z.literal("")),
   role: z.enum(["manager", "cashier", "inventory_staff", "accountant", "employee"]),
   department: z.string().optional().or(z.literal("")),
@@ -30,6 +30,7 @@ type EmployeeForm = z.infer<typeof employeeSchema>;
 export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [credentials, setCredentials] = useState<{ email: string; temporaryPassword: string } | null>(null);
   
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -52,9 +53,10 @@ export default function EmployeesPage() {
 
   const createMutation = useCreateEmployee({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (employee) => {
         toast.success("Employee added");
         setIsAddOpen(false);
+        setCredentials({ email: employee.email ?? "", temporaryPassword: employee.temporaryPassword });
         reset();
         queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       },
@@ -65,7 +67,7 @@ export default function EmployeesPage() {
   const onSubmit = (data: EmployeeForm) => {
     createMutation.mutate({ data: {
       ...data,
-      email: data.email || undefined,
+      email: data.email,
       phone: data.phone || undefined,
       department: data.department || undefined
     }});
@@ -128,12 +130,13 @@ export default function EmployeesPage() {
               <TableHead>Role</TableHead>
               <TableHead>Department</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Login</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredEmployees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No employees found.</TableCell>
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No employees found.</TableCell>
               </TableRow>
             ) : (
               filteredEmployees.map((emp) => (
@@ -156,6 +159,11 @@ export default function EmployeesPage() {
                   <TableCell>
                     <Badge variant={emp.isActive ? "success" : "secondary"}>
                       {emp.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize">
+                      {emp.loginStatus.replaceAll("_", " ")}
                     </Badge>
                   </TableCell>
                 </TableRow>
@@ -220,6 +228,26 @@ export default function EmployeesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(credentials)} onOpenChange={(open) => !open && setCredentials(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Employee login created</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Copy this temporary password now. It is shown only once, and the employee must replace it after signing in.
+            </p>
+            <div className="rounded-lg border bg-muted/40 p-4 font-mono text-sm">
+              <div><span className="text-muted-foreground">Email:</span> {credentials?.email}</div>
+              <div className="mt-2 break-all"><span className="text-muted-foreground">Password:</span> {credentials?.temporaryPassword}</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCredentials(null)}>I saved it</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
