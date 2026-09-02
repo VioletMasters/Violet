@@ -153,7 +153,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const authenticated = await authenticateSession(req, res);
   if (!authenticated) return;
 
-  let licenseFailure: string | null;
+  let licenseFailure: string | null = null;
   if (isSelfHostedRuntime()) {
     if (!req.licenseSessionToken) {
       licenseFailure = "Online license validation is required. Sign in again with an internet connection.";
