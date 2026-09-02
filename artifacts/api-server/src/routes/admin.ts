@@ -9,6 +9,7 @@ import {
 import { eq, ilike, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
 import { requireSession, requireSuperAdmin } from "../middlewares/auth";
 import { getWhopClient } from "../lib/whopClient";
+import { deleteTenantAccount } from "../lib/abandonedPaidSignups";
 import fs from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -595,6 +596,58 @@ router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<
     subscriptionStart: currentSubscription?.currentPeriodStart?.toISOString() ?? null,
     createdAt: tenant.createdAt.toISOString(),
   });
+});
+
+// DELETE /admin/tenants/:id
+// Permanently removes the tenant and all of its users and business data.
+router.delete("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (req.body?.confirm !== true) {
+    res.status(400).json({ error: "Explicit confirmation is required to delete a tenant account." });
+    return;
+  }
+
+  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, id)).limit(1);
+  if (!tenant) {
+    res.status(404).json({ error: "Tenant not found." });
+    return;
+  }
+
+  const [subscription] = await db.select().from(subscriptionsTable)
+    .where(eq(subscriptionsTable.tenantId, id)).limit(1);
+
+  try {
+    if (subscription?.whopMembershipId) {
+      const client = await getWhopClient();
+      await client.memberships.cancel({
+        id: subscription.whopMembershipId,
+        cancel_at_period_end: false,
+      });
+    }
+
+    await audit(
+      req,
+      "tenant.deleted",
+      "tenant",
+      id,
+      `Permanently deleted ${tenant.name} tenant account`,
+      {
+        email: tenant.email,
+        whopMembershipId: subscription?.whopMembershipId ?? null,
+        subscriptionStatus: subscription?.status ?? null,
+      },
+    );
+    await deleteTenantAccount(id);
+    req.log.info({ tenantId: id, email: tenant.email }, "Tenant account deleted by super administrator");
+    res.json({ success: true, message: "The tenant account and its data were permanently deleted." });
+  } catch (error) {
+    req.log.error({ err: error, tenantId: id }, "Admin tenant deletion failed");
+    res.status(502).json({
+      error: error instanceof Error
+        ? error.message
+        : "Unable to cancel billing or delete this tenant account.",
+    });
+  }
 });
 
 router.post("/admin/tenants/:id/subscription/cancel", requireSuperAdmin, async (req, res): Promise<void> => {

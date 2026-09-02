@@ -242,6 +242,16 @@ export interface TenantUpdate {
   planId?: string;
 }
 
+export interface TenantDeleteInput {
+  /** Must be true to confirm permanent deletion. */
+  confirm: boolean;
+}
+
+export interface TenantDeleteResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface TenantsPage {
   data: Tenant[];
   total: number;

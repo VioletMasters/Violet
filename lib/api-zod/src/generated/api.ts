@@ -1962,6 +1962,23 @@ export const UpdateAdminTenantResponse = zod.object({
 
 
 /**
+ * @summary Permanently delete a tenant account and its data
+ */
+export const DeleteAdminTenantParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteAdminTenantBody = zod.object({
+  "confirm": zod.boolean().describe('Must be true to confirm permanent deletion.')
+})
+
+export const DeleteAdminTenantResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Cancel a tenant's Whop subscription
  */
 export const CancelAdminTenantSubscriptionParams = zod.object({

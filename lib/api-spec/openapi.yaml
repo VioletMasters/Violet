@@ -1752,6 +1752,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
+    delete:
+      operationId: deleteAdminTenant
+      tags: [admin]
+      summary: Permanently delete a tenant account and its data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantDeleteInput"
+      responses:
+        "200":
+          description: Tenant deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantDeleteResponse"
 
   /admin/tenants/{id}/subscription/cancel:
     post:
@@ -2456,6 +2479,23 @@ components:
           type: string
           enum: [active, suspended, trial, expired]
         planId:
+          type: string
+
+    TenantDeleteInput:
+      type: object
+      required: [confirm]
+      properties:
+        confirm:
+          type: boolean
+          description: Must be true to confirm permanent deletion.
+
+    TenantDeleteResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
           type: string
 
     TenantsPage:

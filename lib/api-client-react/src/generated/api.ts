@@ -121,6 +121,8 @@ import type {
   SupplierInput,
   SupplierUpdate,
   Tenant,
+  TenantDeleteInput,
+  TenantDeleteResponse,
   TenantDetail,
   TenantUpdate,
   TenantsPage,
@@ -6822,6 +6824,78 @@ export const useUpdateAdminTenant = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateAdminTenantMutationOptions(options));
+    }
+
+export const getDeleteAdminTenantUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/tenants/${id}`
+}
+
+/**
+ * @summary Permanently delete a tenant account and its data
+ */
+export const deleteAdminTenant = async (id: string,
+    tenantDeleteInput: TenantDeleteInput, options?: Parameters<typeof customFetch>[1]): Promise<TenantDeleteResponse> => {
+
+  return customFetch<TenantDeleteResponse>(getDeleteAdminTenantUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(tenantDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminTenantMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminTenant>>, TError,{id: string;data: BodyType<TenantDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminTenant>>, TError,{id: string;data: BodyType<TenantDeleteInput>}, TContext> => {
+
+const mutationKey = ['deleteAdminTenant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminTenant>>, {id: string;data: BodyType<TenantDeleteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  deleteAdminTenant(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminTenantMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminTenant>>>
+    export type DeleteAdminTenantMutationBody = BodyType<TenantDeleteInput>
+    export type DeleteAdminTenantMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Permanently delete a tenant account and its data
+ */
+export const useDeleteAdminTenant = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminTenant>>, TError,{id: string;data: BodyType<TenantDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminTenant>>,
+        TError,
+        {id: string;data: BodyType<TenantDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminTenantMutationOptions(options));
     }
 
 export const getCancelAdminTenantSubscriptionUrl = (id: string,) => {

@@ -4,6 +4,7 @@ import {
   useListTenants,
   useGetAdminTenant,
   useUpdateAdminTenant,
+  useDeleteAdminTenant,
   useCancelAdminTenantSubscription,
   useReactivateAdminTenantSubscription,
   useListAdminPlans,
@@ -54,10 +55,20 @@ import {
   Plus, Edit2, CheckCircle2, XCircle, Star, AlertTriangle,
   Package, UserCog, ShoppingBag, CalendarDays, CreditCard,
   PauseCircle, GitBranch, Upload, Download, FileText, RefreshCw, ExternalLink,
-  Filter, Database, CircleDot, Ban, History,
+  Filter, Database, CircleDot, Ban, History, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -151,10 +162,11 @@ interface TenantDetailDrawerProps {
   onClose: () => void;
   onStatusChange: (id: string, currentStatus: string) => void;
   statusChangePending: boolean;
+  onDeleted: (id: string) => void;
 }
 
 function TenantDetailDrawer({
-  tenantId, onClose, onStatusChange, statusChangePending,
+  tenantId, onClose, onStatusChange, statusChangePending, onDeleted,
 }: TenantDetailDrawerProps) {
   const queryClient = useQueryClient();
   const { data: tenant, isLoading } = useGetAdminTenant(tenantId ?? "", {
@@ -162,6 +174,8 @@ function TenantDetailDrawer({
   });
   const { data: plans } = useListAdminPlans();
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   React.useEffect(() => {
     setSelectedPlanId(tenant?.planId ?? "");
@@ -203,6 +217,18 @@ function TenantDetailDrawer({
     },
   });
 
+  const deleteTenant = useDeleteAdminTenant({
+    mutation: {
+      onSuccess: (result) => {
+        toast.success(result.message || "Tenant account deleted");
+        setDeleteDialogOpen(false);
+        setDeleteConfirmation("");
+        onDeleted(tenant!.id);
+      },
+      onError: (error: Error) => toast.error(error.message || "Could not delete tenant account"),
+    },
+  });
+
   function changeAccountType(planId: string) {
     const nextPlan = plans?.find((plan) => plan.id === planId);
     if (!nextPlan || planId === tenant?.planId) return;
@@ -218,6 +244,11 @@ function TenantDetailDrawer({
       "Turn off automatic renewal for this tenant? The account stays active until the current period ends.",
     )) return;
     cancelSubscription.mutate({ id: tenant.id, data: { immediate: false } });
+  }
+
+  function openDeleteDialog() {
+    setDeleteConfirmation("");
+    setDeleteDialogOpen(true);
   }
 
   const statusColor: Record<string, string> = {
@@ -433,6 +464,15 @@ function TenantDetailDrawer({
                   <><PauseCircle className="w-4 h-4" /> Suspend account</>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={deleteTenant.isPending}
+                onClick={openDeleteDialog}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete tenant account
+              </Button>
               {tenant.cancelAtPeriodEnd ? (
                 <Button
                   variant="outline"
@@ -499,6 +539,51 @@ function TenantDetailDrawer({
           </SheetClose>
         </SheetFooter>
       </SheetContent>
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!deleteTenant.isPending) setDeleteDialogOpen(open);
+          if (!open) setDeleteConfirmation("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete this tenant?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes <strong>{tenant?.name}</strong>, all tenant users,
+              products, customers, sales, settings, and sessions. Any active Whop membership
+              will be cancelled first. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="delete-tenant-confirmation">
+              Type <span className="font-semibold">{tenant?.name}</span> to confirm
+            </Label>
+            <Input
+              id="delete-tenant-confirmation"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder={tenant?.name ?? "Business name"}
+              autoComplete="off"
+              disabled={deleteTenant.isPending}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTenant.isPending}>Keep account</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteTenant.isPending || deleteConfirmation !== tenant?.name}
+              onClick={(event) => {
+                event.preventDefault();
+                if (!tenant || deleteConfirmation !== tenant.name) return;
+                deleteTenant.mutate({ id: tenant.id, data: { confirm: true } });
+              }}
+            >
+              {deleteTenant.isPending ? "Deleting account..." : "Delete permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
@@ -1869,6 +1954,12 @@ export default function AdminPage() {
         onClose={() => setSelectedTenantId(null)}
         onStatusChange={handleStatusChange}
         statusChangePending={updateTenant.isPending}
+        onDeleted={(id) => {
+          setSelectedTenantId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/tenants"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+          queryClient.removeQueries({ queryKey: getGetAdminTenantQueryOptions(id).queryKey });
+        }}
       />
     </div>
   );

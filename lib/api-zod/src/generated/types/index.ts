@@ -157,6 +157,8 @@ export * from './supplier';
 export * from './supplierInput';
 export * from './supplierUpdate';
 export * from './tenant';
+export * from './tenantDeleteInput';
+export * from './tenantDeleteResponse';
 export * from './tenantDetail';
 export * from './tenantDetailStatus';
 export * from './tenantDetailSubscriptionHistoryItem';

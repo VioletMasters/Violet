@@ -6,8 +6,10 @@ import { syncPendingCheckout } from "./subscriptionSync";
 const ABANDONED_SIGNUP_GRACE_MS = 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 
-async function deleteTenantAccount(tenantId: string) {
+export async function deleteTenantAccount(tenantId: string) {
   await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${tenantId}, 0))`);
+
     // These tables are intentionally deleted explicitly because the shared
     // schema does not use foreign-key cascades for tenant-owned records.
     await tx.execute(sql`DELETE FROM public.license_sessions WHERE tenant_id = ${tenantId}`);
