@@ -7,3 +7,4 @@
 - [OpenAPI codegen compatibility](openapi-codegen.md) — Zod generation is pinned to Zod 3; avoid UUID formats and inline body schema collisions.
 - [Subscription lifecycle](subscription-lifecycle.md) — Whop is billing authority; paid tier changes wait for cancellation or an inactive membership.
 - [Employee login lifecycle](employee-login-lifecycle.md) — employee records and login users stay linked; first login requires replacing a one-time temporary password.
+- [LAN server authority](lan-server-authority.md) — one store server owns canonical data/files; cashier clients require server confirmation and retry checkouts idempotently.

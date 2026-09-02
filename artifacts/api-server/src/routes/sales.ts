@@ -83,9 +83,21 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const cashierId = req.user!.id;
   const { customerId, items, paymentMethod, payments, cashTendered, note, storeId, registerId, shiftId } = req.body;
+  const idempotencyKey = typeof req.body?.idempotencyKey === "string"
+    ? req.body.idempotencyKey.trim()
+    : "";
 
-  if (!Array.isArray(items) || items.length === 0 || typeof paymentMethod !== "string") {
-    res.status(400).json({ error: "items and paymentMethod are required" });
+  if (!Array.isArray(items) || items.length === 0 || typeof paymentMethod !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+    res.status(400).json({ error: "items, paymentMethod, and a valid idempotencyKey are required" });
+    return;
+  }
+
+  const [previousSale] = await db.select().from(salesTable).where(and(
+    eq(salesTable.tenantId, tenantId),
+    eq(salesTable.idempotencyKey, idempotencyKey),
+  )).limit(1);
+  if (previousSale) {
+    res.status(200).json(await buildSaleResponse(previousSale));
     return;
   }
 
@@ -195,7 +207,14 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  const sale = await db.transaction(async (tx) => {
+  const saleResult = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${idempotencyKey}))`);
+    const [duplicate] = await tx.select().from(salesTable).where(and(
+      eq(salesTable.tenantId, tenantId),
+      eq(salesTable.idempotencyKey, idempotencyKey),
+    )).limit(1);
+    if (duplicate) return { sale: duplicate, existing: true };
+
     if (typeof shiftId === "string") {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${shiftId}))`);
       const [openShift] = await tx.select({ id: registerShiftsTable.id }).from(registerShiftsTable).where(and(
@@ -219,6 +238,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       status: "completed",
       cashTendered: parsedCashTendered !== undefined ? String(parsedCashTendered) : undefined,
       note,
+      idempotencyKey,
     }).returning();
 
     for (const item of validLineItems) {
@@ -281,11 +301,11 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       action: "sale.completed", entityType: "sale", entityId: created.id,
       after: { receiptNumber: created.receiptNumber, totalAmount, paymentMethod: created.paymentMethod },
     });
-    return created;
+    return { sale: created, existing: false };
   });
 
-  const result = await buildSaleResponse(sale);
-  res.status(201).json(result);
+  const result = await buildSaleResponse(saleResult.sale);
+  res.status(saleResult.existing ? 200 : 201).json(result);
 });
 
 // GET /sales/:id

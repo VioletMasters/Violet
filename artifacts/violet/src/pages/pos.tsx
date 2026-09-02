@@ -41,6 +41,11 @@ type PaymentCompletion = {
   receiptNumber?: string;
 };
 
+function createCheckoutIdempotencyKey(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function POSPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -53,6 +58,7 @@ export default function POSPage() {
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
   const [managerPassword, setManagerPassword] = useState("");
   const [paymentCompletion, setPaymentCompletion] = useState<PaymentCompletion | null>(null);
+  const checkoutAttemptKey = React.useRef<string | null>(null);
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
@@ -74,8 +80,14 @@ export default function POSPage() {
         setCashTendered("");
         setSearch("");
         setPaymentCompletion({ change, receiptNumber: sale.receiptNumber });
+        checkoutAttemptKey.current = null;
       },
       onError: (err) => {
+        const status = (err as { status?: number }).status;
+        if (!status || status >= 500) {
+          toast.error("The store server did not confirm the sale. Keep this cart open and press Complete Payment again when the connection returns.");
+          return;
+        }
         toast.error(err.message || "Failed to complete sale");
       }
     }
@@ -200,9 +212,12 @@ export default function POSPage() {
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
+    const idempotencyKey = checkoutAttemptKey.current ?? createCheckoutIdempotencyKey();
+    checkoutAttemptKey.current = idempotencyKey;
     
     createSale.mutate({
       data: {
+        idempotencyKey,
         paymentMethod,
         items: cart.map(item => ({
           productId: item.id,
@@ -365,7 +380,10 @@ export default function POSPage() {
           <Button 
             className="w-full h-14 text-lg font-bold" 
             disabled={cart.length === 0 || checkoutUnavailable}
-            onClick={() => setPaymentModalOpen(true)}
+            onClick={() => {
+              checkoutAttemptKey.current = null;
+              setPaymentModalOpen(true);
+            }}
           >
             {isLoadingTaxSettings ? "Loading tax settings..." : `Charge ${formatCurrency(total)}`}
           </Button>
@@ -373,7 +391,12 @@ export default function POSPage() {
       </div>
 
       {/* Payment Modal */}
-      <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+      <Dialog
+        open={paymentModalOpen}
+        onOpenChange={(open) => {
+          if (!createSale.isPending) setPaymentModalOpen(open);
+        }}
+      >
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
           <DialogHeader className="shrink-0 px-6 pb-3 pt-6">
             <DialogTitle className="text-2xl text-center">Complete Payment</DialogTitle>
@@ -429,7 +452,12 @@ export default function POSPage() {
           </div>
 
           <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
-            <Button variant="outline" onClick={() => setPaymentModalOpen(false)} className="w-full sm:w-auto">
+            <Button
+              variant="outline"
+              disabled={createSale.isPending}
+              onClick={() => setPaymentModalOpen(false)}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button 

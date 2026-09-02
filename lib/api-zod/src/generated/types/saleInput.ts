@@ -9,6 +9,11 @@ import type { SaleInputPaymentMethod } from './saleInputPaymentMethod';
 import type { SaleItemInput } from './saleItemInput';
 
 export interface SaleInput {
+  /**
+     * @minLength 8
+     * @maxLength 200
+     */
+  idempotencyKey: string;
   customerId?: string;
   /** @minItems 1 */
   items: SaleItemInput[];

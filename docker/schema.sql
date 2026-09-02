@@ -233,6 +233,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     status text DEFAULT 'completed'::text NOT NULL,
     cash_tendered numeric(10,2),
     note text,
+    idempotency_key text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -391,6 +392,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS purchase_orders_tenant_idempotency_uidx ON pub
 ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS store_id uuid;
 ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS register_id uuid;
 ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS shift_id uuid;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS idempotency_key text;
 ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS unit_cost_snapshot numeric(14,4);
 ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS category_id_snapshot uuid;
 ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS store_id uuid;
@@ -401,6 +403,7 @@ ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS reference_id uui
 CREATE INDEX IF NOT EXISTS sales_tenant_created_idx ON public.sales (tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS sales_tenant_store_created_idx ON public.sales (tenant_id, store_id, created_at);
 CREATE INDEX IF NOT EXISTS sales_tenant_cashier_created_idx ON public.sales (tenant_id, cashier_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS sales_tenant_idempotency_uidx ON public.sales (tenant_id, idempotency_key);
 CREATE INDEX IF NOT EXISTS inventory_movements_tenant_created_idx ON public.inventory_movements (tenant_id, created_at);
 
 -- Primary keys (IF NOT EXISTS not supported for constraints; wrapped in DO blocks)

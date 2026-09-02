@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid, numeric, integer } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uniqueIndex, uuid, numeric, integer } from "drizzle-orm/pg-core";
 
 export const salesTable = pgTable("sales", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -17,11 +17,13 @@ export const salesTable = pgTable("sales", {
   status: text("status").notNull().default("completed"), // completed, refunded, partial_refund, voided
   cashTendered: numeric("cash_tendered", { precision: 10, scale: 2 }),
   note: text("note"),
+  idempotencyKey: text("idempotency_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("sales_tenant_created_idx").on(table.tenantId, table.createdAt),
   index("sales_tenant_store_created_idx").on(table.tenantId, table.storeId, table.createdAt),
   index("sales_tenant_cashier_created_idx").on(table.tenantId, table.cashierId, table.createdAt),
+  uniqueIndex("sales_tenant_idempotency_uidx").on(table.tenantId, table.idempotencyKey),
 ]);
 
 export const saleItemsTable = pgTable("sale_items", {

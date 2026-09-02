@@ -25,8 +25,11 @@ services:
       VIOLET_RUNTIME_MODE: self_hosted
       VIOLET_LICENSE_SERVER_URL: ${VIOLET_LICENSE_SERVER_URL}
       VIOLET_INSTALLATION_ID: ${VIOLET_INSTALLATION_ID:-}
+      VIOLET_DATA_DIR: /app/data
       PORT:           8080
       NODE_ENV:       production
+    volumes:
+      - violet_api_data:/app/data
     # Not exposed directly — nginx proxies /api requests to this container
     expose:
       - "8080"
@@ -44,4 +47,8 @@ services:
 
 volumes:
   violet_db_data:
+    name: violet_db_data
+    driver: local
+  violet_api_data:
+    name: violet_api_data
     driver: local

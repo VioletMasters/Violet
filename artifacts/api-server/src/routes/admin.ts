@@ -15,7 +15,8 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
 const router = Router();
-const RELEASE_ROOT = path.join(process.cwd(), "data", "platform-releases");
+const DATA_ROOT = process.env.VIOLET_DATA_DIR?.trim() || path.join(process.cwd(), "data");
+const RELEASE_ROOT = path.join(DATA_ROOT, "platform-releases");
 const RELEASE_PLATFORMS = new Set(["windows", "macos", "linux", "docker"]);
 const RELEASE_CHANNELS = new Set(["stable", "beta", "nightly"]);
 const STAGING_EMAIL_SUFFIX = "@staging.invalid";

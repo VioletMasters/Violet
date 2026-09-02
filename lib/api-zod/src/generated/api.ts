@@ -850,11 +850,15 @@ export const ListSalesResponse = zod.object({
 /**
  * @summary Create a sale (POS checkout)
  */
+export const createSaleBodyIdempotencyKeyMin = 8;
+export const createSaleBodyIdempotencyKeyMax = 200;
+
 
 export const createSaleBodyItemsItemDiscountDefault = 0;
 
 
 export const CreateSaleBody = zod.object({
+  "idempotencyKey": zod.string().min(createSaleBodyIdempotencyKeyMin).max(createSaleBodyIdempotencyKeyMax),
   "customerId": zod.string().optional(),
   "items": zod.array(zod.object({
   "productId": zod.string(),

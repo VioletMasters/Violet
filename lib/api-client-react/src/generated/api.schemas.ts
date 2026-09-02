@@ -548,6 +548,11 @@ export const SaleInputPaymentMethod = {
 } as const;
 
 export interface SaleInput {
+  /**
+     * @minLength 8
+     * @maxLength 200
+     */
+  idempotencyKey: string;
   customerId?: string;
   /** @minItems 1 */
   items: SaleItemInput[];

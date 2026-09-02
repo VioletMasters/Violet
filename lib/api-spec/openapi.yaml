@@ -808,6 +808,12 @@ paths:
             schema:
               $ref: "#/components/schemas/SaleInput"
       responses:
+        "200":
+          description: Existing sale returned for an idempotent retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
         "201":
           description: Sale created
           content:
@@ -2987,8 +2993,12 @@ components:
 
     SaleInput:
       type: object
-      required: [items, paymentMethod]
+      required: [items, paymentMethod, idempotencyKey]
       properties:
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 200
         customerId:
           type: string
         items:
