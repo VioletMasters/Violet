@@ -198,7 +198,7 @@ export default function LandingPage() {
                 <ul className="space-y-3 text-muted-foreground mb-8 text-sm">
                   <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Any modern computer</strong> — Windows 10/11, macOS 12+, or Linux.</span></li>
                   <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Docker Desktop</strong> — free to download at docker.com.</span></li>
-                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">One-time internet</strong> — only needed for the initial download.</span></li>
+                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" /><span><strong className="text-foreground">Online sign-in verification</strong> — the server checks your Violet license whenever a user signs in.</span></li>
                 </ul>
                 <p className="text-xs text-muted-foreground mb-4">
                   Full setup guide, backup instructions, and HTTPS config included in <code className="bg-muted px-1 rounded">README-local.md</code>.

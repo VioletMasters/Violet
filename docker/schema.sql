@@ -77,9 +77,29 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     token text NOT NULL,
+    license_token text,
+    license_validated_at timestamp with time zone,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE public.sessions
+    ADD COLUMN IF NOT EXISTS license_token text,
+    ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone;
+
+CREATE TABLE IF NOT EXISTS public.license_sessions (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    token_hash text NOT NULL UNIQUE,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    installation_id text NOT NULL,
+    last_verified_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS license_sessions_tenant_idx ON public.license_sessions (tenant_id);
+CREATE INDEX IF NOT EXISTS license_sessions_expires_idx ON public.license_sessions (expires_at);
 
 CREATE TABLE IF NOT EXISTS public.settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

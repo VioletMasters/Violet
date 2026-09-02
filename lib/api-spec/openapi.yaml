@@ -108,6 +108,74 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /license/verify:
+    post:
+      operationId: verifyHostedLicense
+      tags: [license]
+      summary: Verify a self-hosted installation against the Violet account service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LicenseVerifyInput"
+      responses:
+        "200":
+          description: License verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+        "401":
+          description: Account authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+        "402":
+          description: License is not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+
+  /license/revalidate:
+    post:
+      operationId: revalidateHostedLicense
+      tags: [license]
+      summary: Revalidate a self-hosted license session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LicenseRevalidateInput"
+      responses:
+        "200":
+          description: License revalidated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+        "401":
+          description: License session is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+        "402":
+          description: License is not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerificationResponse"
+
   /auth/manager-unlock:
     post:
       operationId: unlockManagerAccess
@@ -2155,6 +2223,53 @@ components:
           type: string
           
         password:
+          type: string
+
+    LicenseVerifyInput:
+      type: object
+      required: [email, password, installationId]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        installationId:
+          type: string
+          minLength: 8
+          maxLength: 200
+
+    LicenseRevalidateInput:
+      type: object
+      required: [licenseToken, installationId]
+      properties:
+        licenseToken:
+          type: string
+        installationId:
+          type: string
+          minLength: 8
+          maxLength: 200
+
+    LicenseVerificationResponse:
+      type: object
+      required: [valid, message, planTier, subscriptionStatus, paymentStatus, licenseStatus, licenseValidUntil]
+      properties:
+        valid:
+          type: boolean
+        message:
+          type: string
+        planTier:
+          type: ["string", "null"]
+        subscriptionStatus:
+          type: ["string", "null"]
+        paymentStatus:
+          type: ["string", "null"]
+        licenseStatus:
+          type: ["string", "null"]
+        licenseValidUntil:
+          type: ["string", "null"]
+        licenseSessionToken:
+          type: string
+        tokenExpiresAt:
           type: string
 
     ManagerAccessInput:

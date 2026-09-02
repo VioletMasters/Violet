@@ -95,13 +95,22 @@ async function main() {
   const pwHash = hashPassword(ADMIN_PASSWORD);
   await client.query(`
     INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role)
-    VALUES ($1, $2, $3, 'Admin', 'User', 'super_admin')
+    VALUES ($1, $2, $3, 'Admin', 'User', 'owner')
     ON CONFLICT (email) DO UPDATE SET
       password_hash = EXCLUDED.password_hash,
-      role          = EXCLUDED.role,
+      role          = CASE WHEN users.role = 'super_admin' THEN users.role ELSE EXCLUDED.role END,
       tenant_id     = EXCLUDED.tenant_id
   `, [tenantId, ADMIN_EMAIL, pwHash]);
-  console.log(`  ✓ Super-admin: ${ADMIN_EMAIL}`);
+  console.log(`  ✓ Local owner: ${ADMIN_EMAIL}`);
+
+  await client.query(`
+    INSERT INTO subscriptions (tenant_id, plan_id, status, payment_status, current_period_start)
+    SELECT $1, id, 'active', 'not_required', NOW()
+    FROM subscription_plans
+    WHERE tier = 'free'
+    ON CONFLICT (tenant_id) DO NOTHING
+  `, [tenantId]);
+  console.log("  ✓ Local license subscription");
 
   // Settings
   await client.query(`

@@ -41,6 +41,42 @@ export interface LoginInput {
   password: string;
 }
 
+export interface LicenseVerifyInput {
+  email: string;
+  password: string;
+  /**
+     * @minLength 8
+     * @maxLength 200
+     */
+  installationId: string;
+}
+
+export interface LicenseRevalidateInput {
+  licenseToken: string;
+  /**
+     * @minLength 8
+     * @maxLength 200
+     */
+  installationId: string;
+}
+
+export interface LicenseVerificationResponse {
+  valid: boolean;
+  message: string;
+  /** @nullable */
+  planTier: string | null;
+  /** @nullable */
+  subscriptionStatus: string | null;
+  /** @nullable */
+  paymentStatus: string | null;
+  /** @nullable */
+  licenseStatus: string | null;
+  /** @nullable */
+  licenseValidUntil: string | null;
+  licenseSessionToken?: string;
+  tokenExpiresAt?: string;
+}
+
 export interface ManagerAccessInput {
   email: string;
   /** @minLength 1 */

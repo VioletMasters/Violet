@@ -10,11 +10,23 @@ import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
 import { getLicenseFailure, isManagerRole, requireAuth, requireSession } from "../middlewares/auth";
 import { issueManagerAccess } from "../lib/manager-access";
+import {
+  isSelfHostedRuntime,
+  syncLocalLicenseSnapshot,
+  verifyHostedLicenseCredentials,
+} from "../lib/remoteLicense";
 
 const router = Router();
 
 // POST /auth/register
 router.post("/auth/register", async (req, res): Promise<void> => {
+  if (isSelfHostedRuntime()) {
+    res.status(403).json({
+      error: "Create your Violet account in the hosted application before signing in to a self-hosted installation.",
+    });
+    return;
+  }
+
   const { businessName, email, password, firstName, lastName } = req.body;
   if (!businessName || !email || !password || !firstName || !lastName) {
     res.status(400).json({ error: "All fields are required" });
@@ -131,7 +143,34 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const licenseFailure = await getLicenseFailure(tenant.id);
+  let licenseFailure: string | null = null;
+  let remoteLicenseToken: string | undefined;
+  let remoteLicenseValidatedAt: Date | undefined;
+  if (isSelfHostedRuntime()) {
+    try {
+      const remoteLicense = await verifyHostedLicenseCredentials(email, password);
+      await syncLocalLicenseSnapshot(tenant.id, remoteLicense);
+      remoteLicenseToken = remoteLicense.licenseSessionToken;
+      remoteLicenseValidatedAt = new Date();
+      [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
+    } catch (error) {
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "statusCode" in error &&
+        typeof error.statusCode === "number"
+          ? error.statusCode
+          : 503;
+      res.status(statusCode).json({
+        error: error instanceof Error
+          ? error.message
+          : "An internet connection is required to verify this Violet account.",
+      });
+      return;
+    }
+  } else {
+    licenseFailure = await getLicenseFailure(tenant.id);
+  }
   [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
   const [plan] = tenant?.planId
     ? await db.select().from(plansTable).where(eq(plansTable.id, tenant.planId)).limit(1)
@@ -140,7 +179,13 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   // Create session
   const token = generateToken();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await db.insert(sessionsTable).values({ userId: user.id, token, expiresAt });
+  await db.insert(sessionsTable).values({
+    userId: user.id,
+    token,
+    expiresAt,
+    licenseToken: remoteLicenseToken,
+    licenseValidatedAt: remoteLicenseValidatedAt,
+  });
 
   res.json({
     token,

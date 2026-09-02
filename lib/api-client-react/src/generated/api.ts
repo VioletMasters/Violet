@@ -63,6 +63,9 @@ import type {
   InventoryPage,
   InventoryReport,
   LatestRelease,
+  LicenseRevalidateInput,
+  LicenseVerificationResponse,
+  LicenseVerifyInput,
   ListAdminSalesParams,
   ListAuditEventsParams,
   ListCustomersParams,
@@ -369,6 +372,148 @@ export const useLogin = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getVerifyHostedLicenseUrl = () => {
+
+
+
+
+  return `/api/license/verify`
+}
+
+/**
+ * @summary Verify a self-hosted installation against the Violet account service
+ */
+export const verifyHostedLicense = async (licenseVerifyInput: LicenseVerifyInput, options?: Parameters<typeof customFetch>[1]): Promise<LicenseVerificationResponse> => {
+
+  return customFetch<LicenseVerificationResponse>(getVerifyHostedLicenseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(licenseVerifyInput)
+  }
+);}
+
+
+
+
+
+export const getVerifyHostedLicenseMutationOptions = <TError = ErrorType<LicenseVerificationResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyHostedLicense>>, TError,{data: BodyType<LicenseVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyHostedLicense>>, TError,{data: BodyType<LicenseVerifyInput>}, TContext> => {
+
+const mutationKey = ['verifyHostedLicense'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyHostedLicense>>, {data: BodyType<LicenseVerifyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyHostedLicense(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyHostedLicenseMutationResult = NonNullable<Awaited<ReturnType<typeof verifyHostedLicense>>>
+    export type VerifyHostedLicenseMutationBody = BodyType<LicenseVerifyInput>
+    export type VerifyHostedLicenseMutationError = ErrorType<LicenseVerificationResponse>
+
+    /**
+ * @summary Verify a self-hosted installation against the Violet account service
+ */
+export const useVerifyHostedLicense = <TError = ErrorType<LicenseVerificationResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyHostedLicense>>, TError,{data: BodyType<LicenseVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyHostedLicense>>,
+        TError,
+        {data: BodyType<LicenseVerifyInput>},
+        TContext
+      > => {
+      return useMutation(getVerifyHostedLicenseMutationOptions(options));
+    }
+
+export const getRevalidateHostedLicenseUrl = () => {
+
+
+
+
+  return `/api/license/revalidate`
+}
+
+/**
+ * @summary Revalidate a self-hosted license session
+ */
+export const revalidateHostedLicense = async (licenseRevalidateInput: LicenseRevalidateInput, options?: Parameters<typeof customFetch>[1]): Promise<LicenseVerificationResponse> => {
+
+  return customFetch<LicenseVerificationResponse>(getRevalidateHostedLicenseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(licenseRevalidateInput)
+  }
+);}
+
+
+
+
+
+export const getRevalidateHostedLicenseMutationOptions = <TError = ErrorType<LicenseVerificationResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revalidateHostedLicense>>, TError,{data: BodyType<LicenseRevalidateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revalidateHostedLicense>>, TError,{data: BodyType<LicenseRevalidateInput>}, TContext> => {
+
+const mutationKey = ['revalidateHostedLicense'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revalidateHostedLicense>>, {data: BodyType<LicenseRevalidateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  revalidateHostedLicense(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevalidateHostedLicenseMutationResult = NonNullable<Awaited<ReturnType<typeof revalidateHostedLicense>>>
+    export type RevalidateHostedLicenseMutationBody = BodyType<LicenseRevalidateInput>
+    export type RevalidateHostedLicenseMutationError = ErrorType<LicenseVerificationResponse>
+
+    /**
+ * @summary Revalidate a self-hosted license session
+ */
+export const useRevalidateHostedLicense = <TError = ErrorType<LicenseVerificationResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revalidateHostedLicense>>, TError,{data: BodyType<LicenseRevalidateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revalidateHostedLicense>>,
+        TError,
+        {data: BodyType<LicenseRevalidateInput>},
+        TContext
+      > => {
+      return useMutation(getRevalidateHostedLicenseMutationOptions(options));
     }
 
 export const getUnlockManagerAccessUrl = () => {

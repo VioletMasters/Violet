@@ -10,6 +10,12 @@ import {
 import { eq, and, gt } from "drizzle-orm";
 import { hasValidManagerAccess } from "../lib/manager-access";
 import { refreshWhopMembershipIfStale, WhopBindingError } from "../lib/subscriptionSync";
+import {
+  isSelfHostedRuntime,
+  revalidateHostedLicense,
+  shouldRevalidateRemoteLicense,
+  syncLocalLicenseSnapshot,
+} from "../lib/remoteLicense";
 
 export interface AuthUser {
   id: string;
@@ -22,6 +28,10 @@ export interface AuthUser {
   createdAt: Date;
 }
 
+interface LicenseCheckOptions {
+  forceOnline?: boolean;
+}
+
 const managerRoles = new Set(["owner", "administrator", "manager", "super_admin"]);
 const MAX_TRANSIENT_WHOP_STALENESS_MS = 6 * 60 * 60 * 1000;
 
@@ -29,7 +39,10 @@ export function isManagerRole(role: string): boolean {
   return managerRoles.has(role);
 }
 
-export async function getLicenseFailure(tenantId: string): Promise<string | null> {
+export async function getLicenseFailure(
+  tenantId: string,
+  options: LicenseCheckOptions = {},
+): Promise<string | null> {
   let [tenant] = await db
     .select()
     .from(tenantsTable)
@@ -50,7 +63,11 @@ export async function getLicenseFailure(tenantId: string): Promise<string | null
 
   if (subscription.whopMembershipId) {
     try {
-      await refreshWhopMembershipIfStale(tenantId, subscription.lastWhopSyncAt);
+      await refreshWhopMembershipIfStale(
+        tenantId,
+        options.forceOnline ? null : subscription.lastWhopSyncAt,
+        options.forceOnline ? 0 : undefined,
+      );
       [tenant] = await db
         .select()
         .from(tenantsTable)
@@ -81,7 +98,7 @@ export async function getLicenseFailure(tenantId: string): Promise<string | null
       const lastVerifiedAt = subscription.lastWhopSyncAt?.getTime() ?? 0;
       const verificationTooOld =
         !lastVerifiedAt || Date.now() - lastVerifiedAt > MAX_TRANSIENT_WHOP_STALENESS_MS;
-      if (permanentVerificationFailure || verificationTooOld) {
+      if (options.forceOnline || permanentVerificationFailure || verificationTooOld) {
         return "Violet could not verify this paid license with Whop. Open Subscription to restore access.";
       }
     }
@@ -121,6 +138,8 @@ declare global {
     interface Request {
       user?: AuthUser;
       tenantId?: string;
+      licenseSessionToken?: string;
+      licenseValidatedAt?: Date | null;
     }
   }
 }
@@ -129,7 +148,30 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const authenticated = await authenticateSession(req, res);
   if (!authenticated) return;
 
-  const licenseFailure = await getLicenseFailure(req.tenantId!);
+  let licenseFailure: string | null;
+  if (isSelfHostedRuntime()) {
+    if (!req.licenseSessionToken) {
+      licenseFailure = "Online license validation is required. Sign in again with an internet connection.";
+    } else if (!shouldRevalidateRemoteLicense(req.licenseValidatedAt ?? null)) {
+      licenseFailure = null;
+    } else {
+      try {
+        const snapshot = await revalidateHostedLicense(req.licenseSessionToken);
+        await syncLocalLicenseSnapshot(req.tenantId!, snapshot);
+        licenseFailure = null;
+        await db
+          .update(sessionsTable)
+          .set({ licenseValidatedAt: new Date() })
+          .where(eq(sessionsTable.token, req.headers.authorization!.slice(7)));
+      } catch (err) {
+        licenseFailure = err instanceof Error
+          ? err.message
+          : "Violet could not verify this license online.";
+      }
+    }
+  } else {
+    licenseFailure = await getLicenseFailure(req.tenantId!);
+  }
   if (licenseFailure) {
     res.status(402).json({ error: licenseFailure });
     return;
@@ -182,6 +224,8 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
       createdAt: user.createdAt,
     };
     req.tenantId = user.tenantId;
+    req.licenseSessionToken = session.licenseToken ?? undefined;
+    req.licenseValidatedAt = session.licenseValidatedAt;
     return true;
   } catch (err) {
     req.log.error({ err }, "Auth middleware error");

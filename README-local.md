@@ -1,6 +1,6 @@
 # Violet Enterprise — Local / LAN Setup Guide
 
-Run the full Violet Enterprise POS system on your own computer or server. No internet required after the initial setup. Any phone, tablet, or PC on the same Wi-Fi or wired network can then use the system by opening a browser.
+Run the full Violet Enterprise POS system on your own computer or server. The server needs internet access whenever a user signs in so Violet can verify the account license. After sign-in, phones, tablets, and PCs on the same Wi-Fi or wired network can use the system by opening a browser.
 
 ---
 
@@ -31,6 +31,7 @@ SESSION_SECRET=    ← Paste a long random string here (see below)
 ADMIN_EMAIL=       ← Your email address (this becomes your login)
 ADMIN_PASSWORD=    ← Choose a strong password
 POSTGRES_PASSWORD= ← Choose a database password (can be anything random)
+VIOLET_LICENSE_SERVER_URL= ← HTTPS URL of the Violet cloud licensing service
 ```
 
 **How to generate a SESSION_SECRET:**
@@ -46,6 +47,10 @@ POSTGRES_PASSWORD= ← Choose a database password (can be anything random)
 - Or just type 64 random characters — letters and numbers, no spaces.
 
 > ⚠️ **Important:** The system will refuse to start if `SESSION_SECRET` is empty or shorter than 32 characters. This protects your data.
+
+Use the same Violet cloud account email and password for `ADMIN_EMAIL` and `ADMIN_PASSWORD` that owns the license. The local server uses those credentials only to perform the online sign-in verification; it does not receive Whop credentials.
+
+Set `VIOLET_LICENSE_SERVER_URL` to the published HTTPS URL for your Violet cloud application. Do not use the local LAN address here.
 
 Leave `DATABASE_URL` and `PORT` as they are — they are already set correctly for Docker.
 
@@ -80,7 +85,7 @@ To use it from **another device on your network** (phone, tablet, another PC):
    - **Linux:** `ip addr show` in terminal
 2. On the other device, open a browser and go to `http://192.168.x.x` (replace with the actual IP)
 
-Log in with the `ADMIN_EMAIL` and `ADMIN_PASSWORD` you set in Step 2.
+Log in with the `ADMIN_EMAIL` and `ADMIN_PASSWORD` you set in Step 2. An internet connection is required for this sign-in. If the account is cancelled, expired, suspended, refunded, or cannot be verified, Violet will not open the POS.
 
 ---
 
@@ -122,6 +127,14 @@ Violet Enterprise keeps the full subscription tier system even when self-hosted.
 | Enterprise | Custom | Unlimited | Unlimited | Unlimited |
 
 As the platform admin, you can adjust plan limits and prices from the **Admin → Plans** section.
+
+---
+
+## License verification
+
+Every local sign-in is checked against the hosted Violet licensing service. The hosted service verifies the Violet account and, for paid plans, refreshes the Whop membership before allowing access.
+
+The local server also rechecks the license while users are active. A temporary network outage does not bypass the sign-in requirement: users must reconnect to the internet and sign in again if the online license session expires.
 
 ---
 

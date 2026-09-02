@@ -16,6 +16,11 @@ if (!sessionSecret || sessionSecret === "changeme" || sessionSecret === "secret"
   process.exit(1);
 }
 
+if (process.env.VIOLET_RUNTIME_MODE === "self_hosted" && !process.env.VIOLET_LICENSE_SERVER_URL) {
+  logger.error("VIOLET_LICENSE_SERVER_URL is required for self-hosted installations.");
+  process.exit(1);
+}
+
 const app: Express = express();
 
 // Violet is served through one managed reverse-proxy hop. Trust that proxy so
@@ -84,6 +89,8 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/manager-unlock", authLimiter);
 app.use("/api/auth/manager-confirmation", authLimiter);
+app.use("/api/license/verify", authLimiter);
+app.use("/api/license/revalidate", authLimiter);
 
 app.use("/api", router);
 

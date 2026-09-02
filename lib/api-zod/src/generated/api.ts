@@ -114,6 +114,59 @@ export const LoginResponse = zod.object({
 
 
 /**
+ * @summary Verify a self-hosted installation against the Violet account service
+ */
+export const verifyHostedLicenseBodyInstallationIdMin = 8;
+export const verifyHostedLicenseBodyInstallationIdMax = 200;
+
+
+
+export const VerifyHostedLicenseBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string(),
+  "installationId": zod.string().min(verifyHostedLicenseBodyInstallationIdMin).max(verifyHostedLicenseBodyInstallationIdMax)
+})
+
+export const VerifyHostedLicenseResponse = zod.object({
+  "valid": zod.boolean(),
+  "message": zod.string(),
+  "planTier": zod.string().nullable(),
+  "subscriptionStatus": zod.string().nullable(),
+  "paymentStatus": zod.string().nullable(),
+  "licenseStatus": zod.string().nullable(),
+  "licenseValidUntil": zod.string().nullable(),
+  "licenseSessionToken": zod.string().optional(),
+  "tokenExpiresAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Revalidate a self-hosted license session
+ */
+export const revalidateHostedLicenseBodyInstallationIdMin = 8;
+export const revalidateHostedLicenseBodyInstallationIdMax = 200;
+
+
+
+export const RevalidateHostedLicenseBody = zod.object({
+  "licenseToken": zod.string(),
+  "installationId": zod.string().min(revalidateHostedLicenseBodyInstallationIdMin).max(revalidateHostedLicenseBodyInstallationIdMax)
+})
+
+export const RevalidateHostedLicenseResponse = zod.object({
+  "valid": zod.boolean(),
+  "message": zod.string(),
+  "planTier": zod.string().nullable(),
+  "subscriptionStatus": zod.string().nullable(),
+  "paymentStatus": zod.string().nullable(),
+  "licenseStatus": zod.string().nullable(),
+  "licenseValidUntil": zod.string().nullable(),
+  "licenseSessionToken": zod.string().optional(),
+  "tokenExpiresAt": zod.string().optional()
+})
+
+
+/**
  * @summary Verify manager credentials for protected business management access
  */
 
