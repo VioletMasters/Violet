@@ -91,12 +91,16 @@ ALTER TABLE public.sessions
     ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone;
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL;
+ALTER TABLE public.employees
+    ADD COLUMN IF NOT EXISTS user_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS employees_user_id_unique
+    ON public.employees (user_id)
+    WHERE user_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.license_sessions (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     token_hash text NOT NULL UNIQUE,
     tenant_id uuid NOT NULL,
-    user_id uuid,
     user_id uuid NOT NULL,
     installation_id text NOT NULL,
     last_verified_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -262,6 +266,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_movements (
 CREATE TABLE IF NOT EXISTS public.employees (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
+    user_id uuid,
     first_name text NOT NULL,
     last_name text NOT NULL,
     email text,
