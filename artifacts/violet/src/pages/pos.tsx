@@ -5,6 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   listPosProducts,
@@ -27,6 +36,11 @@ type PendingCartRemoval = {
   action: "remove" | "decrement";
 };
 
+type PaymentCompletion = {
+  change: number;
+  receiptNumber?: string;
+};
+
 export default function POSPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -38,6 +52,7 @@ export default function POSPage() {
   const [pendingCartRemoval, setPendingCartRemoval] = useState<PendingCartRemoval | null>(null);
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
   const [managerPassword, setManagerPassword] = useState("");
+  const [paymentCompletion, setPaymentCompletion] = useState<PaymentCompletion | null>(null);
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
@@ -50,12 +65,15 @@ export default function POSPage() {
 
   const createSale = useCreateSale({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (sale) => {
+        const tendered = paymentMethod === "cash" ? Number.parseFloat(cashTendered) : 0;
+        const change = Number.isFinite(tendered) ? Math.max(0, tendered - total) : 0;
         toast.success("Sale completed successfully!");
         setCart([]);
         setPaymentModalOpen(false);
         setCashTendered("");
         setSearch("");
+        setPaymentCompletion({ change, receiptNumber: sale.receiptNumber });
       },
       onError: (err) => {
         toast.error(err.message || "Failed to complete sale");
@@ -195,6 +213,19 @@ export default function POSPage() {
       }
     });
   };
+
+  React.useEffect(() => {
+    if (!paymentCompletion) return;
+
+    const handleCompletionKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      setPaymentCompletion(null);
+    };
+
+    window.addEventListener("keydown", handleCompletionKeyDown);
+    return () => window.removeEventListener("keydown", handleCompletionKeyDown);
+  }, [paymentCompletion]);
 
   return (
     <div className="h-[calc(100vh-theme(spacing.16)-theme(spacing.8))] flex gap-6 overflow-hidden relative">
@@ -411,6 +442,46 @@ export default function POSPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!paymentCompletion}
+        onOpenChange={(open) => {
+          if (!open) setPaymentCompletion(null);
+        }}
+      >
+        <AlertDialogContent
+          className="border-primary/30 sm:max-w-lg"
+          aria-describedby="payment-completion-description"
+        >
+          <AlertDialogHeader className="items-center text-center">
+            <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
+              <Banknote className="h-8 w-8" />
+            </div>
+            <AlertDialogTitle className="text-2xl">Payment complete</AlertDialogTitle>
+            <AlertDialogDescription id="payment-completion-description">
+              {paymentCompletion?.receiptNumber
+                ? `Receipt ${paymentCompletion.receiptNumber}`
+                : "The sale was recorded successfully."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-6 py-7 text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Change
+            </p>
+            <p className="mt-2 text-5xl font-display font-bold text-emerald-500">
+              {formatCurrency(paymentCompletion?.change ?? 0)}
+            </p>
+          </div>
+          <AlertDialogFooter className="sm:justify-center">
+            <AlertDialogAction className="h-12 min-w-40 text-base">
+              Okay
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          <p className="text-center text-xs text-muted-foreground">
+            Press Okay, Enter, or Space to continue
+          </p>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={!!pendingCartRemoval}
