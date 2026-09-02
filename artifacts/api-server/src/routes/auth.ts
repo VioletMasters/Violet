@@ -176,7 +176,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       });
       return;
     }
-  } else {
+  } else if (user.role !== "super_admin") {
     licenseFailure = await getLicenseFailure(tenant.id);
   }
   [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);

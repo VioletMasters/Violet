@@ -39,6 +39,10 @@ export function isManagerRole(role: string): boolean {
   return managerRoles.has(role);
 }
 
+export function isSuperAdmin(user?: Pick<AuthUser, "role"> | null): boolean {
+  return user?.role === "super_admin";
+}
+
 export async function getLicenseFailure(
   tenantId: string,
   options: LicenseCheckOptions = {},
@@ -170,7 +174,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           : "Violet could not verify this license online.";
       }
     }
-  } else {
+  } else if (!isSuperAdmin(req.user)) {
     licenseFailure = await getLicenseFailure(req.tenantId!);
   }
   if (licenseFailure) {
@@ -253,6 +257,11 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
 
 export async function requireManagerAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
   await requireAuth(req, res, () => {
+    if (isSuperAdmin(req.user)) {
+      next();
+      return;
+    }
+
     const sessionToken = req.headers.authorization?.slice(7) ?? "";
     const managerAccessToken = req.header("x-violet-manager-access");
 

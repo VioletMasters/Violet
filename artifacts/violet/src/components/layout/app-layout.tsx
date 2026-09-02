@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { token, tenant, logout, isManagerAccessActive } = useAuth();
+  const { token, tenant, user, logout, isManagerAccessActive } = useAuth();
+  const isSuperAdmin = user?.role === "super_admin";
   
   // Verify token
   const { data: me, error } = useGetMe({
@@ -23,10 +24,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) {
       setLocation("/login");
-    } else if (tenant?.requiresBillingAction && location !== "/subscription") {
+    } else if (tenant?.requiresBillingAction && !isSuperAdmin && location !== "/subscription") {
       setLocation("/subscription");
     }
-  }, [token, tenant?.requiresBillingAction, location, setLocation]);
+  }, [token, tenant?.requiresBillingAction, isSuperAdmin, location, setLocation]);
 
   useEffect(() => {
     if (error) {

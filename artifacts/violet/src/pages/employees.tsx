@@ -14,6 +14,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 const employeeSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -31,10 +32,11 @@ export default function EmployeesPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: employees } = useListEmployees();
   const { data: subscription } = useGetSubscription();
   
-  const isFreePlan = subscription?.plan?.tier === "free";
+  const isFreePlan = user?.role !== "super_admin" && subscription?.plan?.tier === "free";
   
   const filteredEmployees = employees?.filter(e => 
     e.firstName.toLowerCase().includes(search.toLowerCase()) || 

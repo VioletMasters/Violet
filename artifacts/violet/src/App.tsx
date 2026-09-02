@@ -24,9 +24,10 @@ import Suppliers from './pages/suppliers';
 const DefaultAppRoute = () => <Redirect to="/pos" />;
 
 function RootRoute() {
-  const { token, tenant } = useAuth();
+  const { token, tenant, user } = useAuth();
+  const isSuperAdmin = user?.role === "super_admin";
 
-  return <Redirect to={token ? (tenant?.requiresBillingAction ? "/subscription" : "/pos") : "/login"} />;
+  return <Redirect to={token ? (tenant?.requiresBillingAction && !isSuperAdmin ? "/subscription" : "/pos") : "/login"} />;
 }
 
 const queryClient = new QueryClient({
