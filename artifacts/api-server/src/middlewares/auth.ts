@@ -123,6 +123,7 @@ export async function getLicenseFailure(
   const paymentOverdue =
     subscription.paymentStatus === "past_due" ||
     subscription.paymentStatus === "failed" ||
+    subscription.paymentStatus === "refunded" ||
     (isMonthly && Boolean(subscription.currentPeriodEnd && subscription.currentPeriodEnd <= new Date()));
   const inactiveSubscription = ["expired", "cancelled"].includes(subscription.status);
 
