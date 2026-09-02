@@ -3,6 +3,7 @@ import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
 export const employeesTable = pgTable("employees", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
+  userId: uuid("user_id").unique(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   email: text("email"),
