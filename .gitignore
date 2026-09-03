@@ -14,6 +14,7 @@ node_modules
 # Tauri generated platform bindings and native build outputs
 artifacts/violet-desktop/src-tauri/gen/
 artifacts/violet-desktop/src-tauri/target/
+artifacts/violet-desktop/src-tauri/resources/violet-self-host.zip
 
 # IDEs and editors
 /.idea

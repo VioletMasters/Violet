@@ -8,7 +8,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "npm run prepare:self-host && npm run build"
   },
   "app": {
     "windows": [
@@ -40,6 +40,9 @@
     "copyright": "© 2026 Violet Enterprise",
     "shortDescription": "Violet Enterprise POS & Business Management",
     "longDescription": "Violet Enterprise is a professional point-of-sale and business management platform. This desktop app connects to your Violet server instance and provides a native desktop experience.",
+    "resources": [
+      "resources/violet-self-host.zip"
+    ],
     "windows": {
       "webviewInstallMode": {
         "type": "offlineInstaller"

@@ -1,9 +1,24 @@
 # Violet Enterprise Desktop Apps
 
-Violet Enterprise is distributed as a native desktop shell that connects to a
-Violet server. The desktop app does not bundle the API or database: run Violet
-through the cloud deployment or the Docker self-host bundle first, then point
-the desktop app at that server address.
+Violet Enterprise is distributed as a native desktop shell. On first launch it
+asks which role this computer should have and remembers that choice and server
+address. Use **Configure Server** in the native app menu to return to this role
+selection at any time.
+
+## First-run modes
+
+- **Hosted Cloud** opens `https://Violetsolutions.replit.app`.
+- **Store Host (this desktop)** installs and manages the bundled Violet stack
+  with Docker Desktop, then opens the local host at `http://127.0.0.1`.
+- **Store Host (existing server)** connects this server computer to a Violet
+  stack installed separately.
+- **Store Client** connects a register to an existing Store Host.
+
+The managed Store Host requires [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+to be installed and running, including Docker Compose v2. The setup asks for
+the hosted Violet account email/password and HTTPS license URL; it creates its
+own local secrets and preserves Docker named volumes across starts. LAN host
+addresses may use HTTP; use HTTPS for hosts exposed beyond the trusted LAN.
 
 ## Download a release
 
@@ -20,7 +35,8 @@ After a release is available:
    - `x86_64` for Intel Macs
    - `aarch64` for Apple Silicon Macs (M1/M2/M3/M4)
 4. Install the app and launch **Violet Enterprise**.
-5. On first launch, enter the address of the Violet server:
+5. On first launch, select the appropriate role. For an existing host, enter
+   its address:
    - LAN Docker host: `http://192.168.1.10`
    - Cloud deployment: `https://pos.example.com`
 

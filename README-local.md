@@ -2,6 +2,14 @@
 
 Run the full Violet Enterprise POS system on your own computer or server. The server needs internet access whenever a user signs in so Violet can verify the account license. After sign-in, phones, tablets, and PCs on the same Wi-Fi or wired network can use the system by opening a browser.
 
+> **Desktop app option:** Violet Desktop's **Store Host (this desktop)** mode
+> performs this setup from the first-run screen. It requires Docker Desktop
+> (including Docker Compose v2) to be installed and running, creates the local
+> `.env` and Docker stack in its app-data directory, and keeps the named volumes
+> when restarted. Choose **Store Client** on other registers and enter the
+> Store Host LAN address. The manual instructions below remain useful for a
+> separately installed Store Host.
+
 ## How the local server works
 
 One computer runs the complete Violet server for the store. Its PostgreSQL database and persistent file volume are the authoritative copy of all store information. Cashier computers, tablets, and phones are clients: they open the address of that one server and never create separate store databases.
