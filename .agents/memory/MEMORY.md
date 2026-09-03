@@ -9,3 +9,4 @@
 - [Employee login lifecycle](employee-login-lifecycle.md) — employee records and login users stay linked; first login requires replacing a one-time temporary password.
 - [LAN server authority](lan-server-authority.md) — one store server owns canonical data/files; cashier clients require server confirmation and retry checkouts idempotently.
 - [Inventory financial valuation](inventory-financial-valuation.md) — missing product costs make profit incomplete; receipt costs and purchase commitments are not supplier payments.
+- [Deployment image size](deployment-image-size.md) — root Nix packages become autoscale image layers; keep desktop-only dependencies out of hosted deployments.
