@@ -49,7 +49,11 @@ export default function LoginPage() {
             return;
           }
         }
-        setLocation(data.tenant.requiresBillingAction ? "/subscription" : "/pos");
+        setLocation(data.tenant.requiresBillingAction && data.user.role !== "super_admin"
+          ? "/subscription"
+          : data.user.role === "super_admin"
+            ? "/admin"
+            : "/pos");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to login. Please check your credentials.");

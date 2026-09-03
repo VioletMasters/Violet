@@ -31,7 +31,7 @@ export default function ChangePasswordPage() {
       onSuccess: (updatedUser) => {
         updateUser(updatedUser);
         toast.success("Password updated");
-        setLocation("/pos");
+        setLocation(updatedUser.role === "super_admin" ? "/admin" : "/pos");
       },
       onError: (error) => toast.error(error.message || "Password could not be updated"),
     },
