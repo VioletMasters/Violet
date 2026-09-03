@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startAbandonedPaidSignupCleanup } from "./lib/abandonedPaidSignups";
+import { bootstrapHostedSuperAdmin } from "./lib/hostedSuperAdminBootstrap";
 
 const rawPort = process.env["PORT"];
 
@@ -16,12 +17,21 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+async function startServer() {
+  await bootstrapHostedSuperAdmin();
 
-  logger.info({ port }, "Server listening");
-  startAbandonedPaidSignupCleanup();
+  app.listen(port, (err) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
+    }
+
+    logger.info({ port }, "Server listening");
+    startAbandonedPaidSignupCleanup();
+  });
+}
+
+startServer().catch((err) => {
+  logger.error({ err }, "Server startup failed");
+  process.exit(1);
 });
