@@ -397,7 +397,7 @@ export default function POSPage() {
           if (!createSale.isPending) setPaymentModalOpen(open);
         }}
       >
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
           <DialogHeader className="shrink-0 px-6 pb-3 pt-6">
             <DialogTitle className="text-2xl text-center">Complete Payment</DialogTitle>
           </DialogHeader>
