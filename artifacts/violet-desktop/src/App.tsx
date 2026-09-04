@@ -80,10 +80,6 @@ export default function App() {
     if (selected === 'cloud') return connect(selected, CLOUD_URL);
     if (selected === 'managed-host') {
       setPhase('details');
-      if (isTauri) {
-        const { invoke } = await import('@tauri-apps/api/core');
-        try { setDocker(await invoke<DockerStatus>('get_docker_status')); } catch { setDocker({ available: false, composeAvailable: false, message: 'Docker check failed. Install and start Docker Desktop.' }); }
-      }
       return;
     }
     setPhase('details'); setTimeout(() => inputRef.current?.focus(), 50);
@@ -144,5 +140,5 @@ export default function App() {
 function Shell({ children }: { children: React.ReactNode }) { return <main><section><Logo/>{children}<small>{!isTauri && 'Browser preview mode · '}Violet Enterprise Desktop</small></section></main>; }
 function ModeCard({ title, text, onClick }: { title: string; text: string; onClick: () => void }) { return <button type="button" className="mode" onClick={onClick}><strong>{title}</strong><span>{text}</span></button>; }
 function ErrorNotice({ text }: { text: string }) { return <p className="notice bad diagnostic">{text}</p>; }
-function Loading({ phase, url, onCancel }: { phase: Phase; url: string; onCancel: () => void }) { return <main><section className="loading"><Logo/><i/><h1>{phase === 'starting' ? 'Starting Store Host…' : 'Connecting…'}</h1><p>{phase === 'starting' ? 'Docker is building Violet. This can take a few minutes on first setup.' : `Opening ${url}`}</p><button className="link" onClick={onCancel}>Cancel / change mode</button></section></main>; }
+function Loading({ phase, url, onCancel }: { phase: Phase; url: string; onCancel: () => void }) { return <main><section className="loading"><Logo/><i/><h1>{phase === 'starting' ? 'Starting Store Host…' : 'Connecting…'}</h1><p>{phase === 'starting' ? 'Docker is building Violet. This can take a few minutes on first setup.' : `Opening ${url}`}</p><button type="button" className="link" onClick={onCancel}>Cancel / change mode</button></section></main>; }
 function Logo() { return <div className="logo"><b>●</b><strong>Violet Enterprise</strong></div>; }
