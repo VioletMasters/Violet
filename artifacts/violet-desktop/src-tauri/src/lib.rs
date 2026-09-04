@@ -286,12 +286,15 @@ fn compose_start_error(directory: &Path, output: &std::process::Output) -> Strin
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    let hint = startup_failure_hint(&compose_output)
+    let compose_output = tail_lines(&compose_output, 18, 3600);
+    let diagnostics = managed_host_diagnostics(directory);
+    let hint = startup_failure_hint(&format!("{compose_output}\n{diagnostics}"))
         .map(|hint| format!("\n\nLikely cause: {hint}"))
         .unwrap_or_default();
     format!(
-        "Docker Compose could not start the Store Host.\n\n{}\n{}",
-        redact_diagnostics(directory, &tail_lines(&compose_output, 18, 3600)),
+        "Docker Compose could not start the Store Host.\n\nCompose output:\n{}\n\n{}{}",
+        redact_diagnostics(directory, &compose_output),
+        diagnostics,
         hint
     )
 }
