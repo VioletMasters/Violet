@@ -13,7 +13,7 @@ use serde::Serialize;
 use tauri::{Manager, Runtime};
 
 fn docker_command() -> Command {
-    let mut command = docker_command();
+    let mut command = Command::new("docker");
 
     #[cfg(windows)]
     {
@@ -125,7 +125,7 @@ struct ManagedHostStatus {
     message: String,
 }
 
-fn docker_status() -> DockerStatus {
+fn docker_status_inner() -> DockerStatus {
     let docker = docker_command()
         .args(["version", "--format", "{{.Server.Version}}"])
         .output();
@@ -152,6 +152,34 @@ fn docker_status() -> DockerStatus {
                 "Docker Desktop is not available. Install Docker Desktop, start it, then try again."
                     .into(),
         },
+    }
+}
+
+fn docker_status() -> DockerStatus {
+    // A missing Docker CLI should be a normal setup error, not a native-app
+    // failure. Keep the boundary guarded because this command runs from a
+    // webview event and must never take the desktop process down.
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(docker_status_inner)).unwrap_or_else(
+        |_| {
+            let message =
+                "Docker status check failed unexpectedly. Start Docker Desktop, then try again.";
+            report_runtime_error(message);
+            DockerStatus {
+                available: false,
+                compose_available: false,
+                message: message.into(),
+            }
+        },
+    )
+}
+
+fn report_runtime_error(error: &str) {
+    let log_path = startup_log_path();
+    if let Some(parent) = log_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(mut log) = OpenOptions::new().create(true).append(true).open(log_path) {
+        let _ = writeln!(log, "Violet Enterprise runtime failure: {error}");
     }
 }
 
@@ -488,7 +516,8 @@ fn wait_for_managed_host(directory: PathBuf, rebuild: bool) -> Result<ManagedHos
     if rebuild {
         command.args(["--build", "--remove-orphans"]);
     }
-    let launched = command.arg("-d").output().map_err(|_| {
+    let launched = command.arg("-d").output().map_err(|error| {
+        report_runtime_error(&format!("Docker Compose process could not start: {error}"));
         "Could not start Docker. Confirm Docker Desktop is running, then try again.".to_string()
     })?;
     if !launched.status.success() {
