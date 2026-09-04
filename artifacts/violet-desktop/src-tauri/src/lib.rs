@@ -12,6 +12,20 @@ use rand::{rngs::OsRng, RngCore};
 use serde::Serialize;
 use tauri::{Manager, Runtime};
 
+fn docker_command() -> Command {
+    let mut command = docker_command();
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        // Keep Docker CLI windows from appearing behind the desktop app.
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+
+    command
+}
+
 fn startup_log_path() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -112,12 +126,12 @@ struct ManagedHostStatus {
 }
 
 fn docker_status() -> DockerStatus {
-    let docker = Command::new("docker")
+    let docker = docker_command()
         .args(["version", "--format", "{{.Server.Version}}"])
         .output();
     match docker {
         Ok(output) if output.status.success() => {
-            let compose = Command::new("docker").args(["compose", "version"]).output();
+            let compose = docker_command().args(["compose", "version"]).output();
             match compose {
                 Ok(output) if output.status.success() => DockerStatus {
                     available: true,
@@ -227,11 +241,11 @@ fn startup_failure_hint(value: &str) -> Option<&'static str> {
 }
 
 fn managed_host_diagnostics(directory: &Path) -> String {
-    let status = Command::new("docker")
+    let status = docker_command()
         .current_dir(directory)
         .args(["compose", "ps", "--all", "--format", "json"])
         .output();
-    let logs = Command::new("docker")
+    let logs = docker_command()
         .current_dir(directory)
         .args(["compose", "logs", "--no-color", "--tail", "40"])
         .output();
@@ -466,7 +480,7 @@ fn wait_for_managed_host(directory: PathBuf, rebuild: bool) -> Result<ManagedHos
                 .into(),
         );
     }
-    let mut command = Command::new("docker");
+    let mut command = docker_command();
     command.current_dir(&directory).args(["compose", "up"]);
     if rebuild {
         command.args(["--build", "--remove-orphans"]);
@@ -495,7 +509,7 @@ fn wait_for_managed_host(directory: PathBuf, rebuild: bool) -> Result<ManagedHos
                 message: "Your Store Host is ready.".into(),
             });
         }
-        let snapshot = Command::new("docker")
+        let snapshot = docker_command()
             .current_dir(&directory)
             .args(["compose", "ps", "--all", "--format", "json"])
             .output()
