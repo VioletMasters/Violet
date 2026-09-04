@@ -159,16 +159,18 @@ fn docker_status() -> DockerStatus {
     // A missing Docker CLI should be a normal setup error, not a native-app
     // failure. Keep the boundary guarded because this command runs from a
     // webview event and must never take the desktop process down.
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(docker_status_inner))
-        .unwrap_or_else(|_| {
-            let message = "Docker status check failed unexpectedly. Start Docker Desktop, then try again.";
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(docker_status_inner)).unwrap_or_else(
+        |_| {
+            let message =
+                "Docker status check failed unexpectedly. Start Docker Desktop, then try again.";
             report_runtime_error(message);
             DockerStatus {
                 available: false,
                 compose_available: false,
                 message: message.into(),
             }
-        })
+        },
+    )
 }
 
 fn report_runtime_error(error: &str) {
