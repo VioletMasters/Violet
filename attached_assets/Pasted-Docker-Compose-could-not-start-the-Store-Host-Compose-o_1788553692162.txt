@@ -1,0 +1,39 @@
+Docker Compose could not start the Store Host.
+
+Compose output:
+time="2026-09-04T15:22:17-05:00" level=warning msg="volume \"violet_db_data\" already exists but was created for project \"store-basic\" (expected \"store-host\"). Use `external: true` to use an existing volume"
+time="2026-09-04T15:22:17-05:00" level=warning msg="volume \"violet_api_data\" already exists but was created for project \"store-basic\" (expected \"store-host\"). Use `external: true` to use an existing volume"
+ Container store-host-api-1 Running 
+ Container store-host-web-1 Running 
+ Container store-host-db-1 Running 
+ Container store-host-db-1 Waiting 
+ Container store-host-db-1 Healthy 
+ Container store-host-api-1 Waiting 
+ Container store-host-api-1 Error dependency api failed to start
+dependency failed to start: container store-host-api-1 is unhealthy
+
+Services: api: running (starting), db: running (healthy), web: running (unhealthy)
+
+Recent Docker output:
+api-1  |    Database not ready yet, retrying in 2s... (14 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (13 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (12 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (11 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (10 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (9 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (8 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (7 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (6 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (5 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (4 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (3 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (2 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (1 attempts left)
+api-1  | ERROR: Could not connect to the database after multiple retries.
+api-1  |        Check that DATABASE_URL is correct and the database is running.
+api-1  | ▶  Waiting for database...
+api-1  |    Database not ready yet, retrying in 2s... (30 attempts left)
+
+Likely cause: The API cannot reach PostgreSQL yet. Keep the database container running and retry.
+
+Likely cause: The API cannot reach PostgreSQL yet. Keep the database container running and retry.
