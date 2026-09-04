@@ -171,12 +171,18 @@ fn tail_lines(value: &str, max_lines: usize, max_chars: usize) -> String {
     result
 }
 
+fn compose_status_values(raw: &str) -> Vec<serde_json::Value> {
+    if let Ok(serde_json::Value::Array(values)) = serde_json::from_str(raw) {
+        return values;
+    }
+    raw.lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .collect()
+}
+
 fn compose_service_summary(raw: &str) -> String {
     let mut services = Vec::new();
-    for line in raw.lines() {
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
+    for value in compose_status_values(raw) {
         let service = value
             .get("Service")
             .or_else(|| value.get("Name"))
