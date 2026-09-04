@@ -107,6 +107,14 @@ export default function App() {
       await connect('managed-host', result.url);
     } catch (reason) { setPhase('details'); setError(typeof reason === 'string' ? reason : 'Could not start the Store Host.'); }
   };
+  const retryHost = async () => {
+    setError(null); setPhase('starting');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke<{ url: string }>('retry_managed_host');
+      await connect('managed-host', result.url);
+    } catch (reason) { setPhase('details'); setError(typeof reason === 'string' ? reason : 'Could not retry the Store Host.'); }
+  };
 
   if (phase === 'checking' || phase === 'connecting' || phase === 'starting') return <Loading phase={phase} url={url} onCancel={choose} />;
   if (phase === 'choose') return <Shell><h1>Set up Violet</h1><p>Choose how this desktop will use Violet. You can change this any time from <b>Configure Server</b>.</p>
@@ -125,7 +133,8 @@ export default function App() {
       <label>Hosted Violet email<input ref={inputRef} type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" /></label>
       <label>Hosted Violet password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" /></label>
       <label>Hosted license URL<input type="url" value={licenseUrl} onChange={e => setLicenseUrl(e.target.value)} required /></label>
-      {error && <ErrorNotice text={error}/>}<button disabled={!!docker && (!docker.available || !docker.composeAvailable)}>Start Store Host</button>
+      {error && <><ErrorNotice text={error}/><button type="button" className="secondary" onClick={retryHost}>Retry existing Store Host</button></>}
+      <button disabled={!!docker && (!docker.available || !docker.composeAvailable)}>{error ? 'Rebuild Store Host' : 'Start Store Host'}</button>
     </form> : <form onSubmit={submitExternal}>
       <p>{external ? 'Enter the local address of the separately installed server.' : 'Ask your store administrator for the Store Host address.'} HTTP is suitable for a trusted LAN; use HTTPS for internet-facing hosts.</p>
       <label>Server address<input ref={inputRef} value={url} onChange={e => setUrl(e.target.value)} placeholder="http://192.168.1.10" required autoComplete="url" /></label>
@@ -134,6 +143,6 @@ export default function App() {
 }
 function Shell({ children }: { children: React.ReactNode }) { return <main><section><Logo/>{children}<small>{!isTauri && 'Browser preview mode · '}Violet Enterprise Desktop</small></section></main>; }
 function ModeCard({ title, text, onClick }: { title: string; text: string; onClick: () => void }) { return <button className="mode" onClick={onClick}><strong>{title}</strong><span>{text}</span></button>; }
-function ErrorNotice({ text }: { text: string }) { return <p className="notice bad">{text}</p>; }
+function ErrorNotice({ text }: { text: string }) { return <p className="notice bad diagnostic">{text}</p>; }
 function Loading({ phase, url, onCancel }: { phase: Phase; url: string; onCancel: () => void }) { return <main><section className="loading"><Logo/><i/><h1>{phase === 'starting' ? 'Starting Store Host…' : 'Connecting…'}</h1><p>{phase === 'starting' ? 'Docker is building Violet. This can take a few minutes on first setup.' : `Opening ${url}`}</p><button className="link" onClick={onCancel}>Cancel / change mode</button></section></main>; }
 function Logo() { return <div className="logo"><b>●</b><strong>Violet Enterprise</strong></div>; }

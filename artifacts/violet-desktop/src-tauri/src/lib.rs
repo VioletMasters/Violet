@@ -141,6 +141,141 @@ fn docker_status() -> DockerStatus {
     }
 }
 
+fn redact_diagnostics(directory: &Path, value: &str) -> String {
+    let mut redacted = value.to_string();
+    if let Ok(dotenv) = fs::read_to_string(directory.join(".env")) {
+        let values = parse_dotenv(&dotenv);
+        for key in [
+            "ADMIN_EMAIL",
+            "ADMIN_PASSWORD",
+            "POSTGRES_PASSWORD",
+            "SESSION_SECRET",
+            "VIOLET_LICENSE_SERVER_URL",
+        ] {
+            if let Some(secret) = values.get(key).filter(|value| !value.is_empty()) {
+                redacted = redacted.replace(secret, "[redacted]");
+            }
+        }
+    }
+    redacted
+}
+
+fn tail_lines(value: &str, max_lines: usize, max_chars: usize) -> String {
+    let lines: Vec<&str> = value.lines().collect();
+    let start = lines.len().saturating_sub(max_lines);
+    let mut result = lines[start..].join("\n");
+    if result.len() > max_chars {
+        result.truncate(max_chars);
+        result.push_str("\n[diagnostic output truncated]");
+    }
+    result
+}
+
+fn compose_service_summary(raw: &str) -> String {
+    let mut services = Vec::new();
+    for line in raw.lines() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let service = value
+            .get("Service")
+            .or_else(|| value.get("Name"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        let state = value
+            .get("State")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        let health = value
+            .get("Health")
+            .and_then(serde_json::Value::as_str)
+            .filter(|health| !health.is_empty());
+        let status = match health {
+            Some(health) => format!("{state} ({health})"),
+            None => state.to_string(),
+        };
+        services.push(format!("{service}: {status}"));
+    }
+    if services.is_empty() {
+        return "Docker did not return service status.".into();
+    }
+    services.join(", ")
+}
+
+fn startup_failure_hint(value: &str) -> Option<&'static str> {
+    let lower = value.to_lowercase();
+    if lower.contains("port is already allocated")
+        || lower.contains("address already in use")
+        || lower.contains("bind for 0.0.0.0:80 failed")
+    {
+        Some("Port 80 is already in use. Stop the other service or change the Store Host port before retrying.")
+    } else if lower.contains("entrypoint.sh") || lower.contains("no such file or directory") {
+        Some("The API image is incomplete or has an invalid shell-script line ending. Rebuild the Store Host image.")
+    } else if lower.contains("could not connect to the database")
+        || lower.contains("connection refused")
+    {
+        Some("The API cannot reach PostgreSQL yet. Keep the database container running and retry.")
+    } else {
+        None
+    }
+}
+
+fn managed_host_diagnostics(directory: &Path) -> String {
+    let status = Command::new("docker")
+        .current_dir(directory)
+        .args(["compose", "ps", "--all", "--format", "json"])
+        .output();
+    let logs = Command::new("docker")
+        .current_dir(directory)
+        .args(["compose", "logs", "--no-color", "--tail", "40"])
+        .output();
+
+    let status_text = status
+        .as_ref()
+        .ok()
+        .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
+        .unwrap_or_default();
+    let status_summary = compose_service_summary(&status_text);
+    let log_text = logs
+        .as_ref()
+        .ok()
+        .map(|output| {
+            let combined = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            tail_lines(&combined, 18, 3600)
+        })
+        .unwrap_or_else(|| "Docker logs could not be collected.".into());
+    let combined = format!("{status_summary}\n{log_text}");
+    let hint = startup_failure_hint(&combined)
+        .map(|hint| format!("\n\nLikely cause: {hint}"))
+        .unwrap_or_default();
+
+    format!(
+        "Services: {status_summary}\n\nRecent Docker output:\n{}{}",
+        redact_diagnostics(directory, &log_text),
+        hint
+    )
+}
+
+fn compose_start_error(directory: &Path, output: &std::process::Output) -> String {
+    let compose_output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let hint = startup_failure_hint(&compose_output)
+        .map(|hint| format!("\n\nLikely cause: {hint}"))
+        .unwrap_or_default();
+    format!(
+        "Docker Compose could not start the Store Host.\n\n{}\n{}",
+        redact_diagnostics(directory, &tail_lines(&compose_output, 18, 3600)),
+        hint
+    )
+}
+
 #[tauri::command]
 async fn get_docker_status() -> DockerStatus {
     tauri::async_runtime::spawn_blocking(docker_status)
@@ -328,13 +463,13 @@ fn wait_for_managed_host(directory: PathBuf, rebuild: bool) -> Result<ManagedHos
     let mut command = Command::new("docker");
     command.current_dir(&directory).args(["compose", "up"]);
     if rebuild {
-        command.arg("--build");
+        command.args(["--build", "--remove-orphans"]);
     }
-    let launched = command.arg("-d").status().map_err(|_| {
+    let launched = command.arg("-d").output().map_err(|_| {
         "Could not start Docker. Confirm Docker Desktop is running, then try again.".to_string()
     })?;
     if !launched.success() {
-        return Err("Docker could not start Violet. Ensure Docker Desktop has enough disk space and no other service is using port 80.".into());
+        return Err(compose_start_error(&directory, &launched));
     }
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(3))
@@ -354,9 +489,28 @@ fn wait_for_managed_host(directory: PathBuf, rebuild: bool) -> Result<ManagedHos
                 message: "Your Store Host is ready.".into(),
             });
         }
+        let snapshot = Command::new("docker")
+            .current_dir(&directory)
+            .args(["compose", "ps", "--all", "--format", "json"])
+            .output()
+            .ok()
+            .map(|output| String::from_utf8_lossy(&output.stdout).to_lowercase())
+            .unwrap_or_default();
+        if snapshot.contains("\"state\":\"exited\"")
+            || snapshot.contains("\"state\":\"restarting\"")
+            || snapshot.contains("\"health\":\"unhealthy\"")
+        {
+            return Err(format!(
+                "The Store Host could not become ready.\n\n{}\n\nOpen Docker Desktop to view the affected service, then retry. Existing store data was not changed.",
+                managed_host_diagnostics(&directory)
+            ));
+        }
         thread::sleep(Duration::from_secs(2));
     }
-    Err("Violet is still starting. Open Docker Desktop to check the Violet containers, then try again.".into())
+    Err(format!(
+        "The Store Host did not become ready within 120 seconds.\n\n{}\n\nOpen Docker Desktop to view the affected service, then retry. Existing store data was not changed.",
+        managed_host_diagnostics(&directory)
+    ))
 }
 
 fn install_and_start_managed_host(
@@ -423,6 +577,14 @@ async fn resume_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus,
         .map_err(|_| "The managed Store Host operation stopped unexpectedly.".to_string())?
 }
 
+#[tauri::command]
+async fn retry_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus, String> {
+    let directory = managed_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || wait_for_managed_host(directory, false))
+        .await
+        .map_err(|_| "The managed Store Host operation stopped unexpectedly.".to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let result = tauri::Builder::default()
@@ -463,7 +625,8 @@ pub fn run() {
             app_version,
             get_docker_status,
             start_managed_host,
-            resume_managed_host
+            resume_managed_host,
+            retry_managed_host
         ])
         .run(tauri::generate_context!());
 

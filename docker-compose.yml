@@ -9,6 +9,11 @@ services:
       POSTGRES_DB:       ${POSTGRES_DB:-violetdb}
     volumes:
       - violet_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-violet} -d $${POSTGRES_DB:-violetdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
   # ── API server ────────────────────────────────────────────────────────────
   api:
     build:
@@ -16,7 +21,8 @@ services:
       dockerfile: artifacts/api-server/Dockerfile
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       DATABASE_URL:   postgresql://${POSTGRES_USER:-violet}:${POSTGRES_PASSWORD:-violetpass}@db:5432/${POSTGRES_DB:-violetdb}
       SESSION_SECRET: ${SESSION_SECRET}
@@ -30,6 +36,12 @@ services:
       NODE_ENV:       production
     volumes:
       - violet_api_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
     # Not exposed directly — nginx proxies /api requests to this container
     expose:
       - "8080"
@@ -41,9 +53,16 @@ services:
       dockerfile: artifacts/violet/Dockerfile
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "80:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      start_period: 5s
+      retries: 12
 
 volumes:
   violet_db_data:
