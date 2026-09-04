@@ -474,7 +474,7 @@ fn wait_for_managed_host(directory: PathBuf, rebuild: bool) -> Result<ManagedHos
     let launched = command.arg("-d").output().map_err(|_| {
         "Could not start Docker. Confirm Docker Desktop is running, then try again.".to_string()
     })?;
-    if !launched.success() {
+    if !launched.status.success() {
         return Err(compose_start_error(&directory, &launched));
     }
     let client = reqwest::blocking::Client::builder()
