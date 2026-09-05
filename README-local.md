@@ -1,6 +1,6 @@
 # Violet Enterprise â€” Local / LAN Setup Guide
 
-Run the full Violet Enterprise POS system on your own computer or server. The server needs internet access whenever a user signs in so Violet can verify the account license. After sign-in, phones, tablets, and PCs on the same Wi-Fi or wired network can use the system by opening a browser.
+Run the full Violet Enterprise POS system on your own computer or server. The server checks the hosted Violet account and license when a user signs in, then keeps the POS available locally through internet outages using the last cached plan. After sign-in, phones, tablets, and PCs on the same Wi-Fi or wired network can use the system by opening a browser.
 
 > **Desktop app option:** Violet Desktop's **Store Host (this desktop)** mode
 > performs this setup from the first-run screen. It requires Docker Desktop
@@ -114,7 +114,7 @@ To use it from **another device on your network** (phone, tablet, another PC):
    - **Linux:** `ip addr show` in terminal
 2. On the other device, open a browser and go to `http://192.168.x.x` (replace with the actual IP)
 
-Log in with the `ADMIN_EMAIL` and `ADMIN_PASSWORD` you set in Step 2. An internet connection is required for this sign-in. If the account is cancelled, expired, suspended, refunded, or cannot be verified, Violet will not open the POS.
+Log in with the `ADMIN_EMAIL` and `ADMIN_PASSWORD` you set in Step 2. Violet attempts one online license check during sign-in. If the internet is unavailable, the Store Host uses the cached plan: an active paid period remains available until its cached end date, and an expired or missing paid period falls back to Free. Free access continues locally without an internet connection.
 
 Bookmark this same server address on every cashier device. Do not run a separate Docker stack on each register: doing so creates separate databases that cannot share live stock or sales.
 
@@ -197,9 +197,9 @@ As the platform admin, you can adjust plan limits and prices from the **Admin â†
 
 ## License verification
 
-Every local sign-in is checked against the hosted Violet licensing service. The hosted service verifies the Violet account and, for paid plans, refreshes the Whop membership before allowing access.
+Every local sign-in attempts a check against the hosted Violet licensing service. The hosted service verifies the Violet account and, for paid plans, refreshes the Whop membership before the local plan cache is updated.
 
-The local server also rechecks the license while users are active. A temporary network outage does not bypass the sign-in requirement: users must reconnect to the internet and sign in again if the online license session expires.
+The local server does not recheck the hosted license on every POS request. Once signed in, the Store Host serves the POS from its local database and cached plan. If a user chooses an upgrade while working locally, Violet opens hosted Violet checkout; the new plan is applied the next time that user signs in locally while the host can reach the hosted service.
 
 ---
 
