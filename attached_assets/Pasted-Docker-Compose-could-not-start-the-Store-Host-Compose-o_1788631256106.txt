@@ -1,0 +1,47 @@
+Docker Compose could not start the Store Host.
+
+Compose output:
+ Network store-host_default Created 
+time="2026-09-05T12:56:41-05:00" level=warning msg="volume \"violet_api_data\" already exists but was created for project \"store-basic\" (expected \"store-host\"). Use `external: true` to use an existing volume"
+time="2026-09-05T12:56:41-05:00" level=warning msg="volume \"violet_db_data\" already exists but was created for project \"store-basic\" (expected \"store-host\"). Use `external: true` to use an existing volume"
+ Container store-host-db-1 Creating 
+ Container store-host-db-1 Created 
+ Container store-host-api-1 Creating 
+ Container store-host-api-1 Created 
+ Container store-host-web-1 Creating 
+ Container store-host-web-1 Created 
+ Container store-host-db-1 Starting 
+ Container store-host-db-1 Started 
+ Container store-host-db-1 Waiting 
+ Container store-host-db-1 Healthy 
+ Container store-host-api-1 Starting 
+ Container store-host-api-1 Started 
+ Container store-host-api-1 Waiting 
+ Container store-host-api-1 Error dependency api failed to start
+dependency failed to start: container store-host-api-1 is unhealthy
+
+Services: api: running (starting), db: running (healthy), web: running (unhealthy)
+
+Recent Docker output:
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:07 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:07 [error] 25#25: *11 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:13 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:13 [error] 26#26: *13 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 2026/09/05 17:58:18 [error] 27#27: *15 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:18 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:23 [error] 20#20: *17 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:23 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:28 [error] 20#20: *19 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:28 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:33 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:33 [error] 20#20: *21 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:38 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:38 [error] 20#20: *23 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 2026/09/05 17:58:43 [error] 20#20: *25 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:43 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+web-1  | 2026/09/05 17:58:48 [error] 20#20: *27 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: _, request: "GET /api/healthz HTTP/1.1", upstream: "http://172.18.0.3:8080/api/healthz", host: "127.0.0.1:8080"
+web-1  | 127.0.0.1 - - [05/Sep/2026:17:58:48 +0000] "GET /api/healthz HTTP/1.1" 502 157 "-" "Wget" "-"
+
+Likely cause: The API cannot reach PostgreSQL yet. Keep the database container running and retry.
+
+Likely cause: The API cannot reach PostgreSQL yet. Keep the database container running and retry.
