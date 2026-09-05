@@ -111,6 +111,16 @@ export default function App() {
       await connect('managed-host', result.url);
     } catch (reason) { setPhase('details'); setError(typeof reason === 'string' ? reason : 'Could not retry the Store Host.'); }
   };
+  const resetHost = async () => {
+    if (!window.confirm('Reset this Store Host? This permanently deletes its local Docker data, including products, customers, and settings.')) return;
+    setError(null); setPhase('starting');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('reset_managed_host');
+      const result = await invoke<{ url: string }>('start_managed_host', { adminEmail: email, adminPassword: password, licenseUrl });
+      await connect('managed-host', result.url);
+    } catch (reason) { setPhase('details'); setError(typeof reason === 'string' ? reason : 'Could not reset and start the Store Host.'); }
+  };
 
   if (phase === 'checking' || phase === 'connecting' || phase === 'starting') return <Loading phase={phase} url={url} onCancel={choose} />;
   if (phase === 'choose') return <Shell><h1>Set up Violet</h1><p>Choose how this desktop will use Violet. You can change this any time from <b>Configure Server</b>.</p>
@@ -129,7 +139,7 @@ export default function App() {
       <label>Hosted Violet email<input ref={inputRef} type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" /></label>
       <label>Hosted Violet password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" /></label>
       <label>Hosted license URL<input type="url" value={licenseUrl} onChange={e => setLicenseUrl(e.target.value)} required /></label>
-      {error && <><ErrorNotice text={error}/><button type="button" className="secondary" onClick={retryHost}>Retry existing Store Host</button></>}
+       {error && <><ErrorNotice text={error}/><button type="button" className="secondary" onClick={retryHost}>Retry existing Store Host</button><button type="button" className="secondary danger" onClick={resetHost}>Reset local data and rebuild</button></>}
       <button disabled={!!docker && (!docker.available || !docker.composeAvailable)}>{error ? 'Rebuild Store Host' : 'Start Store Host'}</button>
     </form> : <form onSubmit={submitExternal}>
       <p>{external ? 'Enter the local address of the separately installed server.' : 'Ask your store administrator for the Store Host address.'} HTTP is suitable for a trusted LAN; use HTTPS for internet-facing hosts.</p>
