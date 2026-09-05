@@ -17,21 +17,16 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-async function startServer() {
-  await bootstrapHostedSuperAdmin();
+const server = app.listen(port, () => {
+  logger.info({ port }, "Server listening");
+  startAbandonedPaidSignupCleanup();
 
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
-
-    logger.info({ port }, "Server listening");
-    startAbandonedPaidSignupCleanup();
+  void bootstrapHostedSuperAdmin().catch((err) => {
+    logger.error({ err }, "Hosted super-admin bootstrap failed");
   });
-}
+});
 
-startServer().catch((err) => {
-  logger.error({ err }, "Server startup failed");
+server.on("error", (err) => {
+  logger.error({ err }, "Error listening on port");
   process.exit(1);
 });
