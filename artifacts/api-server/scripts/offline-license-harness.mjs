@@ -22,6 +22,7 @@ let apiProcess;
 let apiPort;
 let licensePort;
 let licenseServer;
+let apiLogs = "";
 const hostedLicense = {
   available: false,
   planTier: null,
@@ -153,6 +154,61 @@ async function waitForApi() {
   );
 }
 
+function spawnApiProcess() {
+  apiProcess = spawn(process.execPath, ["--enable-source-maps", "./dist/index.mjs"], {
+    cwd: apiDirectory,
+    env: {
+      ...process.env,
+      NODE_ENV: "development",
+      PORT: String(apiPort),
+      SESSION_SECRET: sessionSecret,
+      VIOLET_RUNTIME_MODE: "self_hosted",
+      VIOLET_LICENSE_SERVER_URL: `http://127.0.0.1:${licensePort}`,
+      VIOLET_INSTALLATION_ID: `offline-harness-${tenantId}`,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  apiProcess.stdout.on("data", (chunk) => (apiLogs += chunk));
+  apiProcess.stderr.on("data", (chunk) => (apiLogs += chunk));
+  apiProcess.once("exit", (code, signal) => {
+    if (code !== 0 && code !== null) {
+      apiLogs += `\nStore Host exited with code ${code}${signal ? ` (${signal})` : ""}`;
+    }
+  });
+}
+
+async function stopApiProcess() {
+  const processToStop = apiProcess;
+  if (!processToStop) return;
+
+  const exited = new Promise((resolve) => {
+    if (processToStop.exitCode !== null || processToStop.signalCode !== null) {
+      resolve();
+    } else {
+      processToStop.once("exit", resolve);
+    }
+  });
+
+  if (processToStop.exitCode === null && processToStop.signalCode === null) {
+    processToStop.kill("SIGTERM");
+  }
+  await Promise.race([exited, delay(2_000)]);
+
+  if (processToStop.exitCode === null && processToStop.signalCode === null) {
+    processToStop.kill("SIGKILL");
+    await Promise.race([exited, delay(1_000)]);
+  }
+  apiProcess = undefined;
+}
+
+async function restartApi() {
+  await stopApiProcess();
+  apiPort = await reservePort();
+  spawnApiProcess();
+  await waitForApi();
+}
+
 function seedDatabase(freePlanId, paidPlanId) {
   const now = new Date().toISOString();
   runSql(`
@@ -230,14 +286,7 @@ async function verifyLocalSubscription(token, expectedPlanId, expectedPlanTier, 
 }
 
 async function cleanup() {
-  if (apiProcess && !apiProcess.killed) {
-    apiProcess.kill("SIGTERM");
-    await Promise.race([
-      new Promise((resolve) => apiProcess.once("exit", resolve)),
-      delay(2_000),
-    ]);
-    if (!apiProcess.killed) apiProcess.kill("SIGKILL");
-  }
+  await stopApiProcess();
   if (licenseServer) {
     await new Promise((resolve) => licenseServer.close(resolve));
     licenseServer = undefined;
@@ -277,35 +326,16 @@ async function main() {
   apiPort = await reservePort();
   licensePort = await reservePort();
   licenseServer = await startLicenseServer();
-  apiProcess = spawn(process.execPath, ["--enable-source-maps", "./dist/index.mjs"], {
-    cwd: apiDirectory,
-    env: {
-      ...process.env,
-      NODE_ENV: "development",
-      PORT: String(apiPort),
-      SESSION_SECRET: sessionSecret,
-      VIOLET_RUNTIME_MODE: "self_hosted",
-      VIOLET_LICENSE_SERVER_URL: `http://127.0.0.1:${licensePort}`,
-      VIOLET_INSTALLATION_ID: `offline-harness-${tenantId}`,
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  let logs = "";
-  apiProcess.stdout.on("data", (chunk) => (logs += chunk));
-  apiProcess.stderr.on("data", (chunk) => (logs += chunk));
-  apiProcess.once("exit", (code, signal) => {
-    if (code !== 0 && code !== null) {
-      logs += `\nStore Host exited with code ${code}${signal ? ` (${signal})` : ""}`;
-    }
-  });
+  spawnApiProcess();
 
   try {
     await waitForApi();
 
     const active = await signIn(paidPlan.id, paidPlan.name);
     await verifyLocalRequest(active.token);
-    console.log("PASS active cached paid period remains paid offline");
+    await restartApi();
+    await verifyLocalRequest(active.token);
+    console.log("PASS active cached paid period remains paid after a Store Host restart");
 
     setCachedPlan(
       paidPlan.id,
@@ -313,19 +343,27 @@ async function main() {
     );
     const expired = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(expired.token);
-    console.log("PASS expired cached paid period falls back to Free");
+    await restartApi();
+    await verifyLocalRequest(expired.token);
+    console.log("PASS expired cached paid period falls back to Free after a Store Host restart");
 
     setCachedPlan(paidPlan.id, null);
     const missing = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(missing.token);
-    console.log("PASS missing cached paid period falls back to Free");
+    await restartApi();
+    await verifyLocalRequest(missing.token);
+    console.log("PASS missing cached paid period falls back to Free after a Store Host restart");
 
     setCachedPlan(freePlan.id, null);
     const free = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(free.token);
+    await restartApi();
+    await verifyLocalRequest(free.token);
     const secondFreeSignIn = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(secondFreeSignIn.token);
-    console.log("PASS cached Free plan remains usable across offline sign-ins");
+    await restartApi();
+    await verifyLocalRequest(secondFreeSignIn.token);
+    console.log("PASS cached Free plan remains usable across Store Host restarts");
 
     hostedLicense.available = true;
     hostedLicense.planTier = paidPlan.tier;
@@ -348,7 +386,7 @@ async function main() {
     );
     console.log("PASS local upgrade request returns the hosted upgrade URL");
   } catch (error) {
-    const details = logs.trim();
+    const details = apiLogs.trim();
     throw new Error(`${error.message}${details ? `\n\nStore Host logs:\n${details}` : ""}`);
   }
 }
