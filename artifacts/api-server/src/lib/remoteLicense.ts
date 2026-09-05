@@ -142,6 +142,32 @@ export async function changeHostedPassword(
   });
 }
 
+export async function requestHostedPasswordReset(email: string) {
+  let response: Response;
+  try {
+    response = await fetch(`${licenseServerUrl()}/api/auth/forgot-password`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    throw new RemoteLicenseError(
+      "Violet could not reach the hosted account recovery service. Check the internet connection and try again.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new RemoteLicenseError(
+      "The hosted account recovery service could not accept this request. Try again shortly.",
+      response.status >= 400 && response.status < 500 ? response.status : 503,
+    );
+  }
+}
+
 export async function syncLocalLicenseSnapshot(tenantId: string, snapshot: RemoteLicenseSnapshot) {
   if (!snapshot.valid || !snapshot.planTier) {
     throw new RemoteLicenseError("The online license service returned an incomplete license.", 502);

@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS public.users (
     avatar_url text,
     is_active text DEFAULT 'true'::text NOT NULL,
     must_change_password boolean DEFAULT false NOT NULL,
+    password_reset_token_hash text,
+    password_reset_expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -90,7 +92,11 @@ ALTER TABLE public.sessions
     ADD COLUMN IF NOT EXISTS license_token text,
     ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone;
 ALTER TABLE public.users
-    ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL;
+    ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL,
+    ADD COLUMN IF NOT EXISTS password_reset_token_hash text,
+    ADD COLUMN IF NOT EXISTS password_reset_expires_at timestamp with time zone;
+CREATE UNIQUE INDEX IF NOT EXISTS users_password_reset_token_hash_idx
+    ON public.users (password_reset_token_hash);
 
 CREATE TABLE IF NOT EXISTS public.license_sessions (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,

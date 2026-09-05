@@ -90,6 +90,8 @@ export * from './listTenantsStatus';
 export * from './loginInput';
 export * from './managerAccessGrant';
 export * from './managerAccessInput';
+export * from './passwordResetInput';
+export * from './passwordResetRequest';
 export * from './plan';
 export * from './planBillingType';
 export * from './planInput';

@@ -6,17 +6,19 @@ import {
   UnlockManagerAccessBody,
   UnlockManagerAccessResponse,
 } from "@workspace/api-zod";
-import { eq, and } from "drizzle-orm";
-import { hashPassword, verifyPassword, generateToken } from "../lib/crypto";
+import { eq, and, gt } from "drizzle-orm";
+import { hashPassword, hashPasswordResetToken, verifyPassword, generateToken } from "../lib/crypto";
 import { getLicenseFailure, isManagerRole, requireAuth, requireSession } from "../middlewares/auth";
 import { issueManagerAccess } from "../lib/manager-access";
 import { isPaidTier } from "../lib/subscriptionSync";
 import {
   changeHostedPassword,
   isSelfHostedRuntime,
+  requestHostedPasswordReset,
   syncLocalLicenseSnapshot,
   verifyHostedLicenseCredentials,
 } from "../lib/remoteLicense";
+import { sendPasswordResetEmail } from "../lib/password-reset-email";
 
 const router = Router();
 
@@ -37,9 +39,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     res.status(400).json({ error: "All fields are required" });
     return;
   }
+  const normalizedEmail = String(email).trim().toLowerCase();
 
   // Check email uniqueness
-  const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
   if (existing) {
     res.status(400).json({ error: "Email already registered" });
     return;
@@ -51,7 +54,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   // Create tenant
   const [tenant] = await db.insert(tenantsTable).values({
     name: businessName,
-    email,
+    email: normalizedEmail,
     status: "active",
     planId: freePlan?.id ?? undefined,
     licenseStatus: "valid",
@@ -66,7 +69,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const passwordHash = hashPassword(password);
   const [user] = await db.insert(usersTable).values({
     tenantId: tenant.id,
-    email,
+    email: normalizedEmail,
     passwordHash,
     firstName,
     lastName,
@@ -88,7 +91,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   await db.insert(settingsTable).values({
     tenantId: tenant.id,
     businessName,
-    businessEmail: email,
+    businessEmail: normalizedEmail,
   });
 
   // New tenants receive a usable operating hierarchy. Existing tenants retain
@@ -141,8 +144,13 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
-  if (!user || user.isActive !== "true" || !verifyPassword(password, user.passwordHash)) {
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
+  if (!user || user.isActive !== "true") {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+  const localPasswordMatches = verifyPassword(password, user.passwordHash);
+  if (!isSelfHostedRuntime() && !localPasswordMatches) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
@@ -169,6 +177,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       await syncLocalLicenseSnapshot(tenant.id, remoteLicense);
       remoteLicenseToken = remoteLicense.licenseSessionToken;
       remoteLicenseValidatedAt = new Date();
+      if (!localPasswordMatches) {
+        [user] = await db.update(usersTable).set({
+          passwordHash: hashPassword(password),
+          mustChangePassword: false,
+        }).where(eq(usersTable.id, user.id)).returning();
+      }
       [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
     } catch (error) {
       const statusCode =
@@ -229,6 +243,102 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       createdAt: tenant?.createdAt?.toISOString() ?? new Date().toISOString(),
     },
   });
+});
+
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+const PASSWORD_RESET_ACCEPTED = { success: true };
+
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const email = typeof req.body?.email === "string"
+    ? req.body.email.trim().toLowerCase()
+    : "";
+  if (!email || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: "Enter a valid email address" });
+    return;
+  }
+
+  if (isSelfHostedRuntime()) {
+    try {
+      await requestHostedPasswordReset(email);
+      res.json(PASSWORD_RESET_ACCEPTED);
+    } catch (error) {
+      req.log.error({ err: error }, "Hosted password reset request failed");
+      res.status(503).json({
+        error: "Violet could not contact the hosted account recovery service. Try again shortly.",
+      });
+    }
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(and(
+    eq(usersTable.email, email),
+    eq(usersTable.isActive, "true"),
+  )).limit(1);
+  if (!user) {
+    res.json(PASSWORD_RESET_ACCEPTED);
+    return;
+  }
+
+  const token = generateToken();
+  const tokenHash = hashPasswordResetToken(token);
+  await db.update(usersTable).set({
+    passwordResetTokenHash: tokenHash,
+    passwordResetExpiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+  }).where(eq(usersTable.id, user.id));
+
+  try {
+    await sendPasswordResetEmail(email, token);
+  } catch (error) {
+    await db.update(usersTable).set({
+      passwordResetTokenHash: null,
+      passwordResetExpiresAt: null,
+    }).where(and(
+      eq(usersTable.id, user.id),
+      eq(usersTable.passwordResetTokenHash, tokenHash),
+    ));
+    req.log.error({ err: error }, "Password reset email delivery failed");
+  }
+
+  res.json(PASSWORD_RESET_ACCEPTED);
+});
+
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  if (isSelfHostedRuntime()) {
+    res.status(400).json({
+      error: "Open the reset link from your email to change your hosted Violet password.",
+    });
+    return;
+  }
+
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  if (!/^[a-f0-9]{64}$/i.test(token) || newPassword.length < 10 || newPassword.length > 1024) {
+    res.status(400).json({ error: "This password reset link is invalid or expired." });
+    return;
+  }
+
+  const tokenHash = hashPasswordResetToken(token);
+  const resetUser = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(usersTable).set({
+      passwordHash: hashPassword(newPassword),
+      mustChangePassword: false,
+      passwordResetTokenHash: null,
+      passwordResetExpiresAt: null,
+    }).where(and(
+      eq(usersTable.passwordResetTokenHash, tokenHash),
+      gt(usersTable.passwordResetExpiresAt, new Date()),
+      eq(usersTable.isActive, "true"),
+    )).returning({ id: usersTable.id });
+    if (!updated) return null;
+    await tx.delete(sessionsTable).where(eq(sessionsTable.userId, updated.id));
+    return updated;
+  });
+  if (!resetUser) {
+    res.status(400).json({ error: "This password reset link is invalid or expired." });
+    return;
+  }
+
+  res.json({ success: true });
 });
 
 // POST /auth/change-password

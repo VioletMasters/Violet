@@ -55,6 +55,24 @@ export interface LoginInput {
   password: string;
 }
 
+export interface PasswordResetRequest {
+  /** @maxLength 320 */
+  email: string;
+}
+
+export interface PasswordResetInput {
+  /**
+     * @minLength 64
+     * @maxLength 128
+     */
+  token: string;
+  /**
+     * @minLength 10
+     * @maxLength 1024
+     */
+  newPassword: string;
+}
+
 export interface LicenseVerifyInput {
   email: string;
   password: string;

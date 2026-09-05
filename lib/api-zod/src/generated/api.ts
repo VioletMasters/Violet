@@ -117,6 +117,43 @@ export const LoginResponse = zod.object({
 
 
 /**
+ * @summary Request a one-time password reset link
+ */
+export const requestPasswordResetBodyEmailMax = 320;
+
+
+
+export const RequestPasswordResetBody = zod.object({
+  "email": zod.string().max(requestPasswordResetBodyEmailMax)
+})
+
+export const RequestPasswordResetResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Reset a password with a one-time token
+ */
+export const resetPasswordBodyTokenMin = 64;
+export const resetPasswordBodyTokenMax = 128;
+
+export const resetPasswordBodyNewPasswordMin = 10;
+export const resetPasswordBodyNewPasswordMax = 1024;
+
+
+
+export const ResetPasswordBody = zod.object({
+  "token": zod.string().min(resetPasswordBodyTokenMin).max(resetPasswordBodyTokenMax),
+  "newPassword": zod.string().min(resetPasswordBodyNewPasswordMin).max(resetPasswordBodyNewPasswordMax)
+})
+
+export const ResetPasswordResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Replace the current user's temporary password
  */
 
