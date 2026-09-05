@@ -178,7 +178,7 @@ function spawnApiProcess() {
   });
 }
 
-async function stopApiProcess() {
+async function stopApiProcess({ force = false } = {}) {
   const processToStop = apiProcess;
   if (!processToStop) return;
 
@@ -191,19 +191,24 @@ async function stopApiProcess() {
   });
 
   if (processToStop.exitCode === null && processToStop.signalCode === null) {
-    processToStop.kill("SIGTERM");
+    processToStop.kill(force ? "SIGKILL" : "SIGTERM");
   }
-  await Promise.race([exited, delay(2_000)]);
 
-  if (processToStop.exitCode === null && processToStop.signalCode === null) {
-    processToStop.kill("SIGKILL");
-    await Promise.race([exited, delay(1_000)]);
+  if (force) {
+    await Promise.race([exited, delay(2_000)]);
+  } else {
+    await Promise.race([exited, delay(2_000)]);
+
+    if (processToStop.exitCode === null && processToStop.signalCode === null) {
+      processToStop.kill("SIGKILL");
+      await Promise.race([exited, delay(1_000)]);
+    }
   }
   apiProcess = undefined;
 }
 
-async function restartApi() {
-  await stopApiProcess();
+async function restartApi({ force = false } = {}) {
+  await stopApiProcess({ force });
   apiPort = await reservePort();
   spawnApiProcess();
   await waitForApi();
@@ -299,8 +304,21 @@ async function cleanup() {
       DELETE FROM users WHERE id = ${sqlString(userId)};
       DELETE FROM tenants WHERE id = ${sqlString(tenantId)};
     `);
+
+    const remainingFixtures = runSql(`
+      SELECT COUNT(*) FROM sessions WHERE user_id = ${sqlString(userId)}
+      UNION ALL
+      SELECT COUNT(*) FROM subscriptions WHERE tenant_id = ${sqlString(tenantId)}
+      UNION ALL
+      SELECT COUNT(*) FROM users WHERE id = ${sqlString(userId)}
+      UNION ALL
+      SELECT COUNT(*) FROM tenants WHERE id = ${sqlString(tenantId)};
+    `);
+    if (remainingFixtures.split("\n").some((count) => count !== "0")) {
+      throw new Error(`Fixture cleanup left rows behind: ${remainingFixtures}`);
+    }
   } catch (error) {
-    console.error(`Could not clean up offline license harness data: ${error.message}`);
+    throw new Error(`Could not clean up offline license harness data: ${error.message}`);
   }
 }
 
@@ -336,6 +354,11 @@ async function main() {
     await restartApi();
     await verifyLocalRequest(active.token);
     console.log("PASS active cached paid period remains paid after a Store Host restart");
+    await restartApi({ force: true });
+    await verifyLocalRequest(active.token);
+    const activeAfterForcedRestart = await signIn(paidPlan.id, paidPlan.name);
+    await verifyLocalRequest(activeAfterForcedRestart.token);
+    console.log("PASS active cached paid period and local session survive forced Store Host termination");
 
     setCachedPlan(
       paidPlan.id,
@@ -343,27 +366,29 @@ async function main() {
     );
     const expired = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(expired.token);
-    await restartApi();
+    await restartApi({ force: true });
     await verifyLocalRequest(expired.token);
-    console.log("PASS expired cached paid period falls back to Free after a Store Host restart");
+    const expiredAfterForcedRestart = await signIn(freePlan.id, freePlan.name);
+    await verifyLocalRequest(expiredAfterForcedRestart.token);
+    console.log("PASS expired cached paid period falls back to Free after forced Store Host termination");
 
     setCachedPlan(paidPlan.id, null);
     const missing = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(missing.token);
-    await restartApi();
+    await restartApi({ force: true });
     await verifyLocalRequest(missing.token);
-    console.log("PASS missing cached paid period falls back to Free after a Store Host restart");
+    const missingAfterForcedRestart = await signIn(freePlan.id, freePlan.name);
+    await verifyLocalRequest(missingAfterForcedRestart.token);
+    console.log("PASS missing cached paid period falls back to Free after forced Store Host termination");
 
     setCachedPlan(freePlan.id, null);
     const free = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(free.token);
-    await restartApi();
+    await restartApi({ force: true });
     await verifyLocalRequest(free.token);
-    const secondFreeSignIn = await signIn(freePlan.id, freePlan.name);
-    await verifyLocalRequest(secondFreeSignIn.token);
-    await restartApi();
-    await verifyLocalRequest(secondFreeSignIn.token);
-    console.log("PASS cached Free plan remains usable across Store Host restarts");
+    const freeAfterForcedRestart = await signIn(freePlan.id, freePlan.name);
+    await verifyLocalRequest(freeAfterForcedRestart.token);
+    console.log("PASS cached Free plan and local sessions remain usable after forced Store Host termination");
 
     hostedLicense.available = true;
     hostedLicense.planTier = paidPlan.tier;
