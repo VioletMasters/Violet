@@ -637,6 +637,70 @@ async fn retry_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus, 
         .map_err(|_| "The managed Store Host operation stopped unexpectedly.".to_string())?
 }
 
+#[tauri::command]
+async fn reset_managed_host(app: tauri::AppHandle) -> Result<(), String> {
+    let directory = managed_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if directory.join("docker-compose.yml").exists() {
+            let output = docker_command()
+                .current_dir(&directory)
+                .args(["compose", "down", "--volumes", "--remove-orphans"])
+                .output()
+                .map_err(|error| format!("Could not stop the existing Store Host: {error}"))?;
+            if !output.status.success() {
+                return Err(format!(
+                    "Could not stop the existing Store Host.\n\n{}",
+                    tail_lines(
+                        &format!(
+                            "{}{}",
+                            String::from_utf8_lossy(&output.stdout),
+                            String::from_utf8_lossy(&output.stderr)
+                        ),
+                        12,
+                        2400
+                    )
+                ));
+            }
+        }
+
+        for volume in ["violet_db_data", "violet_api_data"] {
+            let output = docker_command()
+                .args(["volume", "rm", "--force", volume])
+                .output()
+                .map_err(|error| format!("Could not remove the old Store Host data: {error}"))?;
+            if !output.status.success()
+                && !String::from_utf8_lossy(&output.stderr)
+                    .to_lowercase()
+                    .contains("no such volume")
+            {
+                return Err(format!(
+                    "Could not remove the old Store Host data.\n\n{}",
+                    tail_lines(
+                        &format!(
+                            "{}{}",
+                            String::from_utf8_lossy(&output.stdout),
+                            String::from_utf8_lossy(&output.stderr)
+                        ),
+                        12,
+                        2400
+                    )
+                ));
+            }
+        }
+
+        if let Err(error) = fs::remove_file(directory.join(".env")) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                return Err(format!(
+                    "Could not clear the old Store Host configuration: {error}"
+                ));
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|_| "The Store Host reset stopped unexpectedly.".to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let result = tauri::Builder::default()
@@ -678,7 +742,8 @@ pub fn run() {
             get_docker_status,
             start_managed_host,
             resume_managed_host,
-            retry_managed_host
+            retry_managed_host,
+            reset_managed_host
         ])
         .run(tauri::generate_context!());
 
