@@ -14,6 +14,7 @@ import {
   tenantsTable,
 } from "@workspace/db";
 import { isManagerRole, requireSession } from "../middlewares/auth";
+import { getHostedUpgradeUrl, isSelfHostedRuntime } from "../lib/remoteLicense";
 import { getWhopClient } from "../lib/whopClient";
 import {
   isPaidTier,
@@ -56,6 +57,10 @@ router.post("/billing/checkout", requireSession, async (req, res): Promise<void>
   }
 
   const tier = parsed.data.tier;
+  if (isSelfHostedRuntime()) {
+    res.json({ checkoutUrl: getHostedUpgradeUrl(tier) });
+    return;
+  }
   const planId = planIdFor(tier);
   const companyId = process.env.WHOP_COMPANY_ID;
   if (!planId || !companyId) {

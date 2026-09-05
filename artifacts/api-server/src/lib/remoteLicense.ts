@@ -81,6 +81,12 @@ function licenseServerUrl() {
   return parsed.toString().replace(/\/$/, "");
 }
 
+export function getHostedUpgradeUrl(tier: string) {
+  const url = new URL("/login", licenseServerUrl());
+  url.searchParams.set("plan", tier);
+  return url.toString();
+}
+
 async function postLicenseRequest(path: string, body: Record<string, string>) {
   let response: Response;
   try {
@@ -229,6 +235,85 @@ export async function syncLocalLicenseSnapshot(tenantId: string, snapshot: Remot
       });
     }
   });
+}
+
+async function applyOfflineFreePlan(tenantId: string) {
+  const [freePlan] = await db
+    .select()
+    .from(plansTable)
+    .where(eq(plansTable.tier, "free"))
+    .limit(1);
+  if (!freePlan) {
+    throw new RemoteLicenseError("The local Free plan is not installed on this Store Host.", 500);
+  }
+
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(tenantsTable)
+      .set({
+        planId: freePlan.id,
+        licenseStatus: "valid",
+        licenseValidUntil: null,
+        updatedAt: now,
+      })
+      .where(eq(tenantsTable.id, tenantId));
+
+    const [subscription] = await tx
+      .select({ id: subscriptionsTable.id })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, tenantId))
+      .limit(1);
+    const values = {
+      planId: freePlan.id,
+      status: "active",
+      paymentStatus: "not_required",
+      currentPeriodEnd: null,
+      lastWhopSyncAt: null,
+      updatedAt: now,
+    };
+    if (subscription) {
+      await tx
+        .update(subscriptionsTable)
+        .set(values)
+        .where(eq(subscriptionsTable.id, subscription.id));
+    } else {
+      await tx.insert(subscriptionsTable).values({
+        tenantId,
+        ...values,
+      });
+    }
+  });
+}
+
+export async function applyOfflineLicenseFallback(tenantId: string) {
+  const [tenant] = await db
+    .select()
+    .from(tenantsTable)
+    .where(eq(tenantsTable.id, tenantId))
+    .limit(1);
+  if (!tenant) return "Business account not found";
+  if (tenant.status === "suspended") return "Business account is not active";
+
+  const [subscription] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.tenantId, tenantId))
+    .limit(1);
+  const [plan] = subscription
+    ? await db.select().from(plansTable).where(eq(plansTable.id, subscription.planId)).limit(1)
+    : [null];
+
+  if (plan?.tier === "free") return null;
+
+  const cachedPeriodEnd = subscription?.currentPeriodEnd ?? tenant.licenseValidUntil;
+  const paidPeriodStillActive =
+    Boolean(cachedPeriodEnd && cachedPeriodEnd > new Date()) &&
+    !["expired", "cancelled"].includes(subscription?.status ?? "");
+  if (paidPeriodStillActive) return null;
+
+  await applyOfflineFreePlan(tenantId);
+  return null;
 }
 
 export function generateLicenseSessionToken() {

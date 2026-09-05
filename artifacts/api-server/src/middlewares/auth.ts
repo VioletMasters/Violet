@@ -11,10 +11,8 @@ import { eq, and, gt } from "drizzle-orm";
 import { hasValidManagerAccess } from "../lib/manager-access";
 import { refreshWhopMembershipIfStale, WhopBindingError } from "../lib/subscriptionSync";
 import {
+  applyOfflineLicenseFallback,
   isSelfHostedRuntime,
-  revalidateHostedLicense,
-  shouldRevalidateRemoteLicense,
-  syncLocalLicenseSnapshot,
 } from "../lib/remoteLicense";
 
 export interface AuthUser {
@@ -160,25 +158,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   let licenseFailure: string | null = null;
   if (isSelfHostedRuntime()) {
-    if (!req.licenseSessionToken) {
-      licenseFailure = "Online license validation is required. Sign in again with an internet connection.";
-    } else if (!shouldRevalidateRemoteLicense(req.licenseValidatedAt ?? null)) {
-      licenseFailure = null;
-    } else {
-      try {
-        const snapshot = await revalidateHostedLicense(req.licenseSessionToken);
-        await syncLocalLicenseSnapshot(req.tenantId!, snapshot);
-        licenseFailure = null;
-        await db
-          .update(sessionsTable)
-          .set({ licenseValidatedAt: new Date() })
-          .where(eq(sessionsTable.token, req.headers.authorization!.slice(7)));
-      } catch (err) {
-        licenseFailure = err instanceof Error
-          ? err.message
-          : "Violet could not verify this license online.";
-      }
-    }
+    licenseFailure = await applyOfflineLicenseFallback(req.tenantId!);
   } else if (!isSuperAdmin(req.user)) {
     licenseFailure = await getLicenseFailure(req.tenantId!);
   }

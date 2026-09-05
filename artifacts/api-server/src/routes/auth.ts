@@ -14,6 +14,7 @@ import { isPaidTier } from "../lib/subscriptionSync";
 import {
   changeHostedPassword,
   isSelfHostedRuntime,
+  applyOfflineLicenseFallback,
   requestHostedPasswordReset,
   syncLocalLicenseSnapshot,
   verifyHostedLicenseCredentials,
@@ -185,6 +186,20 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       }
       [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
     } catch (error) {
+      if (localPasswordMatches) {
+        try {
+          licenseFailure = await applyOfflineLicenseFallback(tenant.id);
+          remoteLicenseToken = undefined;
+          remoteLicenseValidatedAt = undefined;
+        } catch (fallbackError) {
+          res.status(503).json({
+            error: fallbackError instanceof Error
+              ? fallbackError.message
+              : "The local Violet license cache could not be used.",
+          });
+          return;
+        }
+      } else {
       const statusCode =
         typeof error === "object" &&
         error !== null &&
@@ -198,6 +213,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
           : "An internet connection is required to verify this Violet account.",
       });
       return;
+      }
     }
   } else if (user.role !== "super_admin") {
     licenseFailure = await getLicenseFailure(tenant.id);
@@ -362,7 +378,7 @@ router.post("/auth/change-password", requireSession, async (req, res): Promise<v
   if (isSelfHostedRuntime()) {
     if (!req.licenseSessionToken) {
       res.status(401).json({
-        error: "The online license session has expired. Sign in again.",
+        error: "Changing the hosted password requires an internet connection. Your local POS session can continue offline.",
       });
       return;
     }
