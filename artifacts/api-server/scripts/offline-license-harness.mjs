@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -20,6 +21,12 @@ const passwordHash = hashPassword(password);
 let apiProcess;
 let apiPort;
 let licensePort;
+let licenseServer;
+const hostedLicense = {
+  available: false,
+  planTier: null,
+  licenseValidUntil: null,
+};
 
 function hashPassword(value) {
   const salt = randomBytes(16).toString("hex");
@@ -45,7 +52,7 @@ function runSql(sql) {
 
 function reservePort() {
   return new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createNetServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
@@ -58,6 +65,52 @@ function reservePort() {
       server.close((error) => (error ? reject(error) : resolve(port)));
     });
   });
+}
+
+async function startLicenseServer() {
+  const server = createHttpServer(async (request, response) => {
+    if (request.method !== "POST" || request.url !== "/api/license/verify") {
+      response.writeHead(404, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ valid: false, message: "Not found" }));
+      return;
+    }
+
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    const payload = JSON.parse(body || "{}");
+    if (payload.email !== email || payload.password !== password) {
+      response.writeHead(401, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ valid: false, message: "Invalid credentials" }));
+      return;
+    }
+    if (!hostedLicense.available) {
+      response.writeHead(503, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({
+        valid: false,
+        message: "Hosted licensing is temporarily unavailable.",
+      }));
+      return;
+    }
+
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      valid: true,
+      message: "Online license verified.",
+      planTier: hostedLicense.planTier,
+      subscriptionStatus: "active",
+      paymentStatus: "paid",
+      licenseStatus: "valid",
+      licenseValidUntil: hostedLicense.licenseValidUntil,
+      licenseSessionToken: `harness-license-${randomUUID()}`,
+      tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    }));
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(licensePort, "127.0.0.1", resolve);
+  });
+  return server;
 }
 
 async function request(path, options = {}) {
@@ -166,6 +219,16 @@ async function verifyLocalRequest(token) {
   assert(body?.email === email, "Local authenticated request returned the wrong user.");
 }
 
+async function verifyLocalSubscription(token, expectedPlanId, expectedPlanTier, expectedPlanName) {
+  const { response, body } = await request("/api/subscription", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert(response.status === 200, `Local subscription request failed: ${response.status} ${JSON.stringify(body)}`);
+  assert(body?.planId === expectedPlanId, `Expected local subscription plan ${expectedPlanId}, got ${body?.planId}`);
+  assert(body?.plan?.tier === expectedPlanTier, `Expected local subscription tier ${expectedPlanTier}, got ${body?.plan?.tier}`);
+  assert(body?.plan?.name === expectedPlanName, `Expected local subscription name ${expectedPlanName}, got ${body?.plan?.name}`);
+}
+
 async function cleanup() {
   if (apiProcess && !apiProcess.killed) {
     apiProcess.kill("SIGTERM");
@@ -174,6 +237,10 @@ async function cleanup() {
       delay(2_000),
     ]);
     if (!apiProcess.killed) apiProcess.kill("SIGKILL");
+  }
+  if (licenseServer) {
+    await new Promise((resolve) => licenseServer.close(resolve));
+    licenseServer = undefined;
   }
 
   try {
@@ -209,6 +276,7 @@ async function main() {
 
   apiPort = await reservePort();
   licensePort = await reservePort();
+  licenseServer = await startLicenseServer();
   apiProcess = spawn(process.execPath, ["--enable-source-maps", "./dist/index.mjs"], {
     cwd: apiDirectory,
     env: {
@@ -258,6 +326,13 @@ async function main() {
     const secondFreeSignIn = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(secondFreeSignIn.token);
     console.log("PASS cached Free plan remains usable across offline sign-ins");
+
+    hostedLicense.available = true;
+    hostedLicense.planTier = paidPlan.tier;
+    hostedLicense.licenseValidUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const upgraded = await signIn(paidPlan.id, paidPlan.name);
+    await verifyLocalSubscription(upgraded.token, paidPlan.id, paidPlan.tier, paidPlan.name);
+    console.log("PASS online sign-in refreshes the cached Free plan to the hosted paid plan");
 
     const checkout = await request("/api/billing/checkout", {
       method: "POST",
