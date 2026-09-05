@@ -30,6 +30,7 @@ export class RemoteLicenseError extends Error {
 }
 
 const REMOTE_REVALIDATION_INTERVAL_MS = 15 * 60 * 1000;
+const HOSTED_LICENSE_SERVER_URL = "https://Violetsolutions.replit.app";
 
 export function isSelfHostedRuntime() {
   return process.env.VIOLET_RUNTIME_MODE === "self_hosted";
@@ -53,6 +54,10 @@ export function hashLicenseToken(token: string) {
 }
 
 function licenseServerUrl() {
+  if (isSelfHostedRuntime() && process.env.NODE_ENV === "production") {
+    return HOSTED_LICENSE_SERVER_URL;
+  }
+
   const configured = process.env.VIOLET_LICENSE_SERVER_URL?.trim();
   if (!configured) {
     throw new RemoteLicenseError(
@@ -121,6 +126,19 @@ export async function revalidateHostedLicense(licenseToken: string) {
   return postLicenseRequest("/api/license/revalidate", {
     licenseToken,
     installationId: getInstallationId(),
+  });
+}
+
+export async function changeHostedPassword(
+  licenseToken: string,
+  currentPassword: string,
+  newPassword: string,
+) {
+  return postLicenseRequest("/api/license/change-password", {
+    licenseToken,
+    installationId: getInstallationId(),
+    currentPassword,
+    newPassword,
   });
 }
 

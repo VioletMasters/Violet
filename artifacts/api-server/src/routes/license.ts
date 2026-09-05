@@ -9,11 +9,12 @@ import {
 } from "@workspace/db";
 import { and, eq, gt, lte } from "drizzle-orm";
 import { getLicenseFailure } from "../middlewares/auth";
-import { verifyPassword } from "../lib/crypto";
+import { hashPassword, verifyPassword } from "../lib/crypto";
 import {
   generateLicenseSessionToken,
   hashLicenseToken,
   getInstallationId,
+  isSelfHostedRuntime,
 } from "../lib/remoteLicense";
 
 const router = Router();
@@ -52,6 +53,11 @@ async function licenseSnapshot(tenantId: string, message: string, valid: boolean
 }
 
 router.post("/license/verify", async (req, res): Promise<void> => {
+  if (isSelfHostedRuntime()) {
+    res.status(404).json({ valid: false, message: "Not found" });
+    return;
+  }
+
   const email = stringField(req.body?.email, 320);
   const password = stringField(req.body?.password, 1024);
   const installationId = stringField(req.body?.installationId, 200);
@@ -63,6 +69,13 @@ router.post("/license/verify", async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (!user || user.isActive !== "true" || !verifyPassword(password, user.passwordHash)) {
     res.status(401).json({ valid: false, message: "The online Violet account could not be authenticated." });
+    return;
+  }
+  if (user.role === "super_admin") {
+    res.status(403).json({
+      valid: false,
+      message: "Use a licensed business account to activate a Store Host.",
+    });
     return;
   }
 
@@ -98,6 +111,11 @@ router.post("/license/verify", async (req, res): Promise<void> => {
 });
 
 router.post("/license/revalidate", async (req, res): Promise<void> => {
+  if (isSelfHostedRuntime()) {
+    res.status(404).json({ valid: false, message: "Not found" });
+    return;
+  }
+
   const licenseToken = stringField(req.body?.licenseToken, 128);
   const installationId = stringField(req.body?.installationId, 200);
   if (!licenseToken || !installationId) {
@@ -136,6 +154,74 @@ router.post("/license/revalidate", async (req, res): Promise<void> => {
     .where(eq(licenseSessionsTable.id, licenseSession.id));
 
   res.json(snapshot);
+});
+
+router.post("/license/change-password", async (req, res): Promise<void> => {
+  if (isSelfHostedRuntime()) {
+    res.status(404).json({ valid: false, message: "Not found" });
+    return;
+  }
+
+  const licenseToken = stringField(req.body?.licenseToken, 128);
+  const installationId = stringField(req.body?.installationId, 200);
+  const currentPassword = stringField(req.body?.currentPassword, 1024);
+  const newPassword = stringField(req.body?.newPassword, 1024);
+  if (!licenseToken || !installationId || !currentPassword || !newPassword || newPassword.length < 10) {
+    res.status(400).json({
+      valid: false,
+      message: "A valid license session, current password, and new password are required.",
+    });
+    return;
+  }
+  if (currentPassword === newPassword) {
+    res.status(400).json({ valid: false, message: "The new password must be different." });
+    return;
+  }
+
+  const [licenseSession] = await db
+    .select()
+    .from(licenseSessionsTable)
+    .where(and(
+      eq(licenseSessionsTable.tokenHash, hashLicenseToken(licenseToken)),
+      eq(licenseSessionsTable.installationId, installationId),
+      gt(licenseSessionsTable.expiresAt, new Date()),
+    ))
+    .limit(1);
+  if (!licenseSession) {
+    res.status(401).json({
+      valid: false,
+      message: "The online license session has expired. Sign in again.",
+    });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, licenseSession.userId))
+    .limit(1);
+  if (!user || user.isActive !== "true" || !verifyPassword(currentPassword, user.passwordHash)) {
+    res.status(401).json({ valid: false, message: "Current password is incorrect." });
+    return;
+  }
+  if (user.role === "super_admin") {
+    res.status(403).json({
+      valid: false,
+      message: "Super administrator credentials cannot be used by Store Hosts.",
+    });
+    return;
+  }
+
+  await db
+    .update(usersTable)
+    .set({
+      passwordHash: hashPassword(newPassword),
+      mustChangePassword: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ valid: true, message: "Password updated." });
 });
 
 export default router;

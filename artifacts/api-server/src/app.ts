@@ -91,6 +91,7 @@ app.use("/api/auth/manager-unlock", authLimiter);
 app.use("/api/auth/manager-confirmation", authLimiter);
 app.use("/api/license/verify", authLimiter);
 app.use("/api/license/revalidate", authLimiter);
+app.use("/api/license/change-password", authLimiter);
 
 app.use("/api", router);
 

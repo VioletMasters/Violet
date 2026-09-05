@@ -98,7 +98,7 @@ async function main() {
     VALUES ($1, $2, $3, 'Admin', 'User', 'owner')
     ON CONFLICT (email) DO UPDATE SET
       password_hash = EXCLUDED.password_hash,
-      role          = CASE WHEN users.role = 'super_admin' THEN users.role ELSE EXCLUDED.role END,
+      role          = EXCLUDED.role,
       tenant_id     = EXCLUDED.tenant_id
   `, [tenantId, ADMIN_EMAIL, pwHash]);
   console.log(`  ✓ Local owner: ${ADMIN_EMAIL}`);

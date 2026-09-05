@@ -12,6 +12,8 @@ use rand::{rngs::OsRng, RngCore};
 use serde::Serialize;
 use tauri::{Manager, Runtime};
 
+const TRUSTED_LICENSE_SERVER_URL: &str = "https://Violetsolutions.replit.app";
+
 fn docker_command() -> Command {
     let mut command = Command::new("docker");
 
@@ -97,8 +99,25 @@ fn show_startup_error(detail: &str) {
 
 /// Navigate the main webview to an arbitrary URL.
 /// Called from JS after the operator enters and saves their server address.
+fn require_setup_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
+    let current = webview
+        .url()
+        .map_err(|_| "Could not verify the current Violet window.".to_string())?;
+    let bundled = current.scheme() == "tauri" && current.host_str() == Some("localhost");
+    let development = cfg!(debug_assertions)
+        && matches!(current.scheme(), "http" | "https")
+        && matches!(current.host_str(), Some("localhost") | Some("127.0.0.1"));
+
+    if bundled || development {
+        Ok(())
+    } else {
+        Err("This command is only available from Violet's local setup screen.".into())
+    }
+}
+
 #[tauri::command]
 fn navigate_to(url: String, webview: tauri::WebviewWindow) -> Result<(), String> {
+    require_setup_origin(&webview)?;
     let parsed = url::Url::parse(&url).map_err(|e| e.to_string())?;
     webview.navigate(parsed).map_err(|e| e.to_string())
 }
@@ -328,15 +347,12 @@ fn compose_start_error(directory: &Path, output: &std::process::Output) -> Strin
 }
 
 #[tauri::command]
-async fn get_docker_status() -> DockerStatus {
-    tauri::async_runtime::spawn_blocking(docker_status)
+async fn get_docker_status(webview: tauri::WebviewWindow) -> Result<DockerStatus, String> {
+    require_setup_origin(&webview)?;
+    let status = tauri::async_runtime::spawn_blocking(docker_status)
         .await
-        .unwrap_or(DockerStatus {
-            available: false,
-            compose_available: false,
-            message: "Docker status could not be checked. Start Docker Desktop, then try again."
-                .into(),
-        })
+        .map_err(|_| "Docker status check stopped unexpectedly.".to_string())?;
+    Ok(status)
 }
 
 fn random_hex(bytes: usize) -> String {
@@ -590,17 +606,13 @@ fn install_and_start_managed_host(
 #[tauri::command]
 async fn start_managed_host(
     app: tauri::AppHandle,
+    webview: tauri::WebviewWindow,
     admin_email: String,
     admin_password: String,
-    license_url: String,
 ) -> Result<ManagedHostStatus, String> {
+    require_setup_origin(&webview)?;
     if admin_email.trim().is_empty() || admin_password.is_empty() {
         return Err("Enter the email and password for your hosted Violet account.".into());
-    }
-    let parsed_license = url::Url::parse(&license_url)
-        .map_err(|_| "Enter a valid hosted Violet license URL.".to_string())?;
-    if parsed_license.scheme() != "https" {
-        return Err("The hosted Violet license URL must use HTTPS.".into());
     }
     let directory = managed_dir(&app)?;
     let archive = app
@@ -613,7 +625,7 @@ async fn start_managed_host(
             "The bundled Violet server files are missing. Reinstall the desktop app.".to_string()
         })?;
     let email = normalise_email(&admin_email);
-    let license_url = parsed_license.to_string();
+    let license_url = TRUSTED_LICENSE_SERVER_URL.to_string();
     tauri::async_runtime::spawn_blocking(move || {
         install_and_start_managed_host(directory, archive, email, admin_password, license_url)
     })
@@ -622,7 +634,11 @@ async fn start_managed_host(
 }
 
 #[tauri::command]
-async fn resume_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus, String> {
+async fn resume_managed_host(
+    app: tauri::AppHandle,
+    webview: tauri::WebviewWindow,
+) -> Result<ManagedHostStatus, String> {
+    require_setup_origin(&webview)?;
     let directory = managed_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || wait_for_managed_host(directory, false))
         .await
@@ -630,7 +646,11 @@ async fn resume_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus,
 }
 
 #[tauri::command]
-async fn retry_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus, String> {
+async fn retry_managed_host(
+    app: tauri::AppHandle,
+    webview: tauri::WebviewWindow,
+) -> Result<ManagedHostStatus, String> {
+    require_setup_origin(&webview)?;
     let directory = managed_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || wait_for_managed_host(directory, false))
         .await
@@ -638,7 +658,11 @@ async fn retry_managed_host(app: tauri::AppHandle) -> Result<ManagedHostStatus, 
 }
 
 #[tauri::command]
-async fn reset_managed_host(app: tauri::AppHandle) -> Result<(), String> {
+async fn reset_managed_host(
+    app: tauri::AppHandle,
+    webview: tauri::WebviewWindow,
+) -> Result<(), String> {
+    require_setup_origin(&webview)?;
     let directory = managed_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         if directory.join("docker-compose.yml").exists() {

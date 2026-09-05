@@ -12,6 +12,7 @@ import { getLicenseFailure, isManagerRole, requireAuth, requireSession } from ".
 import { issueManagerAccess } from "../lib/manager-access";
 import { isPaidTier } from "../lib/subscriptionSync";
 import {
+  changeHostedPassword,
   isSelfHostedRuntime,
   syncLocalLicenseSnapshot,
   verifyHostedLicenseCredentials,
@@ -145,6 +146,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
+  if (isSelfHostedRuntime() && user.role === "super_admin") {
+    res.status(403).json({
+      error: "Super administrator access is only available on hosted Violet",
+    });
+    return;
+  }
 
   let [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
 
@@ -241,6 +248,31 @@ router.post("/auth/change-password", requireSession, async (req, res): Promise<v
   if (!storedUser || !verifyPassword(currentPassword, storedUser.passwordHash)) {
     res.status(401).json({ error: "Current password is incorrect" });
     return;
+  }
+  if (isSelfHostedRuntime()) {
+    if (!req.licenseSessionToken) {
+      res.status(401).json({
+        error: "The online license session has expired. Sign in again.",
+      });
+      return;
+    }
+    try {
+      await changeHostedPassword(req.licenseSessionToken, currentPassword, newPassword);
+    } catch (error) {
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "statusCode" in error &&
+        typeof error.statusCode === "number"
+          ? error.statusCode
+          : 503;
+      res.status(statusCode).json({
+        error: error instanceof Error
+          ? error.message
+          : "Violet could not update the hosted account password.",
+      });
+      return;
+    }
   }
 
   const [updated] = await db.update(usersTable).set({

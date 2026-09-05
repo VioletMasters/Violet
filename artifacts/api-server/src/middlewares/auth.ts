@@ -41,7 +41,7 @@ export function isManagerRole(role: string): boolean {
 }
 
 export function isSuperAdmin(user?: Pick<AuthUser, "role"> | null): boolean {
-  return user?.role === "super_admin";
+  return !isSelfHostedRuntime() && user?.role === "super_admin";
 }
 
 export async function getLicenseFailure(
@@ -222,6 +222,12 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
       res.status(401).json({ error: "User not found" });
       return false;
     }
+    if (isSelfHostedRuntime() && user.role === "super_admin") {
+      res.status(403).json({
+        error: "Super administrator access is only available on hosted Violet",
+      });
+      return false;
+    }
 
     req.user = {
       id: user.id,
@@ -252,8 +258,13 @@ export async function requireSession(req: Request, res: Response, next: NextFunc
 }
 
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (isSelfHostedRuntime()) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
   await requireAuth(req, res, async () => {
-    if (req.user?.role !== "super_admin") {
+    if (!isSuperAdmin(req.user)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

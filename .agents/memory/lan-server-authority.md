@@ -9,6 +9,8 @@ Desktop first-run setup distinguishes Hosted Cloud, Store Host, and Store Client
 
 Completed sales require confirmation from the store server. A failed checkout remains an unconfirmed cart and retries use the same idempotency key; Violet does not silently finalize or queue disconnected payments.
 
-**Why:** Independent register databases create stock, shift, payment, and receipt conflicts. The user chose installer-managed hosting so operators do not manually configure Compose, while Docker remains the supported local API/PostgreSQL runtime.
+Production Store Hosts must use the main hosted Violet runtime as their fixed license authority. Remote pages loaded by the desktop shell must never be allowed to invoke native Store Host lifecycle or data-reset operations; those belong exclusively to the bundled local setup origin.
 
-**How to apply:** New desktop, mobile, PWA, file-upload, receipt, backup, and offline features must preserve server ownership. Host lifecycle changes must preserve database volumes and infrastructure secrets across restarts. Any future offline sales mode needs an explicit reconciliation and payment-risk design rather than bypassing the server.
+**Why:** Independent register databases create stock, shift, payment, and receipt conflicts. A user-selected license authority could capture credentials or issue untrusted licenses, while remote access to native host commands could modify or destroy server data. The user chose installer-managed hosting so operators do not manually configure Compose, while Docker remains the supported local API/PostgreSQL runtime.
+
+**How to apply:** New desktop, mobile, PWA, file-upload, receipt, backup, and offline features must preserve server ownership. Host lifecycle changes must preserve database volumes and infrastructure secrets across restarts, keep licensing pinned to the hosted authority, and isolate privileged native commands from connected server content. Any future offline sales mode needs an explicit reconciliation and payment-risk design rather than bypassing the server.
