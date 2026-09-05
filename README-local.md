@@ -169,7 +169,7 @@ Keep backups on a different physical disk or encrypted backup service. Test rest
 
 Violet only records a sale after the local server confirms it. A cashier browser does not independently reduce stock or issue a final receipt.
 
-- If the internet is unavailable but the LAN server and current license session are available, registers continue talking to the local server.
+- If the internet is unavailable but the LAN server and cached plan are available, registers continue talking to the local server.
 - If the LAN connection or local server fails during checkout, Violet keeps the cart open and reports that the sale was not confirmed.
 - Press **Complete Payment** again after connectivity returns. Violet reuses the checkout's idempotency key, so a response lost in transit cannot create a duplicate sale or reduce stock twice.
 - Do not start a second replacement transaction until the original retry has been resolved.
