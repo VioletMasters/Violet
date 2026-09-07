@@ -9,7 +9,10 @@ interface ThemeState {
 }
 
 const ThemeContext = createContext<ThemeState | null>(null);
-const THEME_STORAGE_KEY = "violet-theme";
+// v2 intentionally starts with light mode. The old key was written even when
+// users had never made an explicit choice, so reusing it would keep first-time
+// users on the previous dark default.
+const THEME_STORAGE_KEY = "violet-theme-v2";
 
 export function getStoredTheme(): Theme {
   if (typeof window !== "undefined") {
