@@ -37,6 +37,10 @@ export const saleItemsTable = pgTable("sale_items", {
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   unitCostSnapshot: numeric("unit_cost_snapshot", { precision: 14, scale: 4 }),
   categoryIdSnapshot: uuid("category_id_snapshot"),
+  isVoided: boolean("is_voided").notNull().default(false),
+  voidReason: text("void_reason"),
+  voidedBy: uuid("voided_by"),
+  voidedAt: timestamp("voided_at", { withTimezone: true }),
 });
 
 export const inventoryMovementsTable = pgTable("inventory_movements", {

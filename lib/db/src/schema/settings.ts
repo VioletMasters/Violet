@@ -15,6 +15,7 @@ export const settingsTable = pgTable("settings", {
   logoUrl: text("logo_url"),
   timezone: text("timezone").notNull().default("America/New_York"),
   requireManagerPasswordForCartRemoval: boolean("require_manager_password_for_cart_removal").notNull().default(false),
+  showVoidedItems: boolean("show_voided_items").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
