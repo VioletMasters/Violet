@@ -49,6 +49,7 @@ export default function ReportsSales() {
                 <th className="px-4 py-3 font-medium">Receipt</th>
                 <th className="px-4 py-3 font-medium">Date & Time</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Voided items</th>
                 <th className="px-4 py-3 font-medium text-right">Subtotal</th>
                 <th className="px-4 py-3 font-medium text-right">Discount</th>
                 <th className="px-4 py-3 font-medium text-right">Tax</th>
@@ -82,6 +83,11 @@ export default function ReportsSales() {
                         {tx.status}
                       </Badge>
                     </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {Array.isArray(tx.voidedItems) && tx.voidedItems.length > 0
+                        ? tx.voidedItems.map((item: any) => `${item.productName} ×${item.quantity}`).join(", ")
+                        : "—"}
+                    </td>
                     <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                       {formatCurrency(tx.subtotal)}
                     </td>
@@ -98,7 +104,7 @@ export default function ReportsSales() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
                       <FileText className="h-8 w-8 mb-2 opacity-30" />
                       <p>No transactions found for this period.</p>
