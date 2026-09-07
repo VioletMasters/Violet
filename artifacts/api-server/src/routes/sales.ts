@@ -98,7 +98,7 @@ router.get("/sales", requireManagerAccess, async (req, res): Promise<void> => {
 router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const cashierId = req.user!.id;
-  const { customerId, items, paymentMethod, payments, cashTendered, note, storeId, registerId, shiftId } = req.body;
+  const { customerId, items, voidedItems, paymentMethod, payments, cashTendered, note, storeId, registerId, shiftId } = req.body;
   const idempotencyKey = typeof req.body?.idempotencyKey === "string"
     ? req.body.idempotencyKey.trim()
     : "";
@@ -135,9 +135,25 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const inputVoidedItems = voidedItems === undefined
+    ? []
+    : voidedItems as Array<{ productId?: unknown; quantity?: unknown; unitPrice?: unknown; reason?: unknown }>;
+  if (!Array.isArray(inputVoidedItems) || inputVoidedItems.some((item) =>
+    typeof item.productId !== "string"
+    || !Number.isInteger(item.quantity)
+    || Number(item.quantity) <= 0
+    || !Number.isFinite(Number(item.unitPrice))
+    || Number(item.unitPrice) < 0
+  )) {
+    res.status(400).json({ error: "Each voided item requires a productId, a positive whole-number quantity, and a valid unitPrice" });
+    return;
+  }
+
+  const voidedProductIds = inputVoidedItems.map((item) => item.productId as string);
+  const lookupProductIds = [...new Set([...productIds, ...voidedProductIds])];
   const [products, settings, customer] = await Promise.all([
     db.select().from(productsTable)
-      .where(and(eq(productsTable.tenantId, tenantId), inArray(productsTable.id, productIds))),
+      .where(and(eq(productsTable.tenantId, tenantId), inArray(productsTable.id, lookupProductIds))),
     db.select().from(settingsTable).where(eq(settingsTable.tenantId, tenantId)).limit(1),
     typeof customerId === "string" && customerId
       ? db.select().from(customersTable)
@@ -145,7 +161,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       : Promise.resolve([]),
   ]);
 
-  if (products.length !== productIds.length) {
+  if (products.length !== lookupProductIds.length) {
     res.status(400).json({ error: "One or more products are unavailable for this business" });
     return;
   }
@@ -181,6 +197,19 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   }
 
   const validLineItems = lineItems as Array<NonNullable<(typeof lineItems)[number]>>;
+  const voidedLineItems = inputVoidedItems.map((item) => {
+    const product = productsById.get(item.productId as string)!;
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    const rawReason = typeof item.reason === "string" ? item.reason.trim() : "";
+    return {
+      product,
+      quantity,
+      unitPrice,
+      reason: rawReason.slice(0, 200) || "Removed from cart",
+      totalPrice: unitPrice * quantity,
+    };
+  });
   const subtotal = validLineItems.reduce((sum, item) => sum + item.totalPrice, 0);
   const discountAmount = validLineItems.reduce((sum, item) => sum + item.discount, 0);
   const configuredTaxRate = Number(settings[0]?.taxRate ?? 0);
@@ -286,6 +315,23 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
         });
       }
     }
+    for (const item of voidedLineItems) {
+      await tx.insert(saleItemsTable).values({
+        saleId: created.id,
+        productId: item.product.id,
+        productName: item.product.name,
+        quantity: item.quantity,
+        unitPrice: String(item.unitPrice),
+        discount: "0",
+        totalPrice: String(item.totalPrice),
+        unitCostSnapshot: item.product.costPrice ?? null,
+        categoryIdSnapshot: item.product.categoryId,
+        isVoided: true,
+        voidReason: item.reason,
+        voidedBy: cashierId,
+        voidedAt: new Date(),
+      });
+    }
 
     const normalizedPayments = tenderInputs ?? [{
       method: paymentMethod, amount: totalAmount,
@@ -359,7 +405,10 @@ router.post("/sales/:id/refund", requireManagerAccess, async (req, res): Promise
       tenantId, saleId: sale.id, amount: sale.totalAmount, taxAmount: sale.taxAmount,
       method: sale.paymentMethod, reason, createdBy: req.user!.id, approvedBy: req.user!.id,
     }).returning();
-    const items = await tx.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, sale.id));
+    const items = await tx.select().from(saleItemsTable).where(and(
+      eq(saleItemsTable.saleId, sale.id),
+      eq(saleItemsTable.isVoided, false),
+    ));
     if (items.length) await tx.insert(refundItemsTable).values(items.map((item) => ({
       tenantId, refundId: refund.id, saleItemId: item.id, quantity: item.quantity,
       amount: item.totalPrice,
