@@ -13,3 +13,4 @@
 - [Inventory financial valuation](inventory-financial-valuation.md) — missing product costs make profit incomplete; receipt costs and purchase commitments are not supplier payments.
 - [Deployment image size](deployment-image-size.md) — root Nix packages become autoscale image layers; keep desktop-only dependencies out of hosted deployments.
 - [PostgreSQL harness lock synchronization](postgres-harness-locks.md) — observe granted and waiting advisory locks through pg_locks because piped psql output may be buffered.
+- [Tauri bundled origin](tauri-bundled-origin.md) — Tauri 2 bundled pages use http://tauri.localhost; native setup guards must allow that origin.
