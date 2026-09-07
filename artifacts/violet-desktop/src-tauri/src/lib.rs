@@ -99,11 +99,20 @@ fn show_startup_error(detail: &str) {
 
 /// Navigate the main webview to an arbitrary URL.
 /// Called from JS after the operator enters and saves their server address.
+fn is_bundled_setup_origin(current: &url::Url) -> bool {
+    // Tauri 2 serves WebviewUrl::App content from http://tauri.localhost.
+    // Keep the legacy tauri://localhost form for existing installations and
+    // older WebView protocol implementations.
+    (matches!(current.scheme(), "http" | "https")
+        && current.host_str() == Some("tauri.localhost"))
+        || (current.scheme() == "tauri" && current.host_str() == Some("localhost"))
+}
+
 fn require_setup_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
     let current = webview
         .url()
         .map_err(|_| "Could not verify the current Violet window.".to_string())?;
-    let bundled = current.scheme() == "tauri" && current.host_str() == Some("localhost");
+    let bundled = is_bundled_setup_origin(&current);
     let development = cfg!(debug_assertions)
         && matches!(current.scheme(), "http" | "https")
         && matches!(current.host_str(), Some("localhost") | Some("127.0.0.1"));
@@ -777,7 +786,7 @@ pub fn run() {
             // knows to show the configuration screen instead of auto-connecting.
             if event.id().as_ref() == "configure_server" {
                 if let Some(win) = app.get_webview_window("main") {
-                    if let Ok(url) = "tauri://localhost?reconfigure=1".parse::<url::Url>() {
+                    if let Ok(url) = "http://tauri.localhost/?reconfigure=1".parse::<url::Url>() {
                         let _ = win.navigate(url);
                     }
                 }
@@ -801,7 +810,20 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{dotenv_value, normalise_email, parse_dotenv};
+    use super::{dotenv_value, is_bundled_setup_origin, normalise_email, parse_dotenv};
+
+    #[test]
+    fn bundled_tauri_origin_is_allowed() {
+        assert!(is_bundled_setup_origin(
+            &"http://tauri.localhost/".parse().unwrap()
+        ));
+        assert!(is_bundled_setup_origin(
+            &"tauri://localhost/".parse().unwrap()
+        ));
+        assert!(!is_bundled_setup_origin(
+            &"https://example.com/".parse().unwrap()
+        ));
+    }
 
     #[test]
     fn compose_dotenv_round_trips_practical_credential_characters() {
