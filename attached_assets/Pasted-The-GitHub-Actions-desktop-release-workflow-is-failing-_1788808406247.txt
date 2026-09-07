@@ -1,0 +1,115 @@
+The GitHub Actions desktop release workflow is failing during the local smoke test.
+
+Here is the exact error:
+
+Run $ErrorActionPreference = "Stop"
+
+Launching NSIS Desktop shortcut from C:\Users\runneradmin\AppData\Local\Violet Enterprise\Violet Enterprise.exe
+
+NSIS Desktop shortcut remained running after startup.
+
+Launching NSIS Start Menu shortcut from C:\Users\runneradmin\AppData\Local\Violet Enterprise\Violet Enterprise.exe
+
+NSIS Start Menu shortcut remained running after startup.
+
+Docker Compose version v2.40.3
+
+file:///D:/a/Violet/Violet/artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs:100
+
+  throw new Error(lastError);
+
+        ^
+
+Error: fetch failed
+
+    at getPageTarget (file:///D:/a/Violet/Violet/artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs:100:9)
+
+    at async connectToPage (file:///D:/a/Violet/Violet/artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs:104:18)
+
+    at async file:///D:/a/Violet/Violet/artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs:300:10
+
+Node.js v22.23.2
+
+Launching MSI Start Menu shortcut from C:\Users\runneradmin\AppData\Local\Violet Enterprise\Violet Enterprise.exe
+
+MSI Start Menu shortcut remained running after startup.
+
+Error: Process completed with exit code 1.
+
+I need you to diagnose and FIX the underlying problem, not simply disable the smoke test.
+
+Please inspect the entire desktop packaging and smoke-test implementation, especially:
+
+- artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs
+- artifacts/violet-desktop
+- .github/workflows/build-desktop.yml
+- docker-compose.yml
+- the Electron/main-process startup code
+- the Electron renderer startup code
+- the server/API startup configuration
+- any code responsible for determining the local server URL/port
+- any health-check or readiness-check code
+
+Determine exactly what URL and port the desktop smoke test expects the Violet application to expose.
+
+Then determine why getPageTarget() receives "fetch failed".
+
+The fix must make the packaged Violet Enterprise application actually work as a standalone Windows/macOS desktop application.
+
+Requirements:
+
+1. The desktop application must launch successfully from the installed .exe/.msi.
+2. The application must know whether it is running in local-server mode or connecting to an existing Violet server.
+3. For the GitHub Actions smoke test, automatically start whatever local backend/server is required before attempting to connect to the application.
+4. Do not assume that localhost or port 80 is available.
+5. Do not hard-code a development/Replit URL into the production desktop application.
+6. Implement a reliable readiness/health check with retries and a useful timeout error that reports the actual URL/port being tested.
+7. Make sure Docker Compose services are actually ready before the smoke test tries to connect.
+8. Make sure the Electron application waits for the backend/frontend to become ready before loading the renderer.
+9. If the desktop application is supposed to connect to an externally running Violet server instead of starting one itself, clearly implement that behavior and make the server URL configurable.
+10. Preserve the existing "Connect to Violet" screen for entering a remote/LAN server address.
+11. Do not disable, skip, or weaken the smoke test just to make GitHub Actions pass.
+12. Do not remove the Windows or macOS build targets.
+13. Make the same architecture work on Windows and macOS.
+
+Also inspect the Docker networking configuration. The previous local Docker deployment showed:
+
+API:
+SESSION_SECRET is required and the API exits when it is missing.
+
+Web:
+nginx reports:
+"host not found in upstream api"
+
+Make sure the smoke-test environment creates all required environment variables before starting Docker Compose, including a valid generated SESSION_SECRET and test ADMIN_EMAIL/ADMIN_PASSWORD.
+
+Most importantly, determine whether the smoke test is trying to fetch:
+
+- the web server,
+- the API,
+- an Electron localhost page,
+- or another local endpoint.
+
+Do not guess.
+
+After diagnosing it, implement the fix in the project.
+
+Then run the appropriate local tests/builds and verify:
+
+A. Docker API starts and remains healthy.
+B. Web server starts and can reach the API.
+C. Windows Electron installer launches.
+D. The smoke test can actually connect to the running application.
+E. macOS packaging remains valid.
+F. The GitHub Actions workflow completes successfully.
+
+When finished, give me:
+
+1. The root cause.
+2. The files you changed.
+3. Exactly what you changed.
+4. Why the fix works.
+5. The exact commands/tests you ran.
+6. Confirmation that the GitHub Actions workflow should now pass.
+
+Do not merely change the test to ignore the failure. Fix the application startup/connectivity problem itself.
