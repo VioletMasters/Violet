@@ -11,17 +11,6 @@
     "beforeBuildCommand": "npm run prepare:self-host && npm run build"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Violet Enterprise",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 1024,
-        "minHeight": 600,
-        "resizable": true,
-        "center": true
-      }
-    ],
     "security": {
       "csp": null
     }

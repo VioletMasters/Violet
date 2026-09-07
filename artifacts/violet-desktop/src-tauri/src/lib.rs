@@ -97,32 +97,6 @@ fn show_startup_error(detail: &str) {
     }
 }
 
-#[cfg(windows)]
-fn configure_webview2_for_smoke() {
-    let Ok(port) = std::env::var("VIOLET_SMOKE_CDP_PORT") else {
-        return;
-    };
-    if port.is_empty() || !port.chars().all(|character| character.is_ascii_digit()) {
-        return;
-    }
-
-    let argument = format!("--remote-debugging-port={port}");
-    let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-    if existing
-        .split_whitespace()
-        .any(|value| value.starts_with("--remote-debugging-port="))
-    {
-        return;
-    }
-
-    let combined = if existing.trim().is_empty() {
-        argument
-    } else {
-        format!("{existing} {argument}")
-    };
-    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", combined);
-}
-
 /// Navigate the main webview to an arbitrary URL.
 /// Called from JS after the operator enters and saves their server address.
 fn require_setup_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
@@ -753,12 +727,35 @@ async fn reset_managed_host(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(windows)]
-    configure_webview2_for_smoke();
-
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
+            let window_builder = tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("Violet Enterprise")
+            .inner_size(1280.0, 800.0)
+            .min_inner_size(1024.0, 600.0)
+            .resizable(true)
+            .center();
+
+            #[cfg(windows)]
+            let window_builder = if let Ok(port) = std::env::var("VIOLET_SMOKE_CDP_PORT") {
+                if !port.is_empty() && port.chars().all(|character| character.is_ascii_digit()) {
+                    window_builder.additional_browser_args(&format!(
+                        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"
+                    ))
+                } else {
+                    window_builder
+                }
+            } else {
+                window_builder
+            };
+
+            let window = window_builder.build()?;
+
             // Add a "Configure Server" menu item on desktop so users can reconfigure
             // without clearing app data manually.
             #[cfg(desktop)]
@@ -769,10 +766,7 @@ pub fn run() {
                     .id("configure_server")
                     .build(app)?;
                 let menu = MenuBuilder::new(app).items(&[&configure]).build()?;
-
-                if let Some(win) = app.get_webview_window("main") {
-                    win.set_menu(menu)?;
-                }
+                window.set_menu(menu)?;
             }
             Ok(())
         })
