@@ -81,7 +81,9 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+// Product imports can contain thousands of normalized rows. Keep the limit
+// bounded while allowing a realistic catalog file to reach the import route.
+app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Apply rate limiter to auth endpoints
