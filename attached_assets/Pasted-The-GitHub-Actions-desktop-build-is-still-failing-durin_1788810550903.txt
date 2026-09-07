@@ -1,0 +1,141 @@
+The GitHub Actions desktop build is still failing during the local desktop smoke test.
+
+Here is the exact failure:
+
+Run $ErrorActionPreference = "Stop"
+
+Launching NSIS Desktop shortcut from:
+C:\Users\runneradmin\AppData\Local\Violet Enterprise\Violet Enterprise.exe
+
+NSIS Desktop shortcut remained running after startup.
+
+Launching NSIS Start Menu shortcut from:
+C:\Users\runneradmin\AppData\Local\Violet Enterprise\Violet Enterprise.exe
+
+NSIS Start Menu shortcut remained running after startup.
+
+Docker Compose version v2.40.3
+
+file:///D:/a/Violet/Violet/artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs:188
+
+throw new Error(`Start locally did not open the local login page: ${url}`);
+
+Error:
+Start locally did not open the local login page:
+http://tauri.localhost/
+
+at assertLocalLoginUrl
+(file:///D:/a/Violet/Violet/artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs:188:11)
+
+Node.js v22.23.2
+
+Launching MSI Start Menu shortcut from:
+C:\Users\runneradmin\AppData\Local\Violet Enterprise\Violet Enterprise.exe
+
+MSI Start Menu shortcut remained running after startup.
+
+Error: Process completed with exit code 1.
+
+IMPORTANT:
+Do NOT simply disable the smoke test or weaken the assertion just to make GitHub Actions pass.
+
+I need you to find the actual root cause and fix the desktop application's local-start architecture.
+
+Please inspect all relevant files, especially:
+
+1. artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs
+2. artifacts/violet-desktop/
+3. .github/workflows/build-desktop.yml
+4. docker-compose.yml
+5. the Electron/Tauri desktop application entry point
+6. the desktop application's window/navigation configuration
+7. the code responsible for "Start locally"
+8. the login page routing
+9. the local API/web server startup
+10. any configuration involving tauri.localhost, localhost, 127.0.0.1, ports, or custom protocols
+
+The error is particularly important:
+
+http://tauri.localhost/
+
+The smoke test expects "Start locally" to open the local Violet login page, but the packaged application is navigating to tauri.localhost instead.
+
+Determine whether this project is actually using Electron, Tauri, or a mixture of code/configuration from both.
+
+If the application is supposed to use Electron, remove/fix any incorrect Tauri-specific navigation or URL handling.
+
+If the application is actually supposed to use Tauri, then correctly configure the Tauri local URL and make the smoke test verify the correct application URL.
+
+Do not guess.
+
+Trace the complete flow:
+
+Desktop shortcut
+→ packaged desktop application
+→ Start locally
+→ local backend/server
+→ frontend
+→ login page
+→ smoke test
+
+Make sure the packaged application actually starts the local Violet server/backend required for "Start locally" and waits for it to become ready before navigating.
+
+The application must NOT depend on the Replit development server.
+
+The application must work after being installed on a normal Windows PC without Replit.
+
+Also make sure:
+- local API starts correctly
+- local database/Docker services start correctly when required
+- frontend becomes available
+- desktop app waits for readiness
+- login page is reachable
+- smoke test can detect the login page
+- Windows NSIS build works
+- Windows MSI build works
+- macOS build remains supported
+- remote/LAN server connection functionality is preserved
+
+For the smoke test, implement proper readiness/retry logic rather than using a fixed arbitrary delay.
+
+If the smoke test needs a health endpoint, use the actual application's health endpoint and wait until it responds successfully.
+
+Also inspect why the log says:
+
+"NSIS Desktop shortcut remained running after startup."
+
+and
+
+"NSIS Start Menu shortcut remained running after startup."
+
+Determine whether this is merely an informational message or another indication that the packaged application is not completing startup correctly.
+
+After identifying the root cause, implement the actual fix.
+
+Then run the relevant tests/builds locally in the Replit environment and verify:
+1. packaged desktop app launches
+2. Start locally works
+3. local login page opens
+4. smoke test passes
+5. NSIS build passes
+6. MSI build passes
+7. macOS packaging is not broken
+
+Do not create another Git tag until the workflow is passing.
+
+Once the fix is complete, commit the changes and push them to:
+
+https://github.com/VioletMasters/Violet.git
+
+Use the existing authorized GitHub/Replit integration if available.
+
+I am also getting Git errors again when trying to push. If the GitHub connection is invalid, diagnose/reconnect the existing GitHub integration rather than asking me to put a GitHub password into the project.
+
+At the end, give me:
+- root cause
+- files changed
+- exact fix
+- tests performed
+- whether the smoke test passed
+- commit SHA
+- whether the changes were successfully pushed to GitHub
