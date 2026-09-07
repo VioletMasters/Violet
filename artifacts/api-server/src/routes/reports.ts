@@ -308,13 +308,33 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
   const query = req.query as Query; const error = validDates(query);
   if (error) { res.status(400).json({ error }); return; }
   const format = String(req.params.format ?? query.format); if (!["csv", "xlsx", "pdf"].includes(format)) { res.status(400).json({ error: "format must be csv, xlsx, or pdf" }); return; }
+  const [reportSettings] = await db.select({ showVoidedItems: settingsTable.showVoidedItems })
+    .from(settingsTable).where(eq(settingsTable.tenantId, req.tenantId!)).limit(1);
   const rows = await db.select({
     receiptNumber: salesTable.receiptNumber, createdAt: salesTable.createdAt, status: salesTable.status,
     storeId: salesTable.storeId, registerId: salesTable.registerId, cashierId: salesTable.cashierId,
     subtotal: salesTable.subtotal, discount: salesTable.discountAmount, tax: salesTable.taxAmount,
     total: salesTable.totalAmount, paymentMethod: salesTable.paymentMethod,
   }).from(salesTable).where(and(...filters(query, req.tenantId!))).orderBy(asc(salesTable.createdAt)).limit(100000);
-  const exportRows = rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  const voidedItemsBySale = new Map<string, string[]>();
+  if (reportSettings?.showVoidedItems && rows.length > 0) {
+    const voidedItems = await db.select().from(saleItemsTable).where(and(
+      eq(saleItemsTable.isVoided, true),
+      inArray(saleItemsTable.saleId, rows.map((row) => row.id)),
+    ));
+    for (const item of voidedItems) {
+      const list = voidedItemsBySale.get(item.saleId) ?? [];
+      list.push(`${item.productName} ×${item.quantity} (${item.voidReason ?? "Removed from cart"})`);
+      voidedItemsBySale.set(item.saleId, list);
+    }
+  }
+  const exportRows = rows.map((r) => ({
+    ...r,
+    createdAt: r.createdAt.toISOString(),
+    ...(reportSettings?.showVoidedItems
+      ? { voidedItems: (voidedItemsBySale.get(r.id) ?? []).join("; ") }
+      : {}),
+  }));
   res.setHeader("Content-Disposition", `attachment; filename="violet-report.${format}"`);
   if (format === "csv") { res.type("text/csv").send(toCsv(exportRows)); return; }
   if (format === "xlsx") { res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").send(toXlsx(exportRows)); return; }
