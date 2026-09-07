@@ -257,7 +257,7 @@ router.post("/products/import", requireManagerAccess, async (req, res): Promise<
         result.errors.push({ row: index + 2, message: "Cost price must be a non-negative number" });
         continue;
       }
-      if (!Number.isInteger(stock) || stock < 0 || !Number.isInteger(minStock) || minStock < 0) {
+      if (stock === undefined || minStock === undefined || !Number.isInteger(stock) || stock < 0 || !Number.isInteger(minStock) || minStock < 0) {
         result.skipped += 1;
         result.errors.push({ row: index + 2, message: "Stock values must be non-negative whole numbers" });
         continue;
@@ -265,9 +265,11 @@ router.post("/products/import", requireManagerAccess, async (req, res): Promise<
 
       const categoryId = await findOrCreateCatalogValue(tx, categoriesTable, tenantId, textValue(row.category));
       const brandId = await findOrCreateCatalogValue(tx, brandsTable, tenantId, textValue(row.brand));
-      const matchConditions = [eq(productsTable.tenantId, tenantId), eq(productsTable.sku, sku)];
-      if (barcode) matchConditions.push(eq(productsTable.barcode, barcode));
-      const [existing] = await tx.select().from(productsTable).where(or(...matchConditions)).limit(1);
+      const identityConditions = [eq(productsTable.sku, sku)];
+      if (barcode) identityConditions.push(eq(productsTable.barcode, barcode));
+      const [existing] = await tx.select().from(productsTable)
+        .where(and(eq(productsTable.tenantId, tenantId), or(...identityConditions)))
+        .limit(1);
       const values = {
         name,
         description: textValue(row.description) || null,

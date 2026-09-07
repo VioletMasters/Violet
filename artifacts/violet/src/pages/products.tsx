@@ -86,7 +86,11 @@ function parseImportNumber(value: string, fallback?: number) {
 
 function parseDelimitedCsv(text: string) {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  const delimiter = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const delimiterCounts = [",", ";", "\t"].map((candidate) => ({
+    candidate,
+    count: firstLine.split(candidate).length - 1,
+  }));
+  const delimiter = delimiterCounts.sort((left, right) => right.count - left.count)[0]?.candidate || ",";
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
