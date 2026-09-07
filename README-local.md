@@ -2,8 +2,9 @@
 
 Run the full Violet Enterprise POS system on your own computer or server. The server checks the hosted Violet account and license when a user signs in, then keeps the POS available locally through internet outages using the last cached plan. After sign-in, phones, tablets, and PCs on the same Wi-Fi or wired network can use the system by opening a browser.
 
-> **Desktop app option:** Violet Desktop's **Store Host (this desktop)** mode
-> performs this setup from the first-run screen. It requires Docker Desktop
+> **Desktop app option:** Violet Desktop's **Start locally** mode performs this
+> setup from the first-run screen and starts with the Free plan. It requires
+> Docker Desktop
 > (including Docker Compose v2) to be installed and running, creates the local
 > `.env` and Docker stack in its app-data directory, and keeps the named volumes
 > when restarted. Choose **Store Client** on other registers and enter the

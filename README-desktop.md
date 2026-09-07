@@ -37,10 +37,13 @@ After a release is available:
 4. Install the app and launch **Violet Enterprise**.
 5. On first launch, choose **Start locally** to run the Free version on this
    computer, or select the appropriate hosted/client role. Starting locally
-   does not require the internet. Enter a local admin email and password for
-   the Store Host login:
+   does not require the internet. For an existing Store Host or Store Client,
+   enter its server address:
    - LAN Docker host: `http://192.168.1.10`
    - Cloud deployment: `https://pos.example.com`
+
+   When starting locally, enter a local admin email and password for the Store
+   Host login:
 
    A local Store Host always starts on the Free plan. If the local sign-in
    credentials also belong to a hosted Violet account, Violet attempts one
