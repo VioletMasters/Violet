@@ -27,8 +27,10 @@ let licenseServer;
 let apiLogs = "";
 const hostedLicense = {
   available: false,
+  credentialsValid: true,
   planTier: null,
   licenseValidUntil: null,
+  verifyRequests: 0,
 };
 
 function hashPassword(value) {
@@ -157,10 +159,15 @@ async function startLicenseServer() {
       return;
     }
 
+    hostedLicense.verifyRequests += 1;
     let body = "";
     for await (const chunk of request) body += chunk;
     const payload = JSON.parse(body || "{}");
-    if (payload.email !== email || payload.password !== password) {
+    if (
+      !hostedLicense.credentialsValid ||
+      payload.email !== email ||
+      payload.password !== password
+    ) {
       response.writeHead(401, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ valid: false, message: "Invalid credentials" }));
       return;
@@ -321,8 +328,8 @@ function seedDatabase(freePlanId, paidPlanId) {
       license_validated_at, license_valid_until
     ) VALUES (
       ${sqlString(tenantId)}, 'Offline License Harness', ${sqlString(email)},
-      'active', ${sqlString(paidPlanId)}, 'valid',
-      ${sqlString(now)}, ${sqlString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString())}
+      'active', ${sqlString(freePlanId)}, 'valid',
+      ${sqlString(now)}, NULL
     );
     INSERT INTO users (
       id, tenant_id, email, password_hash, first_name, last_name, role
@@ -334,8 +341,8 @@ function seedDatabase(freePlanId, paidPlanId) {
       tenant_id, plan_id, status, payment_status,
       current_period_start, current_period_end
     ) VALUES (
-      ${sqlString(tenantId)}, ${sqlString(paidPlanId)}, 'active', 'paid',
-      ${sqlString(now)}, ${sqlString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString())}
+      ${sqlString(tenantId)}, ${sqlString(freePlanId)}, 'active', 'not_required',
+      ${sqlString(now)}, NULL
     );
     INSERT INTO products (
       id, tenant_id, name, sku, price, cost_price, stock, min_stock, is_active
@@ -383,6 +390,17 @@ async function verifyLocalRequest(token) {
   });
   assert(response.status === 200, `Local authenticated request failed: ${response.status} ${JSON.stringify(body)}`);
   assert(body?.email === email, "Local authenticated request returned the wrong user.");
+}
+
+async function verifyLocalPosAccess(token) {
+  const { response, body } = await request("/api/pos/products", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert(response.status === 200, `Local POS request failed: ${response.status} ${JSON.stringify(body)}`);
+  assert(
+    body?.data?.some((product) => product.id === productId),
+    "Local POS request did not return the seeded product.",
+  );
 }
 
 async function verifyLocalSubscription(token, expectedPlanId, expectedPlanTier, expectedPlanName) {
@@ -510,7 +528,7 @@ async function main() {
   const plans = runSql(`
     SELECT tier || E'\\t' || id || E'\\t' || replace(name, E'\\t', ' ')
     FROM subscription_plans
-    WHERE tier IN ('free', 'starter')
+    WHERE tier IN ('free', 'starter', 'professional', 'enterprise')
     ORDER BY CASE tier WHEN 'free' THEN 0 ELSE 1 END;
   `)
     .split("\n")
@@ -533,6 +551,30 @@ async function main() {
   try {
     await waitForApi();
 
+    assert(
+      hostedLicense.verifyRequests === 0,
+      `Store Host startup contacted hosted licensing ${hostedLicense.verifyRequests} time(s).`,
+    );
+    const unavailable = await signIn(freePlan.id, freePlan.name);
+    await verifyLocalRequest(unavailable.token);
+    await verifyLocalPosAccess(unavailable.token);
+    console.log("PASS new local Store Host starts Free without hosted validation and serves the POS offline");
+
+    hostedLicense.credentialsValid = false;
+    const invalidHostedCredentials = await signIn(freePlan.id, freePlan.name);
+    await verifyLocalRequest(invalidHostedCredentials.token);
+    await verifyLocalPosAccess(invalidHostedCredentials.token);
+    assert(
+      hostedLicense.verifyRequests > 0,
+      "Local sign-in did not attempt hosted validation before falling back to Free.",
+    );
+    console.log("PASS invalid hosted credentials never grant a paid plan and still allow local Free sign-in");
+
+    hostedLicense.credentialsValid = true;
+    setCachedPlan(
+      paidPlan.id,
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    );
     const active = await signIn(paidPlan.id, paidPlan.name);
     await verifyLocalRequest(active.token);
     await restartApi();
@@ -575,11 +617,18 @@ async function main() {
     console.log("PASS cached Free plan and local sessions remain usable after forced Store Host termination");
 
     hostedLicense.available = true;
+    for (const hostedPlan of plans.filter((plan) => plan.tier !== "free")) {
+      setCachedPlan(freePlan.id, null, "active");
+      hostedLicense.planTier = hostedPlan.tier;
+      hostedLicense.licenseValidUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const upgraded = await signIn(hostedPlan.id, hostedPlan.name);
+      await verifyLocalSubscription(upgraded.token, hostedPlan.id, hostedPlan.tier, hostedPlan.name);
+      console.log(`PASS online sign-in upgrades the cached Free plan to hosted ${hostedPlan.name}`);
+    }
+
     hostedLicense.planTier = paidPlan.tier;
-    hostedLicense.licenseValidUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const upgraded = await signIn(paidPlan.id, paidPlan.name);
     await verifyLocalSubscription(upgraded.token, paidPlan.id, paidPlan.tier, paidPlan.name);
-    console.log("PASS online sign-in refreshes the cached Free plan to the hosted paid plan");
 
     const managerUnlock = await request("/api/auth/manager-unlock", {
       method: "POST",

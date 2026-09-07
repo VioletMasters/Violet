@@ -149,8 +149,14 @@ async function main() {
 
   // ── 2. Super-admin tenant ──────────────────────────────────────────────
   const tenantRes = await client.query(`
-    INSERT INTO tenants (name, email, status)
-    VALUES ('Violet Platform', $1, 'active')
+    INSERT INTO tenants (name, email, status, plan_id, license_status)
+    VALUES (
+      'Violet Platform',
+      $1,
+      'active',
+      (SELECT id FROM subscription_plans WHERE tier = 'free'),
+      'valid'
+    )
     ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
     RETURNING id
   `, [ADMIN_EMAIL]);
