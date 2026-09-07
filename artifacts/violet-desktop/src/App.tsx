@@ -242,8 +242,8 @@ export default function App() {
             onClick={() => selectMode('hosted')}
           />
           <ModeCard
-            title="Store Host"
-            text="Run this store's server locally on this desktop."
+            title="Start locally"
+            text="Run the Free version on this desktop, even without internet."
             onClick={() => selectMode('host')}
           />
           <ModeCard
@@ -261,18 +261,22 @@ export default function App() {
       <button type="button" className="back" onClick={choose}>
         ← All modes
       </button>
-      <h1>{mode === 'host' ? 'Create your Store Host' : 'Connect this Store Client'}</h1>
+      <h1>{mode === 'host' ? 'Start locally' : 'Connect this Store Client'}</h1>
 
       {mode === 'host' ? (
         <form onSubmit={startHost}>
-          <p>Docker Desktop runs Violet locally. Your store's PostgreSQL data and files persist on this server computer in Docker named volumes.</p>
+          <p>
+            Docker Desktop runs the Free version of Violet locally. Your store's data persists on this computer,
+            and the POS keeps working when the internet is unavailable. If these credentials belong to a paid
+            hosted Violet account, that plan is applied only after the local sign-in can validate it online.
+          </p>
           {docker && (
             <p className={docker.available && docker.composeAvailable ? 'notice good' : 'notice bad'}>
               {docker.message}
             </p>
           )}
           <label>
-            Hosted Violet email
+            Local admin email
             <input
               ref={inputRef}
               type="email"
@@ -283,7 +287,7 @@ export default function App() {
             />
           </label>
           <label>
-            Hosted Violet password
+            Local admin password
             <input
               type="password"
               value={password}
@@ -304,7 +308,7 @@ export default function App() {
             </>
           )}
           <button disabled={!!docker && (!docker.available || !docker.composeAvailable)}>
-            {error ? 'Rebuild Store Host' : 'Start Store Host'}
+            {error ? 'Rebuild locally' : 'Start locally (Free)'}
           </button>
         </form>
       ) : (

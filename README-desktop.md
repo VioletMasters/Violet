@@ -35,10 +35,18 @@ After a release is available:
    - `x86_64` for Intel Macs
    - `aarch64` for Apple Silicon Macs (M1/M2/M3/M4)
 4. Install the app and launch **Violet Enterprise**.
-5. On first launch, select the appropriate role. For an existing host, enter
-   its address:
+5. On first launch, choose **Start locally** to run the Free version on this
+   computer, or select the appropriate hosted/client role. Starting locally
+   does not require the internet. Enter a local admin email and password for
+   the Store Host login:
    - LAN Docker host: `http://192.168.1.10`
    - Cloud deployment: `https://pos.example.com`
+
+   A local Store Host always starts on the Free plan. If the local sign-in
+   credentials also belong to a hosted Violet account, Violet attempts one
+   online validation during sign-in and applies the hosted plan only when that
+   validation succeeds. If validation is unavailable, the local Free plan
+   remains usable offline.
 
 The desktop app remembers the server address securely in its local Tauri store
 and opens it automatically on future launches. Use **Configure Server** from
