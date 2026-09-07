@@ -3017,6 +3017,16 @@ components:
           type: number
         totalPrice:
           type: number
+        unitCostSnapshot:
+          type: ["number", "null"]
+        isVoided:
+          type: boolean
+        voidReason:
+          type: ["string", "null"]
+        voidedBy:
+          type: ["string", "null"]
+        voidedAt:
+          type: ["string", "null"]
 
     Sale:
       type: object
@@ -3052,6 +3062,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SaleItem"
+        voidedItems:
+          type: array
+          description: Internal-only voided lines. Customer-facing receipts must use items only.
+          items:
+            $ref: "#/components/schemas/SaleItem"
         tenantId:
           type: string
         createdAt:
@@ -3070,6 +3085,22 @@ components:
           type: number
           default: 0
 
+    VoidedSaleItemInput:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: number
+          minimum: 1
+        unitPrice:
+          type: number
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 200
+
     SaleInput:
       type: object
       required: [items, paymentMethod, idempotencyKey]
@@ -3085,6 +3116,11 @@ components:
           items:
             $ref: "#/components/schemas/SaleItemInput"
           minItems: 1
+        voidedItems:
+          type: array
+          description: Audit-only cart lines removed before checkout. They do not affect totals or inventory.
+          items:
+            $ref: "#/components/schemas/VoidedSaleItemInput"
         paymentMethod:
           type: string
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
@@ -3782,16 +3818,20 @@ components:
           type: string
         requireManagerPasswordForCartRemoval:
           type: boolean
+        showVoidedItems:
+          type: boolean
 
     PosTaxSettings:
       type: object
-      required: [taxRate, taxName, requireManagerPasswordForCartRemoval]
+      required: [taxRate, taxName, requireManagerPasswordForCartRemoval, showVoidedItems]
       properties:
         taxRate:
           type: number
         taxName:
           type: string
         requireManagerPasswordForCartRemoval:
+          type: boolean
+        showVoidedItems:
           type: boolean
 
     SettingsUpdate:
@@ -3820,6 +3860,8 @@ components:
         timezone:
           type: string
         requireManagerPasswordForCartRemoval:
+          type: boolean
+        showVoidedItems:
           type: boolean
 
     # ── Admin ──────────────────────────────────────────────────────────────────

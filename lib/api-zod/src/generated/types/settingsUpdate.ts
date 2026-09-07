@@ -19,4 +19,5 @@ export interface SettingsUpdate {
   logoUrl?: string;
   timezone?: string;
   requireManagerPasswordForCartRemoval?: boolean;
+  showVoidedItems?: boolean;
 }

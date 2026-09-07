@@ -13,4 +13,13 @@ export interface SaleItem {
   unitPrice: number;
   discount?: number;
   totalPrice: number;
+  /** @nullable */
+  unitCostSnapshot?: number | null;
+  isVoided?: boolean;
+  /** @nullable */
+  voidReason?: string | null;
+  /** @nullable */
+  voidedBy?: string | null;
+  /** @nullable */
+  voidedAt?: string | null;
 }

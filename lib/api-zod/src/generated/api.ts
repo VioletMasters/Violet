@@ -331,8 +331,26 @@ export const GetRecentSalesResponseItem = zod.object({
   "quantity": zod.number(),
   "unitPrice": zod.number(),
   "discount": zod.number().optional(),
-  "totalPrice": zod.number()
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
 })),
+  "voidedItems": zod.array(zod.object({
+  "productId": zod.string(),
+  "productName": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "discount": zod.number().optional(),
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
+})).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -877,8 +895,26 @@ export const ListSalesResponse = zod.object({
   "quantity": zod.number(),
   "unitPrice": zod.number(),
   "discount": zod.number().optional(),
-  "totalPrice": zod.number()
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
 })),
+  "voidedItems": zod.array(zod.object({
+  "productId": zod.string(),
+  "productName": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "discount": zod.number().optional(),
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
+})).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })),
@@ -897,6 +933,11 @@ export const createSaleBodyIdempotencyKeyMax = 200;
 
 export const createSaleBodyItemsItemDiscountDefault = 0;
 
+export const createSaleBodyVoidedItemsItemUnitPriceMin = 0;
+
+export const createSaleBodyVoidedItemsItemReasonMax = 200;
+
+
 
 export const CreateSaleBody = zod.object({
   "idempotencyKey": zod.string().min(createSaleBodyIdempotencyKeyMin).max(createSaleBodyIdempotencyKeyMax),
@@ -906,6 +947,12 @@ export const CreateSaleBody = zod.object({
   "quantity": zod.number().min(1),
   "discount": zod.number().default(createSaleBodyItemsItemDiscountDefault)
 })).min(1),
+  "voidedItems": zod.array(zod.object({
+  "productId": zod.string(),
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(createSaleBodyVoidedItemsItemUnitPriceMin),
+  "reason": zod.string().max(createSaleBodyVoidedItemsItemReasonMax).optional()
+})).optional().describe('Audit-only cart lines removed before checkout. They do not affect totals or inventory.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "cashTendered": zod.number().optional(),
   "note": zod.string().optional()
@@ -930,8 +977,26 @@ export const CreateSaleResponse = zod.object({
   "quantity": zod.number(),
   "unitPrice": zod.number(),
   "discount": zod.number().optional(),
-  "totalPrice": zod.number()
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
 })),
+  "voidedItems": zod.array(zod.object({
+  "productId": zod.string(),
+  "productName": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "discount": zod.number().optional(),
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
+})).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -963,8 +1028,26 @@ export const GetSaleResponse = zod.object({
   "quantity": zod.number(),
   "unitPrice": zod.number(),
   "discount": zod.number().optional(),
-  "totalPrice": zod.number()
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
 })),
+  "voidedItems": zod.array(zod.object({
+  "productId": zod.string(),
+  "productName": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "discount": zod.number().optional(),
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
+})).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1004,8 +1087,26 @@ export const RefundSaleResponse = zod.object({
   "quantity": zod.number(),
   "unitPrice": zod.number(),
   "discount": zod.number().optional(),
-  "totalPrice": zod.number()
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
 })),
+  "voidedItems": zod.array(zod.object({
+  "productId": zod.string(),
+  "productName": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "discount": zod.number().optional(),
+  "totalPrice": zod.number(),
+  "unitCostSnapshot": zod.number().nullish(),
+  "isVoided": zod.boolean().optional(),
+  "voidReason": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish()
+})).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1869,7 +1970,8 @@ export const ExportReportingTransactionsResponse = zod.unknown()
 export const GetPosTaxSettingsResponse = zod.object({
   "taxRate": zod.number(),
   "taxName": zod.string(),
-  "requireManagerPasswordForCartRemoval": zod.boolean()
+  "requireManagerPasswordForCartRemoval": zod.boolean(),
+  "showVoidedItems": zod.boolean()
 })
 
 
@@ -1888,7 +1990,8 @@ export const GetSettingsResponse = zod.object({
   "receiptFooter": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
   "timezone": zod.string().optional(),
-  "requireManagerPasswordForCartRemoval": zod.boolean().optional()
+  "requireManagerPasswordForCartRemoval": zod.boolean().optional(),
+  "showVoidedItems": zod.boolean().optional()
 })
 
 
@@ -1907,7 +2010,8 @@ export const UpdateSettingsBody = zod.object({
   "receiptFooter": zod.string().optional(),
   "logoUrl": zod.string().optional(),
   "timezone": zod.string().optional(),
-  "requireManagerPasswordForCartRemoval": zod.boolean().optional()
+  "requireManagerPasswordForCartRemoval": zod.boolean().optional(),
+  "showVoidedItems": zod.boolean().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -1922,7 +2026,8 @@ export const UpdateSettingsResponse = zod.object({
   "receiptFooter": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
   "timezone": zod.string().optional(),
-  "requireManagerPasswordForCartRemoval": zod.boolean().optional()
+  "requireManagerPasswordForCartRemoval": zod.boolean().optional(),
+  "showVoidedItems": zod.boolean().optional()
 })
 
 

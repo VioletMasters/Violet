@@ -10,4 +10,5 @@ export interface PosTaxSettings {
   taxRate: number;
   taxName: string;
   requireManagerPasswordForCartRemoval: boolean;
+  showVoidedItems: boolean;
 }

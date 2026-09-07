@@ -25,6 +25,8 @@ export interface Sale {
   cashierId?: string;
   cashierName?: string;
   items: SaleItem[];
+  /** Internal-only voided lines. Customer-facing receipts must use items only. */
+  voidedItems?: SaleItem[];
   tenantId: string;
   createdAt: string;
 }

@@ -176,3 +176,4 @@ export * from './tenantUpdateStatus';
 export * from './topProduct';
 export * from './userProfile';
 export * from './userProfileRole';
+export * from './voidedSaleItemInput';

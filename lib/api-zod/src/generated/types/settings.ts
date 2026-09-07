@@ -23,4 +23,5 @@ export interface Settings {
   logoUrl?: string | null;
   timezone?: string;
   requireManagerPasswordForCartRemoval?: boolean;
+  showVoidedItems?: boolean;
 }

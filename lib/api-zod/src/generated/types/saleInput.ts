@@ -7,6 +7,7 @@
  */
 import type { SaleInputPaymentMethod } from './saleInputPaymentMethod';
 import type { SaleItemInput } from './saleItemInput';
+import type { VoidedSaleItemInput } from './voidedSaleItemInput';
 
 export interface SaleInput {
   /**
@@ -17,6 +18,8 @@ export interface SaleInput {
   customerId?: string;
   /** @minItems 1 */
   items: SaleItemInput[];
+  /** Audit-only cart lines removed before checkout. They do not affect totals or inventory. */
+  voidedItems?: VoidedSaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
   cashTendered?: number;
   note?: string;

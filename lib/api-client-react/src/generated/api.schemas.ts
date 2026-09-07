@@ -507,6 +507,15 @@ export interface SaleItem {
   unitPrice: number;
   discount?: number;
   totalPrice: number;
+  /** @nullable */
+  unitCostSnapshot?: number | null;
+  isVoided?: boolean;
+  /** @nullable */
+  voidReason?: string | null;
+  /** @nullable */
+  voidedBy?: string | null;
+  /** @nullable */
+  voidedAt?: string | null;
 }
 
 export type SalePaymentMethod = typeof SalePaymentMethod[keyof typeof SalePaymentMethod];
@@ -547,6 +556,8 @@ export interface Sale {
   cashierId?: string;
   cashierName?: string;
   items: SaleItem[];
+  /** Internal-only voided lines. Customer-facing receipts must use items only. */
+  voidedItems?: SaleItem[];
   tenantId: string;
   createdAt: string;
 }
@@ -556,6 +567,16 @@ export interface SaleItemInput {
   /** @minimum 1 */
   quantity: number;
   discount?: number;
+}
+
+export interface VoidedSaleItemInput {
+  productId: string;
+  /** @minimum 1 */
+  quantity: number;
+  /** @minimum 0 */
+  unitPrice: number;
+  /** @maxLength 200 */
+  reason?: string;
 }
 
 export type SaleInputPaymentMethod = typeof SaleInputPaymentMethod[keyof typeof SaleInputPaymentMethod];
@@ -579,6 +600,8 @@ export interface SaleInput {
   customerId?: string;
   /** @minItems 1 */
   items: SaleItemInput[];
+  /** Audit-only cart lines removed before checkout. They do not affect totals or inventory. */
+  voidedItems?: VoidedSaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
   cashTendered?: number;
   note?: string;
@@ -1197,12 +1220,14 @@ export interface Settings {
   logoUrl?: string | null;
   timezone?: string;
   requireManagerPasswordForCartRemoval?: boolean;
+  showVoidedItems?: boolean;
 }
 
 export interface PosTaxSettings {
   taxRate: number;
   taxName: string;
   requireManagerPasswordForCartRemoval: boolean;
+  showVoidedItems: boolean;
 }
 
 export interface SettingsUpdate {
@@ -1218,6 +1243,7 @@ export interface SettingsUpdate {
   logoUrl?: string;
   timezone?: string;
   requireManagerPasswordForCartRemoval?: boolean;
+  showVoidedItems?: boolean;
 }
 
 export type AdminStatsRevenueByPlanItem = {
