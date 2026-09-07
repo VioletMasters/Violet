@@ -82,10 +82,11 @@ class CdpClient {
 
 async function getPageTarget() {
   const deadline = Date.now() + 60_000;
+  const endpoint = `http://127.0.0.1:${cdpPort}/json/list`;
   let lastError = "No WebView2 page target was reported.";
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`http://127.0.0.1:${cdpPort}/json/list`);
+      const response = await fetch(endpoint);
       const targets = await response.json();
       const target = targets.find(
         (candidate) => candidate.webSocketDebuggerUrl && candidate.type === "page",
@@ -97,7 +98,9 @@ async function getPageTarget() {
     }
     await sleep(500);
   }
-  throw new Error(lastError);
+  throw new Error(
+    `Could not connect to the packaged WebView2 DevTools endpoint at ${endpoint} within 60 seconds: ${lastError}`,
+  );
 }
 
 async function connectToPage() {

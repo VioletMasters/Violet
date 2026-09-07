@@ -745,7 +745,7 @@ pub fn run() {
             let window_builder = if let Ok(port) = std::env::var("VIOLET_SMOKE_CDP_PORT") {
                 if !port.is_empty() && port.chars().all(|character| character.is_ascii_digit()) {
                     window_builder.additional_browser_args(&format!(
-                        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"
+                        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port} --remote-allow-origins=*"
                     ))
                 } else {
                     window_builder
