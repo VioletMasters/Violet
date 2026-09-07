@@ -254,6 +254,16 @@ function stopProcess(child) {
   } else {
     child.kill("SIGTERM");
   }
+  stopWebView2Processes();
+}
+
+function stopWebView2Processes() {
+  if (globalThis.process.platform === "win32") {
+    // WebView2 can keep its browser process alive after the Tauri parent exits.
+    // A reused process does not reliably pick up the next remote-debugging
+    // port, which makes the packaged smoke test unable to connect to CDP.
+    spawnSync("taskkill", ["/im", "msedgewebview2.exe", "/t", "/f"], { stdio: "ignore" });
+  }
 }
 
 async function startApp() {
@@ -284,6 +294,7 @@ try {
     );
   }
 
+  stopWebView2Processes();
   app = await startApp();
   page = await connectToPage();
   await waitFor(page, "the packaged desktop setup screen", "() => document.body?.innerText?.includes('Start locally')");
