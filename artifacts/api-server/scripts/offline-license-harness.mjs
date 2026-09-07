@@ -235,11 +235,12 @@ async function waitForApi() {
   );
 }
 
-function spawnApiProcess() {
+function spawnApiProcess({ databaseUrlOverride = databaseUrl } = {}) {
   apiProcess = spawn(process.execPath, ["--enable-source-maps", "./dist/index.mjs"], {
     cwd: apiDirectory,
     env: {
       ...process.env,
+      DATABASE_URL: databaseUrlOverride,
       NODE_ENV: "development",
       PORT: String(apiPort),
       SESSION_SECRET: sessionSecret,
@@ -257,6 +258,23 @@ function spawnApiProcess() {
       apiLogs += `\nStore Host exited with code ${code}${signal ? ` (${signal})` : ""}`;
     }
   });
+}
+
+async function waitForDataStoreFailure() {
+  const deadline = Date.now() + 10_000;
+  let lastResponse;
+  while (Date.now() < deadline) {
+    try {
+      lastResponse = await request("/api/healthz");
+      if (lastResponse.response.status === 503) return lastResponse;
+    } catch {
+      // The process may still be binding its port.
+    }
+    await delay(100);
+  }
+  throw new Error(
+    `Store Host did not report its local data-store failure.${lastResponse ? ` Last response: ${lastResponse.response.status}` : ""}`,
+  );
 }
 
 async function stopApiProcess({ force = false } = {}) {
@@ -639,6 +657,37 @@ async function main() {
       `Unexpected hosted upgrade URL: ${checkout.body?.checkoutUrl}`,
     );
     console.log("PASS local upgrade request returns the hosted upgrade URL");
+
+    await stopApiProcess();
+    apiPort = await reservePort();
+    spawnApiProcess({
+      databaseUrlOverride: "postgresql://violet:violetpass@127.0.0.1:1/violetdb",
+    });
+    const unavailableStore = await waitForDataStoreFailure();
+    assert(unavailableStore.body?.status === "error", "Unavailable Store Host health check did not report an error status.");
+    assert(
+      unavailableStore.body?.code === "LOCAL_DATA_STORE_UNAVAILABLE",
+      `Unavailable Store Host health check returned the wrong code: ${JSON.stringify(unavailableStore.body)}`,
+    );
+    assert(
+      unavailableStore.body?.error?.includes("Existing store data was not changed"),
+      `Unavailable Store Host health check did not provide recovery guidance: ${JSON.stringify(unavailableStore.body)}`,
+    );
+
+    const unavailableLogin = await request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    assert(
+      unavailableLogin.response.status === 503 &&
+        unavailableLogin.body?.code === "LOCAL_DATA_STORE_UNAVAILABLE",
+      `Unavailable Store Host login returned the wrong recovery response: ${unavailableLogin.response.status} ${JSON.stringify(unavailableLogin.body)}`,
+    );
+    const originalDataStillPresent = runSql(`
+      SELECT COUNT(*) FROM tenants WHERE id = ${sqlString(tenantId)};
+    `);
+    assert(originalDataStillPresent === "1", "The unavailable-data-store path changed the existing Store Host data.");
+    console.log("PASS unavailable Store Host data returns recovery guidance without changing existing data");
   } catch (error) {
     const details = apiLogs.trim();
     throw new Error(`${error.message}${details ? `\n\nStore Host logs:\n${details}` : ""}`);

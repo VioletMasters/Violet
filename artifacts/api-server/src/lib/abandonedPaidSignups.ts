@@ -122,11 +122,19 @@ export async function cleanupAbandonedPaidSignups() {
 }
 
 export function startAbandonedPaidSignupCleanup() {
+  const runCleanup = () => {
+    void cleanupAbandonedPaidSignups().catch((error) => {
+      // Keep the API available so health checks can report a local data-store
+      // recovery error instead of crashing the Store Host during startup.
+      console.warn("Unable to check for abandoned paid signups", { error });
+    });
+  };
+
   const timer = setInterval(() => {
-    void cleanupAbandonedPaidSignups();
+    runCleanup();
   }, CLEANUP_INTERVAL_MS);
   timer.unref();
-  void cleanupAbandonedPaidSignups();
+  runCleanup();
 }
 
 export const abandonedPaidSignupGracePeriodMs = ABANDONED_SIGNUP_GRACE_MS;

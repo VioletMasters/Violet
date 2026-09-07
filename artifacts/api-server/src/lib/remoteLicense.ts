@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   db,
+  pool,
   plansTable,
   subscriptionsTable,
   tenantsTable,
@@ -29,6 +30,21 @@ export class RemoteLicenseError extends Error {
   }
 }
 
+export const LOCAL_DATA_STORE_ERROR_CODE = "LOCAL_DATA_STORE_UNAVAILABLE";
+export const LOCAL_DATA_STORE_RECOVERY_MESSAGE =
+  "Store Host could not open its local data store. Existing store data was not changed. " +
+  "Check that the PostgreSQL data volume is available, then retry. Do not reset this Store Host unless you have a backup.";
+
+export class LocalDataStoreError extends Error {
+  readonly statusCode = 503;
+  readonly code = LOCAL_DATA_STORE_ERROR_CODE;
+
+  constructor(cause?: unknown) {
+    super(LOCAL_DATA_STORE_RECOVERY_MESSAGE, { cause });
+    this.name = "LocalDataStoreError";
+  }
+}
+
 const REMOTE_REVALIDATION_INTERVAL_MS = 15 * 60 * 1000;
 const HOSTED_LICENSE_SERVER_URL = "https://Violetsolutions.replit.app";
 
@@ -38,6 +54,25 @@ export function isSelfHostedRuntime() {
 
 export function shouldRevalidateRemoteLicense(lastValidatedAt: Date | null) {
   return !lastValidatedAt || Date.now() - lastValidatedAt.getTime() >= REMOTE_REVALIDATION_INTERVAL_MS;
+}
+
+/**
+ * Check the local Store Host data store without changing it. Querying a
+ * required application table catches both an unavailable database and a
+ * database volume whose schema cannot be reopened.
+ */
+export async function ensureLocalDataStoreAvailable() {
+  if (!isSelfHostedRuntime()) return;
+
+  try {
+    await pool.query('SELECT 1 FROM "tenants" LIMIT 1');
+  } catch (error) {
+    throw new LocalDataStoreError(error);
+  }
+}
+
+export function isLocalDataStoreError(error: unknown): error is LocalDataStoreError {
+  return error instanceof LocalDataStoreError;
 }
 
 export function getInstallationId() {

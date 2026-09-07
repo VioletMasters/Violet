@@ -12,6 +12,10 @@ import { hasValidManagerAccess } from "../lib/manager-access";
 import { refreshWhopMembershipIfStale, WhopBindingError } from "../lib/subscriptionSync";
 import {
   applyOfflineLicenseFallback,
+  ensureLocalDataStoreAvailable,
+  isLocalDataStoreError,
+  LOCAL_DATA_STORE_ERROR_CODE,
+  LOCAL_DATA_STORE_RECOVERY_MESSAGE,
   isSelfHostedRuntime,
 } from "../lib/remoteLicense";
 
@@ -181,6 +185,8 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
   const now = new Date();
 
   try {
+    await ensureLocalDataStoreAvailable();
+
     const [session] = await db
       .select()
       .from(sessionsTable)
@@ -226,6 +232,13 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
     return true;
   } catch (err) {
     req.log.error({ err }, "Auth middleware error");
+    if (isSelfHostedRuntime() || isLocalDataStoreError(err)) {
+      res.status(503).json({
+        code: LOCAL_DATA_STORE_ERROR_CODE,
+        error: LOCAL_DATA_STORE_RECOVERY_MESSAGE,
+      });
+      return false;
+    }
     res.status(500).json({ error: "Internal server error" });
     return false;
   }

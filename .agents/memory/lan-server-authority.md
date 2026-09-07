@@ -14,3 +14,9 @@ Production Store Hosts must use the main hosted Violet runtime as their fixed li
 **Why:** Independent register databases create stock, shift, payment, and receipt conflicts. A user-selected license authority could capture credentials or issue untrusted licenses, while remote access to native host commands could modify or destroy server data. The user chose installer-managed hosting so operators do not manually configure Compose, while Docker remains the supported local API/PostgreSQL runtime.
 
 **How to apply:** New desktop, mobile, PWA, file-upload, receipt, backup, and offline features must preserve server ownership. Host lifecycle changes must preserve database volumes and infrastructure secrets across restarts, keep licensing pinned to the hosted authority, and isolate privileged native commands from connected server content. Any future offline sales mode needs an explicit reconciliation and payment-risk design rather than bypassing the server.
+
+Store Host startup must keep its HTTP health endpoint available when the local database cannot be queried; non-critical maintenance jobs must catch database failures rather than taking down the process.
+
+**Why:** Operators need a typed recovery message that distinguishes local data-store failure from hosted-license outage, and the existing data must remain available for repair or backup instead of being reset.
+
+**How to apply:** Make health probes read-only and report the local-store failure explicitly. Treat maintenance cleanup as best-effort while the Store Host is unhealthy.

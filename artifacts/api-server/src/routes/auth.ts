@@ -13,7 +13,10 @@ import { issueManagerAccess } from "../lib/manager-access";
 import { isPaidTier } from "../lib/subscriptionSync";
 import {
   changeHostedPassword,
+  ensureLocalDataStoreAvailable,
   isSelfHostedRuntime,
+  LOCAL_DATA_STORE_ERROR_CODE,
+  LOCAL_DATA_STORE_RECOVERY_MESSAGE,
   applyOfflineLicenseFallback,
   requestHostedPasswordReset,
   syncLocalLicenseSnapshot,
@@ -142,6 +145,18 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   if (!email || !password) {
     res.status(400).json({ error: "Email and password required" });
     return;
+  }
+
+  if (isSelfHostedRuntime()) {
+    try {
+      await ensureLocalDataStoreAvailable();
+    } catch {
+      res.status(503).json({
+        code: LOCAL_DATA_STORE_ERROR_CODE,
+        error: LOCAL_DATA_STORE_RECOVERY_MESSAGE,
+      });
+      return;
+    }
   }
 
   const normalizedEmail = email.trim().toLowerCase();
