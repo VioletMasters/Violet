@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
   useCreateBrand,
@@ -12,6 +12,7 @@ import {
   useUpdateBrand,
   useUpdateCategory,
   useUpdateProduct,
+  useImportProducts,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Edit, Tags, Trash2 } from "lucide-react";
+import { Plus, Search, Edit, Tags, Trash2, Upload, FileSpreadsheet, Download, CheckCircle2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -43,6 +44,131 @@ const productSchema = z.object({
 
 type ProductForm = z.infer<typeof productSchema>;
 type CatalogAttribute = { id: string; name: string; productCount?: number };
+type ProductImportRow = {
+  name: string;
+  description?: string;
+  sku: string;
+  barcode?: string;
+  price: number;
+  costPrice?: number;
+  stock?: number;
+  minStock?: number;
+  category?: string;
+  brand?: string;
+};
+
+const importAliases: Record<keyof ProductImportRow, string[]> = {
+  name: ["name", "product", "productname", "item", "itemname", "description"],
+  description: ["details", "productdescription", "description"],
+  sku: ["sku", "code", "itemcode", "productcode", "reference", "ref"],
+  barcode: ["barcode", "ean", "ean13", "upc", "gtin"],
+  price: ["price", "saleprice", "sellingprice", "retailprice", "selling"],
+  costPrice: ["cost", "costprice", "purchaseprice", "buyprice"],
+  stock: ["stock", "quantity", "qty", "onhand", "inventory"],
+  minStock: ["minstock", "minimumstock", "reorderlevel", "lowstock"],
+  category: ["category", "categoryname", "department", "group"],
+  brand: ["brand", "brandname", "manufacturer"],
+};
+
+function normalizeImportHeader(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function parseImportNumber(value: string, fallback?: number) {
+  const normalized = value.trim();
+  if (!normalized) return fallback;
+  const localized = normalized.includes(",") && normalized.includes(".") && normalized.lastIndexOf(",") > normalized.lastIndexOf(".")
+    ? normalized.replace(/\./g, "").replace(",", ".")
+    : normalized.replace(/,/g, ".");
+  const parsed = Number(localized.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseDelimitedCsv(text: string) {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+  const delimiter = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      if (quoted && text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === delimiter && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some((value) => value !== "")) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  if (cell || row.length) {
+    row.push(cell.trim());
+    if (row.some((value) => value !== "")) rows.push(row);
+  }
+  return rows;
+}
+
+function parseProductImport(text: string) {
+  const rows = parseDelimitedCsv(text);
+  const headers = rows.shift()?.map(normalizeImportHeader) ?? [];
+  const columnIndex = (field: keyof ProductImportRow) => {
+    const aliases = importAliases[field];
+    return headers.findIndex((header) => aliases.includes(header));
+  };
+  const indexByField = Object.fromEntries(
+    (Object.keys(importAliases) as Array<keyof ProductImportRow>).map((field) => [field, columnIndex(field)]),
+  ) as Record<keyof ProductImportRow, number>;
+  const errors: string[] = [];
+  if (indexByField.name < 0) errors.push("Could not find a product name column.");
+  if (indexByField.sku < 0) errors.push("Could not find an SKU, code, or reference column.");
+  if (indexByField.price < 0) errors.push("Could not find a price column.");
+
+  const parsedRows: ProductImportRow[] = [];
+  rows.forEach((cells, rowIndex) => {
+    const value = (field: keyof ProductImportRow) => {
+      const index = indexByField[field];
+      return index >= 0 ? (cells[index] ?? "").trim() : "";
+    };
+    const price = parseImportNumber(value("price"));
+    const rowNumber = rowIndex + 2;
+    if (!value("name") || !value("sku") || price === undefined) {
+      errors.push(`Row ${rowNumber}: name, SKU, and a numeric price are required.`);
+      return;
+    }
+    const stock = parseImportNumber(value("stock"), 0);
+    const minStock = parseImportNumber(value("minStock"), 5);
+    const costPrice = parseImportNumber(value("costPrice"));
+    if (stock === undefined || minStock === undefined || costPrice === undefined && value("costPrice")) {
+      errors.push(`Row ${rowNumber}: stock, minimum stock, and cost must be numeric when provided.`);
+      return;
+    }
+    parsedRows.push({
+      name: value("name"),
+      description: value("description") || undefined,
+      sku: value("sku"),
+      barcode: value("barcode") || undefined,
+      price,
+      costPrice,
+      stock,
+      minStock,
+      category: value("category") || undefined,
+      brand: value("brand") || undefined,
+    });
+  });
+  return { rows: parsedRows, errors };
+}
 
 function CatalogAttributeManager({
   title,
@@ -128,6 +254,12 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCatalogItem, setEditingCatalogItem] = useState<(CatalogAttribute & { kind: "category" | "brand" }) | null>(null);
   const [catalogName, setCatalogName] = useState("");
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
+  const [importRows, setImportRows] = useState<ProductImportRow[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   
   const queryClient = useQueryClient();
   const { data: productsData, isLoading } = useListProducts({ search });
@@ -137,6 +269,17 @@ export default function ProductsPage() {
   const products = productsData?.data || [];
   const categories = categoriesData || [];
   const brands = brandsData || [];
+
+  const importMutation = useImportProducts({
+    mutation: {
+      onSuccess: (result) => {
+        setImportResult(result);
+        toast.success(`Import complete: ${result.created} created, ${result.updated} updated`);
+        refreshCatalog();
+      },
+      onError: (error) => toast.error(error.message || "Import failed"),
+    },
+  });
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
@@ -239,6 +382,35 @@ export default function ProductsPage() {
     setIsSheetOpen(true);
   };
 
+  const openImport = () => {
+    setImportFileName("");
+    setImportRows([]);
+    setImportErrors([]);
+    setImportResult(null);
+    setIsImportOpen(true);
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const parsed = parseProductImport(await file.text());
+    setImportFileName(file.name);
+    setImportRows(parsed.rows);
+    setImportErrors(parsed.errors);
+    setImportResult(null);
+  };
+
+  const downloadImportTemplate = () => {
+    const blob = new Blob(["Name,SKU,Barcode,Price,Cost Price,Stock,Minimum Stock,Category,Brand,Description\nExample Product,SKU-001,123456789,9.99,5.00,10,5,General,Example Brand,Optional product details\n"], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "violet-product-import-template.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   const openEdit = (product: Product) => {
     setEditingProduct(product);
     reset({
@@ -310,9 +482,14 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-display font-bold tracking-tight">Products</h1>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" /> Add Product
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openImport} className="gap-2">
+            <Upload className="w-4 h-4" /> Import CSV
+          </Button>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" /> Add Product
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -489,6 +666,80 @@ export default function ProductsPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Import products from CSV</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Import common exports from Aronium and other POS systems. Violet matches existing products by SKU first, then barcode, and updates them instead of creating duplicates.
+            </p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <input ref={importFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportFile} />
+              <Button type="button" onClick={() => importFileRef.current?.click()} className="gap-2">
+                <FileSpreadsheet className="h-4 w-4" /> Choose CSV file
+              </Button>
+              <Button type="button" variant="outline" onClick={downloadImportTemplate} className="gap-2">
+                <Download className="h-4 w-4" /> Download template
+              </Button>
+              {importFileName && <span className="self-center text-sm text-muted-foreground">{importFileName}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Recognized columns include product/name, SKU/code/reference, barcode/EAN/UPC, price, cost, stock/quantity, category, and brand. Comma-, semicolon-, and tab-separated files are supported.
+            </p>
+            {importErrors.length > 0 && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <p className="mb-1 font-medium">{importErrors.length} issue{importErrors.length === 1 ? "" : "s"} found</p>
+                <ul className="max-h-28 list-disc space-y-1 overflow-y-auto pl-5">
+                  {importErrors.slice(0, 8).map((error) => <li key={error}>{error}</li>)}
+                </ul>
+              </div>
+            )}
+            {importRows.length > 0 && (
+              <div className="rounded-md border">
+                <div className="flex items-center justify-between border-b px-3 py-2 text-sm">
+                  <span className="font-medium">{importRows.length} products ready to import</span>
+                  <span className="text-muted-foreground">Previewing first {Math.min(importRows.length, 5)}</span>
+                </div>
+                <div className="max-h-56 overflow-auto">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>SKU</TableHead><TableHead>Price</TableHead><TableHead>Stock</TableHead><TableHead>Category</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {importRows.slice(0, 5).map((row) => (
+                        <TableRow key={`${row.sku}-${row.name}`}>
+                          <TableCell className="font-medium">{row.name}</TableCell>
+                          <TableCell className="font-mono text-xs">{row.sku}</TableCell>
+                          <TableCell>{row.price}</TableCell>
+                          <TableCell>{row.stock ?? 0}</TableCell>
+                          <TableCell>{row.category || "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+            {importResult && (
+              <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
+                <span>Imported successfully: {importResult.created} created, {importResult.updated} updated, {importResult.skipped} skipped.</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)}>Close</Button>
+            <Button
+              type="button"
+              disabled={importRows.length === 0 || importErrors.length > 0 || importMutation.isPending}
+              onClick={() => importMutation.mutate({ data: { rows: importRows } })}
+            >
+              {importMutation.isPending ? "Importing..." : `Import ${importRows.length || ""} products`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingCatalogItem} onOpenChange={(open) => !open && setEditingCatalogItem(null)}>
         <DialogContent className="sm:max-w-md">
