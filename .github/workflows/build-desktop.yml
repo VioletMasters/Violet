@@ -227,6 +227,33 @@ jobs:
           Launch-VioletApp $desktopApp "NSIS Desktop shortcut"
           Launch-VioletApp $startMenuApp "NSIS Start Menu shortcut"
 
+          $ErrorActionPreference = "Stop"
+          $dockerDeadline = (Get-Date).AddMinutes(3)
+          do {
+            $dockerInfo = docker version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ((Get-Date) -ge $dockerDeadline) {
+              throw "Docker Desktop was not available for the packaged Store Host smoke test:`n$dockerInfo"
+            }
+            Start-Sleep -Seconds 5
+          } while ($true)
+          docker compose version
+
+          $shell = New-Object -ComObject WScript.Shell
+          $shortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Violet Enterprise.lnk"
+          $appPath = $shell.CreateShortcut($shortcut).TargetPath
+          if (-not $appPath -or -not (Test-Path $appPath)) {
+            throw "The installed Violet Enterprise executable could not be resolved for the packaged smoke test."
+          }
+
+          Get-Process -Name "Violet Enterprise" -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $env:APPDATA "com.violetenterprise.desktop") -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $env:LOCALAPPDATA "Violet Enterprise") -Recurse -Force -ErrorAction SilentlyContinue
+          node artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs $appPath
+
           $uninstaller = Get-ChildItem -Path $desktopApp.Directory.FullName -Filter "*uninstall*.exe" -File |
             Select-Object -First 1
           if (-not $uninstaller) {
