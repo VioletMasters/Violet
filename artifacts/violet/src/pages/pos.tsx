@@ -36,6 +36,14 @@ type PendingCartRemoval = {
   action: "remove" | "decrement";
 };
 
+type VoidedCartItem = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  reason: string;
+};
+
 type PaymentCompletion = {
   change: number;
   receiptNumber?: string;
@@ -50,6 +58,7 @@ export default function POSPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [voidedCartItems, setVoidedCartItems] = useState<VoidedCartItem[]>([]);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<SaleInputPaymentMethod>("cash");
   const [cashTendered, setCashTendered] = useState<string>("");
@@ -76,6 +85,7 @@ export default function POSPage() {
         const change = Number.isFinite(tendered) ? Math.max(0, tendered - total) : 0;
         toast.success("Sale completed successfully!");
         setCart([]);
+        setVoidedCartItems([]);
         setPaymentModalOpen(false);
         setCashTendered("");
         setSearch("");
@@ -115,10 +125,6 @@ export default function POSPage() {
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== productId));
-  };
-
   const updateQuantity = (productId: string, delta: number) => {
     setCart((prev) =>
       prev.map((item) => {
@@ -137,11 +143,24 @@ export default function POSPage() {
   };
 
   const applyCartRemoval = (removal: PendingCartRemoval) => {
-    if (removal.action === "remove") {
-      removeFromCart(removal.productId);
-      return;
-    }
-    updateQuantity(removal.productId, -1);
+    const item = cart.find((cartItem) => cartItem.id === removal.productId);
+    if (!item) return;
+    const quantity = removal.action === "remove" ? item.cartQuantity : 1;
+    setVoidedCartItems((prev) => [
+      ...prev,
+      {
+        productId: item.id,
+        productName: item.name,
+        quantity,
+        unitPrice: item.price,
+        reason: "Removed from cart",
+      },
+    ]);
+    setCart((prev) => prev.flatMap((cartItem) => {
+      if (cartItem.id !== removal.productId) return [cartItem];
+      if (removal.action === "remove") return [];
+      return [{ ...cartItem, cartQuantity: cartItem.cartQuantity - 1 }];
+    }));
   };
 
   const requestCartRemoval = (removal: PendingCartRemoval) => {
@@ -223,6 +242,12 @@ export default function POSPage() {
           productId: item.id,
           quantity: item.cartQuantity,
           unitPrice: item.price
+        })),
+        voidedItems: voidedCartItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          reason: item.reason,
         })),
         cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined
       }
@@ -349,6 +374,29 @@ export default function POSPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {posTaxSettings?.showVoidedItems && voidedCartItems.length > 0 && (
+            <div className="mt-4 space-y-2 border-t border-dashed border-amber-500/40 pt-4">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                  Voided items
+                </span>
+                <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300">
+                  Internal only
+                </Badge>
+              </div>
+              {voidedCartItems.map((item, index) => (
+                <div key={`${item.productId}-${index}`} className="rounded-lg border border-dashed border-amber-500/35 bg-amber-500/5 p-3 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="line-clamp-1 text-muted-foreground">{item.productName}</span>
+                    <span className="shrink-0 text-muted-foreground line-through">
+                      {item.quantity} × {formatCurrency(item.unitPrice)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">{item.reason}</p>
                 </div>
               ))}
             </div>

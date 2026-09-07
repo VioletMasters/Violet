@@ -37,6 +37,7 @@ const settingsSchema = z.object({
   taxName: z.string().optional().or(z.literal("")),
   receiptFooter: z.string().optional().or(z.literal("")),
   requireManagerPasswordForCartRemoval: z.boolean(),
+  showVoidedItems: z.boolean(),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
@@ -75,7 +76,7 @@ export default function SettingsPage() {
   
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: { requireManagerPasswordForCartRemoval: false },
+    defaultValues: { requireManagerPasswordForCartRemoval: false, showVoidedItems: false },
   });
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export default function SettingsPage() {
         taxName: settings.taxName || "Tax",
         receiptFooter: settings.receiptFooter || "",
         requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
+        showVoidedItems: settings.showVoidedItems ?? false,
       });
     }
   }, [settings, reset]);
@@ -287,6 +289,21 @@ export default function SettingsPage() {
                 id="require-manager-cart-removal"
                 checked={watch("requireManagerPasswordForCartRemoval")}
                 onCheckedChange={(checked) => setValue("requireManagerPasswordForCartRemoval", checked, { shouldDirty: true })}
+              />
+            </div>
+            <div className="mt-4 flex items-start justify-between gap-6 rounded-lg border bg-secondary/20 p-4">
+              <div className="space-y-1">
+                <Label htmlFor="show-voided-items" className="text-sm font-medium">
+                  Show voided items in internal records
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Keep removed cart lines visible to managers in the internal cart, sale details, and reports. Customer-facing receipts never include them.
+                </p>
+              </div>
+              <Switch
+                id="show-voided-items"
+                checked={watch("showVoidedItems")}
+                onCheckedChange={(checked) => setValue("showVoidedItems", checked, { shouldDirty: true })}
               />
             </div>
           </CardContent>
