@@ -20,6 +20,7 @@ router.get("/settings/pos-tax", requireAuth, async (req, res): Promise<void> => 
     taxRate: Number.isFinite(taxRate) ? taxRate : 0,
     taxName: settings.taxName,
     requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
+    showVoidedItems: settings.showVoidedItems,
   });
 });
 
@@ -44,13 +45,14 @@ router.get("/settings", requireManagerAccess, async (req, res): Promise<void> =>
     logoUrl: settings.logoUrl ?? null,
     timezone: settings.timezone,
     requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
+    showVoidedItems: settings.showVoidedItems,
   });
 });
 
 // PATCH /settings
 router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const { businessName, businessEmail, businessPhone, address, currency, currencySymbol, taxRate, taxName, receiptFooter, logoUrl, timezone, requireManagerPasswordForCartRemoval } = req.body;
+  const { businessName, businessEmail, businessPhone, address, currency, currencySymbol, taxRate, taxName, receiptFooter, logoUrl, timezone, requireManagerPasswordForCartRemoval, showVoidedItems } = req.body;
 
   const updates: Record<string, unknown> = {};
   if (businessName !== undefined) updates.businessName = businessName;
@@ -66,6 +68,9 @@ router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> 
   if (timezone !== undefined) updates.timezone = timezone;
   if (requireManagerPasswordForCartRemoval !== undefined) {
     updates.requireManagerPasswordForCartRemoval = requireManagerPasswordForCartRemoval;
+  }
+  if (showVoidedItems !== undefined) {
+    updates.showVoidedItems = showVoidedItems;
   }
 
   const [settings] = await db.update(settingsTable).set(updates)
@@ -89,6 +94,7 @@ router.patch("/settings", requireManagerAccess, async (req, res): Promise<void> 
     logoUrl: settings.logoUrl ?? null,
     timezone: settings.timezone,
     requireManagerPasswordForCartRemoval: settings.requireManagerPasswordForCartRemoval,
+    showVoidedItems: settings.showVoidedItems,
   });
 });
 

@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
     logo_url text,
     timezone text DEFAULT 'UTC'::text NOT NULL,
     require_manager_password_for_cart_removal boolean DEFAULT false NOT NULL,
+    show_voided_items boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -171,6 +172,7 @@ CREATE TABLE IF NOT EXISTS public.products (
 
 -- Keep existing self-hosted databases compatible with newer app versions.
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS require_manager_password_for_cart_removal boolean DEFAULT false NOT NULL;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS show_voided_items boolean DEFAULT false NOT NULL;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS brand_id uuid;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS currency text DEFAULT 'JMD'::text NOT NULL;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS whop_plan_id text;
@@ -251,7 +253,13 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     quantity integer NOT NULL,
     unit_price numeric(10,2) NOT NULL,
     discount numeric(10,2) DEFAULT '0'::numeric NOT NULL,
-    total_price numeric(10,2) NOT NULL
+    total_price numeric(10,2) NOT NULL,
+    unit_cost_snapshot numeric(14,4),
+    category_id_snapshot uuid,
+    is_voided boolean DEFAULT false NOT NULL,
+    void_reason text,
+    voided_by uuid,
+    voided_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public.inventory_movements (
@@ -401,6 +409,10 @@ ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS shift_id uuid;
 ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS idempotency_key text;
 ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS unit_cost_snapshot numeric(14,4);
 ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS category_id_snapshot uuid;
+ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS is_voided boolean DEFAULT false NOT NULL;
+ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS void_reason text;
+ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS voided_by uuid;
+ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS voided_at timestamp with time zone;
 ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS store_id uuid;
 ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS sale_id uuid;
 ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS purchase_receipt_id uuid;

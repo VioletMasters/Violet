@@ -59,7 +59,10 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
     .limit(10);
 
   const result = await Promise.all(sales.map(async (sale) => {
-    const items = await db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, sale.id));
+    const items = await db.select().from(saleItemsTable).where(and(
+      eq(saleItemsTable.saleId, sale.id),
+      eq(saleItemsTable.isVoided, false),
+    ));
     return {
       id: sale.id,
       receiptNumber: sale.receiptNumber,
@@ -102,6 +105,7 @@ router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Pr
   })
     .from(saleItemsTable)
     .innerJoin(salesTable, and(eq(saleItemsTable.saleId, salesTable.id), eq(salesTable.tenantId, tenantId), gte(salesTable.createdAt, monthStart)))
+    .where(eq(saleItemsTable.isVoided, false))
     .groupBy(saleItemsTable.productId, saleItemsTable.productName)
     .orderBy(desc(sql`SUM(${saleItemsTable.quantity})`))
     .limit(5);
