@@ -12,3 +12,4 @@
 - [LAN server authority](lan-server-authority.md) — one store server owns canonical data/files; cashier clients require server confirmation and retry checkouts idempotently.
 - [Inventory financial valuation](inventory-financial-valuation.md) — missing product costs make profit incomplete; receipt costs and purchase commitments are not supplier payments.
 - [Deployment image size](deployment-image-size.md) — root Nix packages become autoscale image layers; keep desktop-only dependencies out of hosted deployments.
+- [PostgreSQL harness lock synchronization](postgres-harness-locks.md) — observe granted and waiting advisory locks through pg_locks because piped psql output may be buffered.

@@ -15,10 +15,12 @@ const password = "offline-license-harness-password";
 const email = `offline-license-harness-${randomUUID()}@example.test`;
 const tenantId = randomUUID();
 const userId = randomUUID();
+const productId = randomUUID();
 const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString("hex");
 const passwordHash = hashPassword(password);
 
 let apiProcess;
+let saleLockProcess;
 let apiPort;
 let licensePort;
 let licenseServer;
@@ -49,6 +51,85 @@ function runSql(sql) {
       stdio: ["ignore", "pipe", "pipe"],
     },
   ).trim();
+}
+
+function holdSaleIdempotencyLock(idempotencyKey) {
+  const lockProcess = spawn(
+    "psql",
+    [
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-d",
+      databaseUrl,
+      "-At",
+      "-c",
+      `
+        SELECT CASE
+          WHEN pg_try_advisory_lock(hashtext(${sqlString(tenantId)}), hashtext(${sqlString(idempotencyKey)}))
+          THEN 'SALE_LOCK_ACQUIRED'
+          ELSE 'SALE_LOCK_NOT_ACQUIRED'
+        END;
+        SELECT pg_sleep(30);
+      `,
+    ],
+    {
+      env: { ...process.env, PGCONNECT_TIMEOUT: "5" },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  saleLockProcess = lockProcess;
+
+  return { ready: waitForSaleLockHeld() };
+}
+
+async function waitForSaleLockHeld() {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (saleLockProcess?.exitCode !== null || saleLockProcess?.signalCode !== null) {
+      throw new Error("The process holding the sale lock exited before checkout started.");
+    }
+    const heldLocks = Number(runSql(`
+      SELECT COUNT(*)
+      FROM pg_locks
+      WHERE locktype = 'advisory' AND granted = true;
+    `));
+    if (heldLocks > 0) return;
+    await delay(100);
+  }
+  throw new Error("Could not observe the sale transaction lock before checkout.");
+}
+
+async function releaseSaleIdempotencyLock() {
+  const processToStop = saleLockProcess;
+  if (!processToStop) return;
+
+  saleLockProcess = undefined;
+  if (processToStop.exitCode === null && processToStop.signalCode === null) {
+    processToStop.kill("SIGKILL");
+  }
+  await new Promise((resolve) => {
+    if (processToStop.exitCode !== null || processToStop.signalCode !== null) {
+      resolve();
+    } else {
+      processToStop.once("exit", resolve);
+      setTimeout(resolve, 2_000);
+    }
+  });
+}
+
+async function waitForBlockedSale() {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const waitingLocks = Number(runSql(`
+      SELECT COUNT(*)
+      FROM pg_locks
+      WHERE locktype = 'advisory' AND granted = false;
+    `));
+    if (waitingLocks > 0) return;
+    await delay(100);
+  }
+  throw new Error("Checkout did not reach the sale transaction before the shutdown.");
 }
 
 function reservePort() {
@@ -238,6 +319,12 @@ function seedDatabase(freePlanId, paidPlanId) {
       ${sqlString(tenantId)}, ${sqlString(paidPlanId)}, 'active', 'paid',
       ${sqlString(now)}, ${sqlString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString())}
     );
+    INSERT INTO products (
+      id, tenant_id, name, sku, price, cost_price, stock, min_stock, is_active
+    ) VALUES (
+      ${sqlString(productId)}, ${sqlString(tenantId)}, 'Forced Shutdown Harness Product',
+      ${sqlString(`HARNESS-${productId.slice(0, 8)}`)}, '12.50', '5.00', 3, 1, true
+    );
   `);
 }
 
@@ -290,7 +377,72 @@ async function verifyLocalSubscription(token, expectedPlanId, expectedPlanTier, 
   assert(body?.plan?.name === expectedPlanName, `Expected local subscription name ${expectedPlanName}, got ${body?.plan?.name}`);
 }
 
+async function createSale(token, idempotencyKey) {
+  return request("/api/sales", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      idempotencyKey,
+      paymentMethod: "cash",
+      cashTendered: 20,
+      items: [{ productId, quantity: 1 }],
+    }),
+  });
+}
+
+async function verifyRecoveredSale(token, managerAccessToken, idempotencyKey, expectedSaleId) {
+  const managerHeaders = {
+    Authorization: `Bearer ${token}`,
+    "x-violet-manager-access": managerAccessToken,
+  };
+  const inventory = await request("/api/inventory?search=Forced%20Shutdown%20Harness%20Product", {
+    headers: managerHeaders,
+  });
+  assert(inventory.response.status === 200, `Recovered inventory request failed: ${inventory.response.status} ${JSON.stringify(inventory.body)}`);
+  const recoveredProduct = inventory.body?.data?.find((item) => item.productId === productId);
+  assert(recoveredProduct?.stock === 2, `Expected recovered stock to be 2, got ${recoveredProduct?.stock}`);
+
+  const sales = await request("/api/sales?limit=100", {
+    headers: managerHeaders,
+  });
+  assert(sales.response.status === 200, `Recovered sales request failed: ${sales.response.status} ${JSON.stringify(sales.body)}`);
+  const matchingSales = sales.body?.data?.filter((sale) => sale.id === expectedSaleId && sale.tenantId === tenantId) ?? [];
+  assert(matchingSales.length === 1, `Expected one recovered sale in the Store Host API, got ${matchingSales.length}`);
+  assert(matchingSales[0].totalAmount === 12.5, `Expected recovered sale total to be 12.50, got ${matchingSales[0].totalAmount}`);
+  assert(matchingSales[0].items?.length === 1 && matchingSales[0].items[0].quantity === 1, "Recovered sale has incorrect line items.");
+  assert(matchingSales[0].payments?.length === 1 && matchingSales[0].payments[0].amount === 12.5, "Recovered sale has incorrect payment records.");
+
+  const [salesCount, itemCount, paymentCount, movementCount, stock] = runSql(`
+    SELECT COUNT(*) FROM sales
+      WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(idempotencyKey)};
+    SELECT COUNT(*) FROM sale_items
+      WHERE sale_id IN (
+        SELECT id FROM sales
+        WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(idempotencyKey)}
+      );
+    SELECT COUNT(*) FROM sale_payments
+      WHERE tenant_id = ${sqlString(tenantId)} AND sale_id IN (
+        SELECT id FROM sales
+        WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(idempotencyKey)}
+      );
+    SELECT COUNT(*) FROM inventory_movements
+      WHERE tenant_id = ${sqlString(tenantId)} AND product_id = ${sqlString(productId)}
+        AND sale_id IN (
+          SELECT id FROM sales
+          WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(idempotencyKey)}
+        );
+    SELECT stock FROM products
+      WHERE tenant_id = ${sqlString(tenantId)} AND id = ${sqlString(productId)};
+  `).split("\n");
+  assert(salesCount === "1", `Expected exactly one financial sale record, got ${salesCount}`);
+  assert(itemCount === "1", `Expected exactly one sale item record, got ${itemCount}`);
+  assert(paymentCount === "1", `Expected exactly one payment record, got ${paymentCount}`);
+  assert(movementCount === "1", `Expected exactly one sale inventory movement, got ${movementCount}`);
+  assert(stock === "2", `Expected database stock to be 2, got ${stock}`);
+}
+
 async function cleanup() {
+  await releaseSaleIdempotencyLock();
   await stopApiProcess();
   if (licenseServer) {
     await new Promise((resolve) => licenseServer.close(resolve));
@@ -299,6 +451,14 @@ async function cleanup() {
 
   try {
     runSql(`
+      DELETE FROM sale_discounts WHERE sale_id IN (SELECT id FROM sales WHERE tenant_id = ${sqlString(tenantId)});
+      DELETE FROM sale_payments WHERE tenant_id = ${sqlString(tenantId)};
+      DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE tenant_id = ${sqlString(tenantId)});
+      DELETE FROM cash_events WHERE tenant_id = ${sqlString(tenantId)};
+      DELETE FROM inventory_movements WHERE tenant_id = ${sqlString(tenantId)};
+      DELETE FROM audit_events WHERE tenant_id = ${sqlString(tenantId)};
+      DELETE FROM sales WHERE tenant_id = ${sqlString(tenantId)};
+      DELETE FROM products WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM sessions WHERE user_id = ${sqlString(userId)};
       DELETE FROM subscriptions WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM users WHERE id = ${sqlString(userId)};
@@ -312,7 +472,13 @@ async function cleanup() {
       UNION ALL
       SELECT COUNT(*) FROM users WHERE id = ${sqlString(userId)}
       UNION ALL
-      SELECT COUNT(*) FROM tenants WHERE id = ${sqlString(tenantId)};
+      SELECT COUNT(*) FROM tenants WHERE id = ${sqlString(tenantId)}
+      UNION ALL
+      SELECT COUNT(*) FROM products WHERE id = ${sqlString(productId)}
+      UNION ALL
+      SELECT COUNT(*) FROM sales WHERE tenant_id = ${sqlString(tenantId)}
+      UNION ALL
+      SELECT COUNT(*) FROM inventory_movements WHERE tenant_id = ${sqlString(tenantId)};
     `);
     if (remainingFixtures.split("\n").some((count) => count !== "0")) {
       throw new Error(`Fixture cleanup left rows behind: ${remainingFixtures}`);
@@ -396,6 +562,69 @@ async function main() {
     const upgraded = await signIn(paidPlan.id, paidPlan.name);
     await verifyLocalSubscription(upgraded.token, paidPlan.id, paidPlan.tier, paidPlan.name);
     console.log("PASS online sign-in refreshes the cached Free plan to the hosted paid plan");
+
+    const managerUnlock = await request("/api/auth/manager-unlock", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${upgraded.token}` },
+      body: JSON.stringify({ email, password }),
+    });
+    assert(managerUnlock.response.status === 200, `Manager unlock failed: ${managerUnlock.response.status} ${JSON.stringify(managerUnlock.body)}`);
+    const managerAccessToken = managerUnlock.body?.accessToken;
+    assert(typeof managerAccessToken === "string" && managerAccessToken.length > 20, "Manager unlock did not return an access token.");
+
+    const saleIdempotencyKey = `forced-checkout-${randomUUID()}`;
+    const saleLock = holdSaleIdempotencyLock(saleIdempotencyKey);
+    let interruptedCheckout;
+    try {
+      await saleLock.ready;
+      const checkoutInProgress = createSale(upgraded.token, saleIdempotencyKey).then(
+        ({ response, body }) => ({ kind: "response", status: response.status, body }),
+        (error) => ({ kind: "error", error }),
+      );
+      await waitForBlockedSale();
+      await stopApiProcess({ force: true });
+      await releaseSaleIdempotencyLock();
+      interruptedCheckout = await Promise.race([
+        checkoutInProgress,
+        delay(3_000).then(() => ({ kind: "timeout" })),
+      ]);
+    } finally {
+      await releaseSaleIdempotencyLock();
+    }
+    assert(
+      interruptedCheckout?.kind === "error",
+      `Expected forced shutdown to interrupt the checkout request, got ${JSON.stringify(interruptedCheckout)}`,
+    );
+
+    const [salesAfterShutdown, movementsAfterShutdown, stockAfterShutdown] = runSql(`
+      SELECT COUNT(*) FROM sales
+        WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(saleIdempotencyKey)};
+      SELECT COUNT(*) FROM inventory_movements
+        WHERE tenant_id = ${sqlString(tenantId)} AND product_id = ${sqlString(productId)}
+          AND reason = 'sale';
+      SELECT stock FROM products
+        WHERE tenant_id = ${sqlString(tenantId)} AND id = ${sqlString(productId)};
+    `).split("\n");
+    assert(salesAfterShutdown === "0", `Forced shutdown left a partial sale record: ${salesAfterShutdown}`);
+    assert(movementsAfterShutdown === "0", `Forced shutdown left a partial inventory movement: ${movementsAfterShutdown}`);
+    assert(stockAfterShutdown === "3", `Forced shutdown changed inventory before commit: ${stockAfterShutdown}`);
+
+    await restartApi();
+    const recoveredCheckout = await createSale(upgraded.token, saleIdempotencyKey);
+    assert(recoveredCheckout.response.status === 201, `Recovered checkout failed: ${recoveredCheckout.response.status} ${JSON.stringify(recoveredCheckout.body)}`);
+    const recoveredSaleId = recoveredCheckout.body?.id;
+    assert(typeof recoveredSaleId === "string", "Recovered checkout did not return a sale id.");
+
+    const duplicateRetry = await createSale(upgraded.token, saleIdempotencyKey);
+    assert(duplicateRetry.response.status === 200, `Duplicate checkout retry failed: ${duplicateRetry.response.status} ${JSON.stringify(duplicateRetry.body)}`);
+    assert(duplicateRetry.body?.id === recoveredSaleId, "Duplicate checkout retry created a different sale.");
+
+    await restartApi({ force: true });
+    const duplicateRetryAfterRestart = await createSale(upgraded.token, saleIdempotencyKey);
+    assert(duplicateRetryAfterRestart.response.status === 200, `Post-restart checkout retry failed: ${duplicateRetryAfterRestart.response.status} ${JSON.stringify(duplicateRetryAfterRestart.body)}`);
+    assert(duplicateRetryAfterRestart.body?.id === recoveredSaleId, "Post-restart checkout retry created a different sale.");
+    await verifyRecoveredSale(upgraded.token, managerAccessToken, saleIdempotencyKey, recoveredSaleId);
+    console.log("PASS forced Store Host shutdown rolls back an in-flight checkout and recovery commits it exactly once");
 
     const checkout = await request("/api/billing/checkout", {
       method: "POST",
