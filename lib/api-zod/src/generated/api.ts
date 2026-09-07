@@ -495,6 +495,40 @@ export const CreateProductResponse = zod.object({
 
 
 /**
+ * @summary Import products from normalized CSV rows
+ */
+export const importProductsBodyRowsMax = 5000;
+
+
+
+export const ImportProductsBody = zod.object({
+  "rows": zod.array(zod.object({
+  "name": zod.string(),
+  "description": zod.string().optional(),
+  "sku": zod.string(),
+  "barcode": zod.string().optional(),
+  "price": zod.number(),
+  "costPrice": zod.number().optional(),
+  "stock": zod.number().optional(),
+  "minStock": zod.number().optional(),
+  "category": zod.string().optional(),
+  "brand": zod.string().optional()
+})).max(importProductsBodyRowsMax)
+})
+
+export const ImportProductsResponse = zod.object({
+  "total": zod.number(),
+  "created": zod.number(),
+  "updated": zod.number(),
+  "skipped": zod.number(),
+  "errors": zod.array(zod.object({
+  "row": zod.number(),
+  "message": zod.string()
+}))
+})
+
+
+/**
  * @summary Get a product by ID
  */
 export const GetProductParams = zod.object({

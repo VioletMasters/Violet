@@ -16,7 +16,7 @@ export function getStoredTheme(): Theme {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   }
-  return "dark";
+  return "light";
 }
 
 export function applyTheme(theme: Theme) {

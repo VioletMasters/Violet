@@ -94,6 +94,8 @@ import type {
   PosProductsPage,
   PosTaxSettings,
   Product,
+  ProductImportInput,
+  ProductImportResponse,
   ProductInput,
   ProductUpdate,
   ProductsPage,
@@ -1570,6 +1572,77 @@ export const useCreateProduct = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateProductMutationOptions(options));
+    }
+
+export const getImportProductsUrl = () => {
+
+
+
+
+  return `/api/products/import`
+}
+
+/**
+ * @summary Import products from normalized CSV rows
+ */
+export const importProducts = async (productImportInput: ProductImportInput, options?: Parameters<typeof customFetch>[1]): Promise<ProductImportResponse> => {
+
+  return customFetch<ProductImportResponse>(getImportProductsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(productImportInput)
+  }
+);}
+
+
+
+
+
+export const getImportProductsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importProducts>>, TError,{data: BodyType<ProductImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importProducts>>, TError,{data: BodyType<ProductImportInput>}, TContext> => {
+
+const mutationKey = ['importProducts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importProducts>>, {data: BodyType<ProductImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importProducts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportProductsMutationResult = NonNullable<Awaited<ReturnType<typeof importProducts>>>
+    export type ImportProductsMutationBody = BodyType<ProductImportInput>
+    export type ImportProductsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Import products from normalized CSV rows
+ */
+export const useImportProducts = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importProducts>>, TError,{data: BodyType<ProductImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importProducts>>,
+        TError,
+        {data: BodyType<ProductImportInput>},
+        TContext
+      > => {
+      return useMutation(getImportProductsMutationOptions(options));
     }
 
 export const getGetProductUrl = (id: string,) => {

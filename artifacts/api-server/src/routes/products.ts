@@ -5,6 +5,42 @@ import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
+type ProductImportRow = {
+  name?: unknown;
+  description?: unknown;
+  sku?: unknown;
+  barcode?: unknown;
+  price?: unknown;
+  costPrice?: unknown;
+  stock?: unknown;
+  minStock?: unknown;
+  category?: unknown;
+  brand?: unknown;
+};
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+}
+
+function numberValue(value: unknown, fallback?: number) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(String(value).replace(/[$,\s]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+async function findOrCreateCatalogValue(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  table: typeof categoriesTable | typeof brandsTable,
+  tenantId: string,
+  name: string,
+) {
+  if (!name) return undefined;
+  const [existing] = await tx.select().from(table).where(and(eq(table.tenantId, tenantId), eq(table.name, name))).limit(1);
+  if (existing) return existing.id;
+  const [created] = await tx.insert(table).values({ tenantId, name }).returning({ id: table.id });
+  return created.id;
+}
+
 // GET /pos/products — checkout lookup with only the fields a cashier needs.
 router.get("/pos/products", requireAuth, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
@@ -176,6 +212,87 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
     isActive: product.isActive,
     createdAt: product.createdAt.toISOString(),
   });
+});
+
+// POST /products/import — import products from a CSV-normalized row set.
+// The frontend handles CSV quoting and column aliases so this endpoint stays
+// useful for other clients that already have structured product data.
+router.post("/products/import", requireManagerAccess, async (req, res): Promise<void> => {
+  const rows = req.body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(400).json({ error: "At least one product row is required" });
+    return;
+  }
+  if (rows.length > 5000) {
+    res.status(400).json({ error: "Imports are limited to 5,000 products per file" });
+    return;
+  }
+
+  const tenantId = req.tenantId!;
+  const result = { total: rows.length, created: 0, updated: 0, skipped: 0, errors: [] as Array<{ row: number; message: string }> };
+
+  await db.transaction(async (tx) => {
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] as ProductImportRow;
+      const name = textValue(row.name);
+      const sku = textValue(row.sku);
+      const barcode = textValue(row.barcode) || undefined;
+      const price = numberValue(row.price);
+      const costPrice = numberValue(row.costPrice);
+      const stock = numberValue(row.stock, 0);
+      const minStock = numberValue(row.minStock, 5);
+
+      if (!name || !sku) {
+        result.skipped += 1;
+        result.errors.push({ row: index + 2, message: "Name and SKU are required" });
+        continue;
+      }
+      if (price === undefined || price < 0) {
+        result.skipped += 1;
+        result.errors.push({ row: index + 2, message: "Price must be a non-negative number" });
+        continue;
+      }
+      if (costPrice !== undefined && costPrice < 0) {
+        result.skipped += 1;
+        result.errors.push({ row: index + 2, message: "Cost price must be a non-negative number" });
+        continue;
+      }
+      if (!Number.isInteger(stock) || stock < 0 || !Number.isInteger(minStock) || minStock < 0) {
+        result.skipped += 1;
+        result.errors.push({ row: index + 2, message: "Stock values must be non-negative whole numbers" });
+        continue;
+      }
+
+      const categoryId = await findOrCreateCatalogValue(tx, categoriesTable, tenantId, textValue(row.category));
+      const brandId = await findOrCreateCatalogValue(tx, brandsTable, tenantId, textValue(row.brand));
+      const matchConditions = [eq(productsTable.tenantId, tenantId), eq(productsTable.sku, sku)];
+      if (barcode) matchConditions.push(eq(productsTable.barcode, barcode));
+      const [existing] = await tx.select().from(productsTable).where(or(...matchConditions)).limit(1);
+      const values = {
+        name,
+        description: textValue(row.description) || null,
+        sku,
+        barcode: barcode ?? null,
+        price: String(price),
+        costPrice: costPrice === undefined ? null : String(costPrice),
+        stock,
+        minStock,
+        categoryId: categoryId ?? null,
+        brandId: brandId ?? null,
+        isActive: true,
+      };
+
+      if (existing) {
+        await tx.update(productsTable).set(values).where(and(eq(productsTable.id, existing.id), eq(productsTable.tenantId, tenantId)));
+        result.updated += 1;
+      } else {
+        await tx.insert(productsTable).values({ tenantId, ...values });
+        result.created += 1;
+      }
+    }
+  });
+
+  res.status(200).json(result);
 });
 
 // GET /products/:id

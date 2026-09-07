@@ -424,6 +424,37 @@ export interface ProductInput {
   imageUrl?: string;
 }
 
+export type ProductImportInputRowsItem = {
+  name: string;
+  description?: string;
+  sku: string;
+  barcode?: string;
+  price: number;
+  costPrice?: number;
+  stock?: number;
+  minStock?: number;
+  category?: string;
+  brand?: string;
+};
+
+export interface ProductImportInput {
+  /** @maxItems 5000 */
+  rows: ProductImportInputRowsItem[];
+}
+
+export type ProductImportResponseErrorsItem = {
+  row: number;
+  message: string;
+};
+
+export interface ProductImportResponse {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: ProductImportResponseErrorsItem[];
+}
+
 export interface ProductUpdate {
   /** @minLength 1 */
   name?: string;

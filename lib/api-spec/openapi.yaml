@@ -489,6 +489,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Product"
 
+  /products/import:
+    post:
+      operationId: importProducts
+      tags: [products]
+      summary: Import products from normalized CSV rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductImportInput"
+      responses:
+        "200":
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductImportResponse"
+
   /products/{id}:
     get:
       operationId: getProduct
@@ -2862,6 +2881,61 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: string
+
+    ProductImportInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          maxItems: 5000
+          items:
+            type: object
+            required: [name, sku, price]
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              sku:
+                type: string
+              barcode:
+                type: string
+              price:
+                type: number
+              costPrice:
+                type: number
+              stock:
+                type: number
+              minStock:
+                type: number
+              category:
+                type: string
+              brand:
+                type: string
+
+    ProductImportResponse:
+      type: object
+      required: [total, created, updated, skipped, errors]
+      properties:
+        total:
+          type: number
+        created:
+          type: number
+        updated:
+          type: number
+        skipped:
+          type: number
+        errors:
+          type: array
+          items:
+            type: object
+            required: [row, message]
+            properties:
+              row:
+                type: number
+              message:
+                type: string
 
     ProductUpdate:
       type: object
