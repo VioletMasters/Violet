@@ -15,11 +15,32 @@ function generateReceiptNumber(): string {
   return `RCP-${ts}-${rand}`;
 }
 
-async function buildSaleResponse(sale: typeof salesTable.$inferSelect) {
+type SaleResponseOptions = {
+  includeVoidedItems?: boolean;
+};
+
+async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: SaleResponseOptions = {}) {
   const [items, payments] = await Promise.all([
     db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, sale.id)),
     db.select().from(salePaymentsTable).where(and(eq(salePaymentsTable.saleId, sale.id), eq(salePaymentsTable.tenantId, sale.tenantId))),
   ]);
+  const showVoidedItems = options.includeVoidedItems
+    ? Boolean((await db.select({ showVoidedItems: settingsTable.showVoidedItems }).from(settingsTable)
+      .where(eq(settingsTable.tenantId, sale.tenantId)).limit(1))[0]?.showVoidedItems)
+    : false;
+  const toResponseItem = (item: typeof saleItemsTable.$inferSelect) => ({
+    productId: item.productId,
+    productName: item.productName,
+    quantity: item.quantity,
+    unitPrice: parseFloat(item.unitPrice),
+    discount: parseFloat(item.discount),
+    totalPrice: parseFloat(item.totalPrice),
+    unitCostSnapshot: item.unitCostSnapshot == null ? null : Number(item.unitCostSnapshot),
+    isVoided: item.isVoided,
+    voidReason: item.voidReason ?? null,
+    voidedBy: item.voidedBy ?? null,
+    voidedAt: item.voidedAt?.toISOString() ?? null,
+  });
   return {
     id: sale.id,
     receiptNumber: sale.receiptNumber,
@@ -41,15 +62,10 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect) {
       tenderedAmount: payment.tenderedAmount == null ? null : Number(payment.tenderedAmount),
       reference: payment.reference,
     })),
-    items: items.map(i => ({
-      productId: i.productId,
-      productName: i.productName,
-      quantity: i.quantity,
-      unitPrice: parseFloat(i.unitPrice),
-      discount: parseFloat(i.discount),
-      totalPrice: parseFloat(i.totalPrice),
-      unitCostSnapshot: i.unitCostSnapshot == null ? null : Number(i.unitCostSnapshot),
-    })),
+    items: items.filter((item) => !item.isVoided).map(toResponseItem),
+    ...(showVoidedItems
+      ? { voidedItems: items.filter((item) => item.isVoided).map(toResponseItem) }
+      : {}),
     tenantId: sale.tenantId,
     createdAt: sale.createdAt.toISOString(),
   };
@@ -74,7 +90,7 @@ router.get("/sales", requireManagerAccess, async (req, res): Promise<void> => {
     db.select({ total: sql<number>`COUNT(*)` }).from(salesTable).where(and(...conditions)),
   ]);
 
-  const data = await Promise.all(sales.map(buildSaleResponse));
+  const data = await Promise.all(sales.map((sale) => buildSaleResponse(sale, { includeVoidedItems: true })));
   res.json({ data, total: Number(total), page: pageNum, limit: limitNum });
 });
 
