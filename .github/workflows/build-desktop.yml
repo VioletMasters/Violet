@@ -313,7 +313,9 @@ jobs:
           Get-Process -Name "Violet Enterprise" -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
           Remove-Item (Join-Path $env:APPDATA "com.violetenterprise.desktop") -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item (Join-Path $env:LOCALAPPDATA "Violet Enterprise") -Recurse -Force -ErrorAction SilentlyContinue
+          # Keep the installed application directory intact. The resolved
+          # executable lives under LOCALAPPDATA\Violet Enterprise and is used
+          # by the packaged smoke test before the installer is uninstalled.
           node artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs $appPath
 
           $uninstaller = Get-ChildItem -Path $desktopApp.Directory.FullName -Filter "*uninstall*.exe" -File |
