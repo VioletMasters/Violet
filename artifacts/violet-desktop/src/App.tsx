@@ -32,12 +32,11 @@ async function saveConfig(mode: Mode, url: string) {
 }
 
 async function goTo(url: string) {
-  if (isTauri) {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('navigate_to', { url });
-  } else {
-    window.location.replace(url);
-  }
+  // Let the current webview perform the navigation itself. Calling a Rust
+  // navigation command here introduces a second handoff exactly while the
+  // bundled Tauri page is being replaced, and WebView2 can leave the setup
+  // document active when that handoff races the command response.
+  window.location.replace(url);
 }
 
 function normaliseUrl(raw: string) {
