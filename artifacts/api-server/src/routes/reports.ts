@@ -311,6 +311,7 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
   const [reportSettings] = await db.select({ showVoidedItems: settingsTable.showVoidedItems })
     .from(settingsTable).where(eq(settingsTable.tenantId, req.tenantId!)).limit(1);
   const rows = await db.select({
+    id: salesTable.id,
     receiptNumber: salesTable.receiptNumber, createdAt: salesTable.createdAt, status: salesTable.status,
     storeId: salesTable.storeId, registerId: salesTable.registerId, cashierId: salesTable.cashierId,
     subtotal: salesTable.subtotal, discount: salesTable.discountAmount, tax: salesTable.taxAmount,
