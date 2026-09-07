@@ -97,6 +97,32 @@ fn show_startup_error(detail: &str) {
     }
 }
 
+#[cfg(windows)]
+fn configure_webview2_for_smoke() {
+    let Ok(port) = std::env::var("VIOLET_SMOKE_CDP_PORT") else {
+        return;
+    };
+    if port.is_empty() || !port.chars().all(|character| character.is_ascii_digit()) {
+        return;
+    }
+
+    let argument = format!("--remote-debugging-port={port}");
+    let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+    if existing
+        .split_whitespace()
+        .any(|value| value.starts_with("--remote-debugging-port="))
+    {
+        return;
+    }
+
+    let combined = if existing.trim().is_empty() {
+        argument
+    } else {
+        format!("{existing} {argument}")
+    };
+    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", combined);
+}
+
 /// Navigate the main webview to an arbitrary URL.
 /// Called from JS after the operator enters and saves their server address.
 fn require_setup_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
@@ -727,6 +753,9 @@ async fn reset_managed_host(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    configure_webview2_for_smoke();
+
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {

@@ -270,6 +270,7 @@ async function startApp() {
   const child = spawn(appPath, [], {
     env: {
       ...process.env,
+      VIOLET_SMOKE_CDP_PORT: String(cdpPort),
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`,
     },
     stdio: "ignore",
