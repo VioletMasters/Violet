@@ -11,8 +11,70 @@ permissions:
   contents: read
 
 jobs:
+  offline-license-regression:
+    name: Offline Store Host licensing regression
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: violet
+          POSTGRES_PASSWORD: violetpass
+          POSTGRES_DB: violetdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U violet -d violetdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies (reproducible)
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply Store Host schema fixture
+        env:
+          DATABASE_URL: postgresql://violet:violetpass@127.0.0.1:5432/violetdb
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docker/schema.sql
+
+      - name: Align fixture with the application schema
+        env:
+          DATABASE_URL: postgresql://violet:violetpass@127.0.0.1:5432/violetdb
+        run: pnpm --filter @workspace/db run push
+
+      - name: Seed Store Host subscription plans
+        working-directory: scripts
+        env:
+          DATABASE_URL: postgresql://violet:violetpass@127.0.0.1:5432/violetdb
+          ADMIN_EMAIL: offline-license-ci@example.test
+          ADMIN_PASSWORD: offline-license-ci-password
+        run: pnpm exec tsx ./src/seed-docker.ts
+
+      - name: Run offline Store Host licensing regression
+        env:
+          DATABASE_URL: postgresql://violet:violetpass@127.0.0.1:5432/violetdb
+          SESSION_SECRET: offline-license-ci-session-secret
+        run: pnpm --filter @workspace/api-server run test:offline-license
+
   build:
     name: ${{ matrix.name }}
+    needs: offline-license-regression
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

@@ -25,6 +25,7 @@ let apiPort;
 let licensePort;
 let licenseServer;
 let apiLogs = "";
+let currentBoundary = "Store Host startup";
 const hostedLicense = {
   available: false,
   credentialsValid: true,
@@ -223,6 +224,10 @@ async function request(path, options = {}) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function markBoundary(name) {
+  currentBoundary = name;
 }
 
 async function waitForApi() {
@@ -551,6 +556,7 @@ async function main() {
   try {
     await waitForApi();
 
+    markBoundary("fresh Free startup and offline POS sign-in");
     assert(
       hostedLicense.verifyRequests === 0,
       `Store Host startup contacted hosted licensing ${hostedLicense.verifyRequests} time(s).`,
@@ -560,6 +566,7 @@ async function main() {
     await verifyLocalPosAccess(unavailable.token);
     console.log("PASS new local Store Host starts Free without hosted validation and serves the POS offline");
 
+    markBoundary("invalid hosted credentials falling back to Free");
     hostedLicense.credentialsValid = false;
     const invalidHostedCredentials = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(invalidHostedCredentials.token);
@@ -570,6 +577,7 @@ async function main() {
     );
     console.log("PASS invalid hosted credentials never grant a paid plan and still allow local Free sign-in");
 
+    markBoundary("cached paid plan surviving restart");
     hostedLicense.credentialsValid = true;
     setCachedPlan(
       paidPlan.id,
@@ -586,6 +594,7 @@ async function main() {
     await verifyLocalRequest(activeAfterForcedRestart.token);
     console.log("PASS active cached paid period and local session survive forced Store Host termination");
 
+    markBoundary("expired cached paid plan falling back to Free");
     setCachedPlan(
       paidPlan.id,
       new Date(Date.now() - 60 * 60 * 1000).toISOString(),
@@ -598,6 +607,7 @@ async function main() {
     await verifyLocalRequest(expiredAfterForcedRestart.token);
     console.log("PASS expired cached paid period falls back to Free after forced Store Host termination");
 
+    markBoundary("missing cached paid period falling back to Free");
     setCachedPlan(paidPlan.id, null);
     const missing = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(missing.token);
@@ -607,6 +617,7 @@ async function main() {
     await verifyLocalRequest(missingAfterForcedRestart.token);
     console.log("PASS missing cached paid period falls back to Free after forced Store Host termination");
 
+    markBoundary("cached Free plan surviving forced termination");
     setCachedPlan(freePlan.id, null);
     const free = await signIn(freePlan.id, freePlan.name);
     await verifyLocalRequest(free.token);
@@ -616,6 +627,7 @@ async function main() {
     await verifyLocalRequest(freeAfterForcedRestart.token);
     console.log("PASS cached Free plan and local sessions remain usable after forced Store Host termination");
 
+    markBoundary("hosted Starter, Professional, and Enterprise upgrades");
     hostedLicense.available = true;
     for (const hostedPlan of plans.filter((plan) => plan.tier !== "free")) {
       setCachedPlan(freePlan.id, null, "active");
@@ -630,6 +642,7 @@ async function main() {
     const upgraded = await signIn(paidPlan.id, paidPlan.name);
     await verifyLocalSubscription(upgraded.token, paidPlan.id, paidPlan.tier, paidPlan.name);
 
+    markBoundary("manager elevation and forced checkout recovery");
     const managerUnlock = await request("/api/auth/manager-unlock", {
       method: "POST",
       headers: { Authorization: `Bearer ${upgraded.token}` },
@@ -693,6 +706,7 @@ async function main() {
     await verifyRecoveredSale(upgraded.token, managerAccessToken, saleIdempotencyKey, recoveredSaleId);
     console.log("PASS forced Store Host shutdown rolls back an in-flight checkout and recovery commits it exactly once");
 
+    markBoundary("offline upgrade redirect");
     const checkout = await request("/api/billing/checkout", {
       method: "POST",
       headers: { Authorization: `Bearer ${free.token}` },
@@ -707,6 +721,7 @@ async function main() {
     );
     console.log("PASS local upgrade request returns the hosted upgrade URL");
 
+    markBoundary("unavailable local data store recovery");
     await stopApiProcess();
     apiPort = await reservePort();
     spawnApiProcess({
@@ -739,7 +754,11 @@ async function main() {
     console.log("PASS unavailable Store Host data returns recovery guidance without changing existing data");
   } catch (error) {
     const details = apiLogs.trim();
-    throw new Error(`${error.message}${details ? `\n\nStore Host logs:\n${details}` : ""}`);
+    throw new Error(
+      `Offline licensing boundary "${currentBoundary}" failed: ${error.message}${
+        details ? `\n\nStore Host logs:\n${details}` : ""
+      }`,
+    );
   }
 }
 
