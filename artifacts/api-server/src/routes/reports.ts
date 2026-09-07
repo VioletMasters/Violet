@@ -2,9 +2,9 @@ import { Router } from "express";
 import {
   auditEventsTable, cashEventsTable, categoriesTable, db, inventoryMovementsTable, purchaseOrdersTable, receiptItemsTable, receiptsTable,
   refundsTable, refundItemsTable, registersTable, saleItemsTable, salePaymentsTable, salesTable,
-  storesTable, productsTable, usersTable,
+  storesTable, productsTable, usersTable, settingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, lte, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
 import { FINANCIAL_DEFINITIONS, toCsv, toPdf, toXlsx } from "../lib/reporting";
 
@@ -57,7 +57,8 @@ router.get(["/reports/sales", "/reports/summary"], requireManagerAccess, async (
     db.select({ amount: sql<string>`COALESCE(SUM(${refundsTable.amount}::numeric - ${refundsTable.taxAmount}::numeric), 0)`, tax: sql<string>`COALESCE(SUM(${refundsTable.taxAmount}::numeric), 0)` })
       .from(refundsTable).innerJoin(salesTable, eq(refundsTable.saleId, salesTable.id)).where(and(...refundConditions)),
     db.select({ amount: sql<string>`COALESCE(SUM(${saleItemsTable.unitCostSnapshot}::numeric * ${saleItemsTable.quantity}), 0)` })
-      .from(saleItemsTable).innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id)).where(and(...conditions)),
+      .from(saleItemsTable).innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
+      .where(and(...conditions, eq(saleItemsTable.isVoided, false))),
     db.select({ amount: sql<string>`COALESCE(SUM(${refundItemsTable.costAmount}::numeric), 0)` })
       .from(refundItemsTable).innerJoin(refundsTable, eq(refundItemsTable.refundId, refundsTable.id))
       .innerJoin(salesTable, eq(refundsTable.saleId, salesTable.id)).where(and(...refundConditions)),
@@ -67,8 +68,9 @@ router.get(["/reports/sales", "/reports/summary"], requireManagerAccess, async (
       date: sql<string>`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')::text`,
       revenue: sql<string>`COALESCE(SUM(${salesTable.totalAmount}::numeric), 0)`, count: sql<number>`COUNT(*)`,
     }).from(salesTable).where(and(...conditions)).groupBy(sql`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')`).orderBy(sql`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')`),
-    db.select({ missingCostLines: sql<number>`COUNT(*) FILTER (WHERE ${saleItemsTable.unitCostSnapshot} IS NULL)` })
-      .from(saleItemsTable).innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id)).where(and(...conditions)),
+     db.select({ missingCostLines: sql<number>`COUNT(*) FILTER (WHERE ${saleItemsTable.unitCostSnapshot} IS NULL)` })
+       .from(saleItemsTable).innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
+       .where(and(...conditions, eq(saleItemsTable.isVoided, false))),
   ]);
   const gross = money(saleSummary[0]?.gross); const discounts = money(saleSummary[0]?.discounts);
   const refundAmount = money(refunds[0]?.amount); const net = money(gross - discounts - refundAmount);
@@ -97,17 +99,46 @@ router.get("/reports/transactions", requireManagerAccess, async (req, res): Prom
   const sortColumns = { createdAt: salesTable.createdAt, totalAmount: salesTable.totalAmount, receiptNumber: salesTable.receiptNumber };
   const sort = sortColumns[query.sortBy as keyof typeof sortColumns] ?? salesTable.createdAt;
   const order = query.sortOrder === "asc" ? asc(sort) : desc(sort);
+  const [settings] = await db.select({ showVoidedItems: settingsTable.showVoidedItems })
+    .from(settingsTable).where(eq(settingsTable.tenantId, req.tenantId!)).limit(1);
   const [rows, count] = await Promise.all([
     db.select().from(salesTable).where(and(...conditions)).orderBy(order).limit(limit).offset((page - 1) * limit),
     db.select({ total: sql<number>`COUNT(*)` }).from(salesTable).where(and(...conditions)),
   ]);
-  res.json({ data: rows, total: Number(count[0]?.total ?? 0), page, limit });
+  const voidedItemsBySale = new Map<string, unknown[]>();
+  if (settings?.showVoidedItems && rows.length > 0) {
+    const voidedItems = await db.select().from(saleItemsTable).where(and(
+      eq(saleItemsTable.isVoided, true),
+      inArray(saleItemsTable.saleId, rows.map((row) => row.id)),
+    ));
+    for (const item of voidedItems) {
+      const list = voidedItemsBySale.get(item.saleId) ?? [];
+      list.push({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.totalPrice),
+        reason: item.voidReason ?? "Removed from cart",
+        voidedAt: item.voidedAt?.toISOString() ?? null,
+      });
+      voidedItemsBySale.set(item.saleId, list);
+    }
+  }
+  res.json({
+    data: rows.map((row) => settings?.showVoidedItems
+      ? { ...row, voidedItems: voidedItemsBySale.get(row.id) ?? [] }
+      : row),
+    total: Number(count[0]?.total ?? 0),
+    page,
+    limit,
+  });
 });
 
 router.get("/reports/products", requireManagerAccess, async (req, res): Promise<void> => {
   const query = req.query as Query; const error = validDates(query);
   if (error) { res.status(400).json({ error }); return; }
-  const conditions = [...filters(query, req.tenantId!), eq(salesTable.status, "completed")];
+  const conditions = [...filters(query, req.tenantId!), eq(salesTable.status, "completed"), eq(saleItemsTable.isVoided, false)];
   if (query.productId) conditions.push(eq(saleItemsTable.productId, query.productId));
   if (query.categoryId) conditions.push(eq(saleItemsTable.categoryIdSnapshot, query.categoryId));
   const rows = await db.select({
