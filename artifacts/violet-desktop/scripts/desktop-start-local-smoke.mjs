@@ -178,10 +178,6 @@ async function setInput(page, selector, value) {
   if (!set) throw new Error(`Could not find packaged app input: ${selector}`);
 }
 
-async function pageUrl(page) {
-  return evaluate(page, "location.href");
-}
-
 function assertLocalLoginUrl(url) {
   const parsed = new URL(url);
   if (!["127.0.0.1", "localhost"].includes(parsed.hostname) || !parsed.pathname.endsWith("/login")) {
@@ -311,9 +307,13 @@ try {
   await waitFor(
     page,
     "the local login page after Start locally",
-    "() => /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname)",
+    "() => /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname) ? location.href : false",
   );
-  const firstLoginUrl = await pageUrl(page);
+  const firstLoginUrl = await waitFor(
+    page,
+    "the local login page URL after Start locally",
+    "() => /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname) ? location.href : false",
+  );
   assertLocalLoginUrl(firstLoginUrl);
   const configPath = assertPersistedHostConfig();
   managedDirectory = findManagedHostDirectory();
@@ -329,10 +329,15 @@ try {
   await waitFor(
     page,
     "the local Free app after hosted license outage",
-    "() => location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname)",
+    "() => location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
     45_000,
   );
-  const localAppUrl = await pageUrl(page);
+  const localAppUrl = await waitFor(
+    page,
+    "the local Free app URL after hosted license outage",
+    "() => location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
+    45_000,
+  );
   if (new URL(localAppUrl).hostname !== "127.0.0.1") {
     throw new Error(`Offline Free sign-in left the local Store Host: ${localAppUrl}`);
   }
@@ -370,10 +375,15 @@ try {
   await waitFor(
     page,
     "the resumed local Store Host login page",
-    "() => ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname)",
+    "() => ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
     60_000,
   );
-  const resumedUrl = await pageUrl(page);
+  const resumedUrl = await waitFor(
+    page,
+    "the resumed local Store Host login page URL",
+    "() => ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
+    60_000,
+  );
   assertLocalLoginUrl(resumedUrl);
   console.log("Store Host resume smoke test passed.");
 } catch (error) {
