@@ -376,6 +376,13 @@ try {
   const resumedUrl = await pageUrl(page);
   assertLocalLoginUrl(resumedUrl);
   console.log("Store Host resume smoke test passed.");
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  // Make the actionable smoke-test failure available as a GitHub annotation,
+  // even when the workflow log download is unavailable to the repository
+  // connection used for diagnostics.
+  console.log(`::error title=Packaged Windows smoke test::${message.replace(/\r?\n/g, "%0A")}`);
+  throw error;
 } finally {
   if (page) page.close();
   stopProcess(app);
