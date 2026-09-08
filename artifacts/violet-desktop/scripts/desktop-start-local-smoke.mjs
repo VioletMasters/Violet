@@ -296,10 +296,18 @@ try {
   stopWebView2Processes();
   app = await startApp();
   page = await connectToPage();
-  await waitFor(page, "the packaged desktop setup screen", "() => document.body?.innerText?.includes('Start locally')");
+  await waitFor(
+    page,
+    "the packaged desktop setup screen",
+    "(function () { return document.body?.innerText?.includes('Start locally'); })()",
+  );
 
   await clickButton(page, "Start locally");
-  await waitFor(page, "the local admin form", "() => document.querySelector('input[type=email]')");
+  await waitFor(
+    page,
+    "the local admin form",
+    "(function () { return Boolean(document.querySelector('input[type=email]')); })()",
+  );
   await setInput(page, 'input[type="email"]', localEmail);
   await setInput(page, 'input[type="password"]', localPassword);
   await clickButton(page, "Start locally (Free)");
@@ -307,7 +315,7 @@ try {
   const firstLoginUrl = await waitFor(
     page,
     "the local login page after Start locally",
-    "() => /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname) ? location.href : false",
+    "(function () { return /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname) ? location.href : false; })()",
   );
   assertLocalLoginUrl(firstLoginUrl);
   const configPath = assertPersistedHostConfig();
@@ -324,7 +332,7 @@ try {
   const localAppUrl = await waitFor(
     page,
     "the local Free app after hosted license outage",
-    "() => location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
+    "(function () { return location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false; })()",
     45_000,
   );
   if (new URL(localAppUrl).hostname !== "127.0.0.1") {
@@ -364,7 +372,7 @@ try {
   const resumedUrl = await waitFor(
     page,
     "the resumed local Store Host login page",
-    "() => ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
+    "(function () { return ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false; })()",
     60_000,
   );
   assertLocalLoginUrl(resumedUrl);
