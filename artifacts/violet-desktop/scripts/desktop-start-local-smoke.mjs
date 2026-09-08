@@ -304,14 +304,9 @@ try {
   await setInput(page, 'input[type="password"]', localPassword);
   await clickButton(page, "Start locally (Free)");
 
-  await waitFor(
-    page,
-    "the local login page after Start locally",
-    "() => /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname) ? location.href : false",
-  );
   const firstLoginUrl = await waitFor(
     page,
-    "the local login page URL after Start locally",
+    "the local login page after Start locally",
     "() => /\\/login(?:[/?#]|$)/.test(location.href) && ['127.0.0.1', 'localhost'].includes(location.hostname) ? location.href : false",
   );
   assertLocalLoginUrl(firstLoginUrl);
@@ -326,15 +321,9 @@ try {
   await setInput(page, 'input[type="email"]', localEmail);
   await setInput(page, 'input[type="password"]', localPassword);
   await clickButton(page, "Sign in");
-  await waitFor(
-    page,
-    "the local Free app after hosted license outage",
-    "() => location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
-    45_000,
-  );
   const localAppUrl = await waitFor(
     page,
-    "the local Free app URL after hosted license outage",
+    "the local Free app after hosted license outage",
     "() => location.hostname === '127.0.0.1' && !/\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
     45_000,
   );
@@ -372,15 +361,9 @@ try {
   stopProcess(app);
   app = await startApp();
   page = await connectToPage();
-  await waitFor(
-    page,
-    "the resumed local Store Host login page",
-    "() => ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
-    60_000,
-  );
   const resumedUrl = await waitFor(
     page,
-    "the resumed local Store Host login page URL",
+    "the resumed local Store Host login page",
     "() => ['127.0.0.1', 'localhost'].includes(location.hostname) && /\\/login(?:[/?#]|$)/.test(location.pathname) ? location.href : false",
     60_000,
   );
