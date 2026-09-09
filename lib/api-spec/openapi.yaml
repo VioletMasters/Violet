@@ -1611,6 +1611,7 @@ paths:
         - $ref: "#/components/parameters/ReportRegisterId"
         - $ref: "#/components/parameters/ReportCashierId"
         - $ref: "#/components/parameters/ReportPaymentMethod"
+        - $ref: "#/components/parameters/ReportTransactionStatus"
         - name: page
           in: query
           schema: { type: integer, minimum: 1, default: 1 }
@@ -1750,6 +1751,7 @@ paths:
         - $ref: "#/components/parameters/ReportRegisterId"
         - $ref: "#/components/parameters/ReportCashierId"
         - $ref: "#/components/parameters/ReportPaymentMethod"
+        - $ref: "#/components/parameters/ReportTransactionStatus"
       responses:
         "200":
           description: Valid CSV, XLSX, or PDF document
@@ -2316,6 +2318,13 @@ components:
       name: paymentMethod
       in: query
       schema: { type: string }
+    ReportTransactionStatus:
+      name: status
+      in: query
+      description: Limit the report to transactions with this status.
+      schema:
+        type: string
+        enum: [completed, refunded, partial_refund, voided]
   schemas:
     # ── Shared ─────────────────────────────────────────────────────────────────
     HealthStatus:

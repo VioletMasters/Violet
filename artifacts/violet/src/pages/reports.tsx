@@ -77,6 +77,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 type AnyRecord = Record<string, any>;
 type TabKey = "overview" | "sales" | "products" | "inventory" | "profit" | "cash" | "employees" | "purchasing" | "stores" | "audit";
+type TransactionStatus = "all" | "completed" | "refunded" | "partial_refund" | "voided";
 
 const tabs: Array<{ value: TabKey; label: string; icon: React.ElementType }> = [
   { value: "overview", label: "Overview", icon: BarChart3 },
@@ -161,7 +162,7 @@ function ReportTable({ columns, rows, emptyTitle = "No records found" }: { colum
   );
 }
 
-function ReportToolbar({ datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, cashierId, setCashierId, paymentMethod, setPaymentMethod, stores, registers, employees, onExport, onPrint }: AnyRecord) {
+function ReportToolbar({ datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, cashierId, setCashierId, paymentMethod, setPaymentMethod, transactionStatus, setTransactionStatus, stores, registers, employees, onExport, onPrint }: AnyRecord) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm lg:flex-row lg:items-center">
       <div className="flex items-center gap-2 text-sm font-medium"><Filter className="h-4 w-4 text-primary" />Filters</div>
@@ -188,6 +189,16 @@ function ReportToolbar({ datePreset, setDatePreset, setCustomStart, setCustomEnd
         <SelectTrigger className="w-full lg:w-44"><Banknote className="mr-2 h-4 w-4" /><SelectValue placeholder="All payments" /></SelectTrigger>
         <SelectContent><SelectItem value="all">All payments</SelectItem><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem><SelectItem value="bank_transfer">Bank transfer</SelectItem><SelectItem value="mixed">Mixed</SelectItem></SelectContent>
       </Select>
+      <Select value={transactionStatus} onValueChange={setTransactionStatus}>
+        <SelectTrigger className="w-full lg:w-48"><ClipboardCheck className="mr-2 h-4 w-4" /><SelectValue placeholder="All statuses" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All statuses</SelectItem>
+          <SelectItem value="completed">Completed</SelectItem>
+          <SelectItem value="refunded">Refunded</SelectItem>
+          <SelectItem value="partial_refund">Partially refunded</SelectItem>
+          <SelectItem value="voided">Voided</SelectItem>
+        </SelectContent>
+      </Select>
       <div className="ml-auto flex flex-wrap gap-2">
         {(["csv", "xlsx", "pdf"] as const).map((formatName) => <Button key={formatName} size="sm" variant="outline" onClick={() => onExport(formatName)}><Download className="mr-1.5 h-3.5 w-3.5" />{formatName.toUpperCase()}</Button>)}
         <Button size="sm" variant="outline" onClick={onPrint}><Printer className="mr-1.5 h-3.5 w-3.5" />Print</Button>
@@ -205,6 +216,7 @@ export default function ReportsPage() {
   const [registerId, setRegisterId] = useState("all");
   const [cashierId, setCashierId] = useState("all");
   const [paymentMethod, setPaymentMethod] = useState("all");
+  const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>("all");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [isExportingSettlements, setIsExportingSettlements] = useState(false);
@@ -233,7 +245,7 @@ export default function ReportsPage() {
   const inventoryQuery = useGetInventoryReport({ query: { queryKey: getGetInventoryReportQueryKey(), enabled: enabled(["overview", "inventory"]) } });
   const movementQuery = useGetInventoryMovementReport(range, { query: { queryKey: getGetInventoryMovementReportQueryKey(range), enabled: enabled("inventory") } });
   const employeeQuery = useGetEmployeeReport(params, { query: { queryKey: getGetEmployeeReportQueryKey(params), enabled: enabled("employees") } });
-  const transactionParams = { ...params, page, limit: 25 };
+  const transactionParams = { ...params, ...(transactionStatus === "all" ? {} : { status: transactionStatus }), page, limit: 25 };
   const transactionsQuery = useGetReportTransactions(transactionParams, { query: { queryKey: getGetReportTransactionsQueryKey(transactionParams), enabled: enabled(["sales", "employees"]) } });
   const productsQuery = useGetProductReport(params, { query: { queryKey: getGetProductReportQueryKey(params), enabled: enabled(["products", "profit"]) } });
   const cashQuery = useGetCashReport(params, { query: { queryKey: getGetCashReportQueryKey(params), enabled: enabled("cash") } });
@@ -271,7 +283,7 @@ export default function ReportsPage() {
 
   const handleExport = async (formatName: "csv" | "xlsx" | "pdf") => {
     try {
-      const blob = await exportReportingTransactions({ format: formatName, ...params });
+      const blob = await exportReportingTransactions({ format: formatName, ...params, ...(transactionStatus === "all" ? {} : { status: transactionStatus }) });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -315,7 +327,7 @@ export default function ReportsPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-4 w-4 text-emerald-500" />Live from your operational records</div>
       </div>
 
-      <ReportToolbar {...{ ...range, datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, cashierId, setCashierId, paymentMethod, setPaymentMethod, stores: reportStores, registers: reportRegisters, employees: reportEmployees, onExport: handleExport, onPrint: () => window.print() }} />
+      <ReportToolbar {...{ ...range, datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, cashierId, setCashierId, paymentMethod, setPaymentMethod, transactionStatus, setTransactionStatus, stores: reportStores, registers: reportRegisters, employees: reportEmployees, onExport: handleExport, onPrint: () => window.print() }} />
 
       <Tabs value={activeTab} onValueChange={(value) => { setActiveTab(value as TabKey); setPage(1); }}>
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/70 p-1">
@@ -347,7 +359,7 @@ export default function ReportsPage() {
         <TabsContent value="sales" className="space-y-5">
           <SectionHeader title="Sales performance" description="Transactions, timing, tender, and operator drill-down for the selected range" />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MetricCard label="Gross sales" value={money(summary.grossSales)} icon={CircleDollarSign} /><MetricCard label="Net sales" value={money(summary.netSales)} icon={ArrowUpRight} tone="positive" /><MetricCard label="Transactions" value={number(summary.transactions)} icon={ClipboardList} /><MetricCard label="Discounts" value={money(summary.discounts)} icon={ArrowDownRight} /></div>
-          <Card><CardHeader><CardTitle>Transaction detail</CardTitle><CardDescription>Click a receipt to inspect the underlying sale in the operational sales workspace.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "receiptNumber", label: "Receipt" }, { key: "createdAt", label: "Date" }, { key: "status", label: "Status" }, { key: "paymentMethod", label: "Tender" }, { key: "voidedItemsDisplay", label: "Voided items" }, { key: "totalAmount", label: "Total", align: "right" }]} rows={transactions.map((row) => ({ ...row, createdAt: row.createdAt ? formatDateTime(row.createdAt) : "—", totalAmount: money(row.totalAmount), paymentMethod: String(row.paymentMethod ?? "").replace("_", " "), voidedItemsDisplay: voidedItemsDisplay(row.voidedItems) }))} /><div className="mt-4 flex items-center justify-between text-sm text-muted-foreground"><span>{number((transactionsQuery.data as AnyRecord | undefined)?.total)} total matching transactions</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={transactions.length < 25} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div></CardContent></Card>
+           <Card><CardHeader><CardTitle>Transaction detail</CardTitle><CardDescription>Click a receipt to inspect the underlying sale in the operational sales workspace.</CardDescription></CardHeader><CardContent><ReportTable emptyTitle={transactionStatus === "all" ? "No transactions found" : `No ${transactionStatus.replace("_", " ")} transactions found`} columns={[{ key: "receiptNumber", label: "Receipt" }, { key: "createdAt", label: "Date" }, { key: "status", label: "Status" }, { key: "paymentMethod", label: "Tender" }, { key: "voidedItemsDisplay", label: "Voided items" }, { key: "totalAmount", label: "Total", align: "right" }]} rows={transactions.map((row) => ({ ...row, createdAt: row.createdAt ? formatDateTime(row.createdAt) : "—", totalAmount: money(row.totalAmount), paymentMethod: String(row.paymentMethod ?? "").replace("_", " "), voidedItemsDisplay: voidedItemsDisplay(row.voidedItems) }))} /><div className="mt-4 flex items-center justify-between text-sm text-muted-foreground"><span>{number((transactionsQuery.data as AnyRecord | undefined)?.total)} total matching transactions</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={transactions.length < 25} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div></CardContent></Card>
         </TabsContent>
 
         <TabsContent value="products" className="space-y-5"><SectionHeader title="Product performance" description="Best sellers, contribution, and margin by product" /><Card><CardHeader><CardTitle>Product profitability</CardTitle><CardDescription>Sorted by net sales; historical line cost is used for COGS.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "productName", label: "Product" }, { key: "units", label: "Units", align: "right" }, { key: "netSales", label: "Net sales", align: "right" }, { key: "cogs", label: "COGS", align: "right" }, { key: "grossProfit", label: "Gross profit", align: "right" }]} rows={products.map((row) => ({ ...row, units: number(row.units), netSales: money(row.netSales), cogs: money(row.cogs), grossProfit: money(row.grossProfit) }))} /></CardContent></Card></TabsContent>

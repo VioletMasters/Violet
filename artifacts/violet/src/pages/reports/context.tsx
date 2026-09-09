@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo } from "react";
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from "date-fns";
 
 export type DatePreset = "today" | "yesterday" | "7days" | "30days" | "thisMonth" | "lastMonth" | "custom";
+export type TransactionStatus = "all" | "completed" | "refunded" | "partial_refund" | "voided";
 
 interface ReportsContextType {
   datePreset: DatePreset;
@@ -15,6 +16,8 @@ interface ReportsContextType {
   setRegisterId: (id: string) => void;
   cashierId: string;
   setCashierId: (id: string) => void;
+  transactionStatus: TransactionStatus;
+  setTransactionStatus: (status: TransactionStatus) => void;
 }
 
 const ReportsContext = createContext<ReportsContextType | null>(null);
@@ -33,6 +36,7 @@ export function ReportsProvider({ children }: { children: React.ReactNode }) {
   const [storeId, setStoreId] = useState<string>("");
   const [registerId, setRegisterId] = useState<string>("");
   const [cashierId, setCashierId] = useState<string>("");
+  const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>("all");
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
@@ -72,7 +76,8 @@ export function ReportsProvider({ children }: { children: React.ReactNode }) {
       startDate, endDate, setCustomDateRange,
       storeId, setStoreId,
       registerId, setRegisterId,
-      cashierId, setCashierId
+      cashierId, setCashierId,
+      transactionStatus, setTransactionStatus
     }}>
       {children}
     </ReportsContext.Provider>

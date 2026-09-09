@@ -1608,6 +1608,16 @@ export type ReportCashierIdParameter = string;
 
 export type ReportPaymentMethodParameter = string;
 
+export type ReportTransactionStatusParameter = typeof ReportTransactionStatusParameter[keyof typeof ReportTransactionStatusParameter];
+
+
+export const ReportTransactionStatusParameter = {
+  completed: 'completed',
+  refunded: 'refunded',
+  partial_refund: 'partial_refund',
+  voided: 'voided',
+} as const;
+
 export type ListPosProductsParams = {
 search?: string;
 page?: number;
@@ -1733,6 +1743,10 @@ registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
 paymentMethod?: ReportPaymentMethodParameter;
 /**
+ * Limit the report to transactions with this status.
+ */
+status?: ReportTransactionStatusParameter;
+/**
  * @minimum 1
  */
 page?: number;
@@ -1787,6 +1801,10 @@ storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
 paymentMethod?: ReportPaymentMethodParameter;
+/**
+ * Limit the report to transactions with this status.
+ */
+status?: ReportTransactionStatusParameter;
 };
 
 export type ExportReportingTransactionsFormat = typeof ExportReportingTransactionsFormat[keyof typeof ExportReportingTransactionsFormat];

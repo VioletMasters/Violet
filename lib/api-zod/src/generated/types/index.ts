@@ -145,6 +145,7 @@ export * from './reportPaymentMethodParameter';
 export * from './reportRegisterIdParameter';
 export * from './reportStartDateParameter';
 export * from './reportStoreIdParameter';
+export * from './reportTransactionStatusParameter';
 export * from './sale';
 export * from './saleInput';
 export * from './saleInputPaymentMethod';

@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight, Search, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function ReportsSales() {
-  const { startDate, endDate, storeId } = useReportsContext();
+  const { startDate, endDate, storeId, transactionStatus } = useReportsContext();
   const [page, setPage] = useState(1);
   const limit = 50;
 
@@ -18,6 +18,7 @@ export default function ReportsSales() {
     startDate,
     endDate,
     ...(storeId ? { storeId } : {}),
+    ...(transactionStatus !== "all" ? { status: transactionStatus } : {}),
     page,
     limit: 200 // The endpoint max is 200, let's use 50
   });
@@ -119,7 +120,7 @@ export default function ReportsSales() {
                   <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
                       <FileText className="h-8 w-8 mb-2 opacity-30" />
-                      <p>No transactions found for this period.</p>
+                      <p>{transactionStatus === "all" ? "No transactions found for this period." : `No ${transactionStatus.replace("_", " ")} transactions found for this period.`}</p>
                     </div>
                   </td>
                 </tr>

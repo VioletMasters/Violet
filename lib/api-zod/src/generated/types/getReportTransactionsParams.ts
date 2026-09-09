@@ -11,6 +11,7 @@ import type { ReportPaymentMethodParameter } from './reportPaymentMethodParamete
 import type { ReportRegisterIdParameter } from './reportRegisterIdParameter';
 import type { ReportStartDateParameter } from './reportStartDateParameter';
 import type { ReportStoreIdParameter } from './reportStoreIdParameter';
+import type { ReportTransactionStatusParameter } from './reportTransactionStatusParameter';
 
 export type GetReportTransactionsParams = {
 startDate: ReportStartDateParameter;
@@ -19,6 +20,10 @@ storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
 paymentMethod?: ReportPaymentMethodParameter;
+/**
+ * Limit the report to transactions with this status.
+ */
+status?: ReportTransactionStatusParameter;
 /**
  * @minimum 1
  */

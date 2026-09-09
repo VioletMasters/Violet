@@ -1988,6 +1988,7 @@ export const GetReportTransactionsQueryParams = zod.object({
   "registerId": zod.coerce.string().optional(),
   "cashierId": zod.coerce.string().optional(),
   "paymentMethod": zod.coerce.string().optional(),
+  "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']).optional().describe('Limit the report to transactions with this status.'),
   "page": zod.coerce.number().int().min(1).default(getReportTransactionsQueryPageDefault),
   "limit": zod.coerce.number().int().min(1).max(getReportTransactionsQueryLimitMax).default(getReportTransactionsQueryLimitDefault)
 })
@@ -2083,7 +2084,8 @@ export const ExportReportingTransactionsQueryParams = zod.object({
   "storeId": zod.coerce.string().optional(),
   "registerId": zod.coerce.string().optional(),
   "cashierId": zod.coerce.string().optional(),
-  "paymentMethod": zod.coerce.string().optional()
+  "paymentMethod": zod.coerce.string().optional(),
+  "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']).optional().describe('Limit the report to transactions with this status.')
 })
 
 export const ExportReportingTransactionsResponse = zod.unknown()

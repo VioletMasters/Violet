@@ -27,7 +27,8 @@ function ReportFilters() {
     startDate, endDate, setCustomDateRange,
     storeId, setStoreId,
     registerId, setRegisterId,
-    cashierId, setCashierId
+    cashierId, setCashierId,
+    transactionStatus, setTransactionStatus
   } = useReportsContext();
 
   const { data: storesResponse } = useListStores();
@@ -89,6 +90,19 @@ function ReportFilters() {
           </Popover>
         )}
       </div>
+
+      <Select value={transactionStatus} onValueChange={(v) => setTransactionStatus(v as typeof transactionStatus)}>
+        <SelectTrigger className="w-[160px] h-8 text-xs bg-transparent border-none shadow-none focus:ring-0">
+          <SelectValue placeholder="All statuses" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Statuses</SelectItem>
+          <SelectItem value="completed">Completed</SelectItem>
+          <SelectItem value="refunded">Refunded</SelectItem>
+          <SelectItem value="partial_refund">Partially Refunded</SelectItem>
+          <SelectItem value="voided">Voided</SelectItem>
+        </SelectContent>
+      </Select>
 
       <div className="flex items-center gap-2 px-2 border-r">
         <Select value={storeId || "all"} onValueChange={(v) => { setStoreId(v === "all" ? "" : v); setRegisterId(""); }}>
