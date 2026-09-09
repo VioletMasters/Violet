@@ -213,22 +213,73 @@ async function startLicenseServer() {
 }
 
 async function request(path, options = {}) {
+  const { binary, ...fetchOptions } = options;
   const response = await fetch(`http://127.0.0.1:${apiPort}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       Accept: "application/json",
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
+      ...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
+      ...fetchOptions.headers,
     },
   });
-  const text = await response.text();
+  const text = binary ? Buffer.from(await response.arrayBuffer()) : await response.text();
   let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
+  if (binary) {
     body = text;
+  } else {
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = text;
+    }
   }
   return { response, body };
+}
+
+function readStoredZipEntry(buffer, targetName) {
+  let offset = 0;
+  while (offset + 30 <= buffer.length) {
+    if (buffer.readUInt32LE(offset) !== 0x04034b50) {
+      offset += 1;
+      continue;
+    }
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const size = buffer.readUInt32LE(offset + 18);
+    const nameStart = offset + 30;
+    const name = buffer.toString("utf8", nameStart, nameStart + nameLength);
+    const bodyStart = nameStart + nameLength + extraLength;
+    if (name === targetName) return buffer.subarray(bodyStart, bodyStart + size).toString("utf8");
+    offset = bodyStart + size;
+  }
+  throw new Error(`Could not find ${targetName} in XLSX export.`);
+}
+
+function decodeXml(value) {
+  return value
+    .replaceAll("&quot;", "\"")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&amp;", "&");
+}
+
+function parseXlsxRows(buffer) {
+  const sheet = readStoredZipEntry(buffer, "xl/worksheets/sheet1.xml");
+  const rows = [...sheet.matchAll(/<row\b[^>]*>(.*?)<\/row>/g)].map(([, row]) => (
+    [...row.matchAll(/<c t="([^"]+)">(?:<v>(.*?)<\/v>|<is><t>(.*?)<\/t><\/is>)<\/c>/g)].map(([, type, numeric, text]) => (
+      type === "n" ? Number(numeric) : decodeXml(text ?? "")
+    ))
+  ));
+  const headers = rows.shift() ?? [];
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
+}
+
+function parsePdfRows(buffer) {
+  const lines = [...buffer.toString("utf8").matchAll(/\(((?:\\.|[^)])*)\) Tj/g)].map(([, line]) => (
+    line.replaceAll("\\(", "(").replaceAll("\\)", ")").replaceAll("\\\\", "\\")
+  ));
+  const headers = (lines.shift() ?? "").split(" | ");
+  return lines.map((line) => Object.fromEntries(headers.map((header, index) => [header, line.split(" | ")[index] ?? ""])));
 }
 
 function assert(condition, message) {
@@ -807,6 +858,48 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   const splitExportRow = report.body.split("\r\n").find((row) => row.includes(splitSale.body.receiptNumber));
   assert(splitExportRow?.includes(",2000,0"), `Cash report did not expose the split cash component: ${splitExportRow ?? "missing row"}`);
   assert(!splitExportRow?.includes(",4500,0"), "Cash report treated the full split sale total as cash received.");
+
+  for (const format of ["xlsx", "pdf"]) {
+    const exportResponse = await request(`/api/reports/export/${format}?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z`, {
+      binary: true,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "x-violet-manager-access": managerAccessToken,
+      },
+    });
+    assert(exportResponse.response.status === 200, `${format.toUpperCase()} report export failed: ${exportResponse.response.status}`);
+    const rows = format === "xlsx" ? parseXlsxRows(exportResponse.body) : parsePdfRows(exportResponse.body);
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    assert(
+      headers[headers.indexOf("cashReceived") + 1] === "changeDue",
+      `${format.toUpperCase()} report changed the cash received/change due column order.`,
+    );
+    const expectedRows = [
+      { sale: validSale, cashReceived: 5000, changeDue: 500 },
+      { sale: splitSale, cashReceived: 2000, changeDue: 0 },
+      { sale: nonCashSale, cashReceived: "", changeDue: "" },
+    ];
+    for (const expected of expectedRows) {
+      const row = rows.find((candidate) => candidate.receiptNumber === expected.sale.body.receiptNumber);
+      assert(row, `${format.toUpperCase()} report omitted ${expected.sale.body.receiptNumber}.`);
+      const receivedMatches = expected.cashReceived === ""
+        ? row.cashReceived === ""
+        : Number(row.cashReceived) === expected.cashReceived;
+      const changeMatches = expected.changeDue === ""
+        ? row.changeDue === ""
+        : Number(row.changeDue) === expected.changeDue;
+      assert(
+        receivedMatches && changeMatches,
+        `${format.toUpperCase()} report cash reconciliation for ${expected.sale.body.receiptNumber} was ${JSON.stringify({
+          cashReceived: row.cashReceived,
+          changeDue: row.changeDue,
+        })}, expected ${JSON.stringify({
+          cashReceived: expected.cashReceived,
+          changeDue: expected.changeDue,
+        })}.`,
+      );
+    }
+  }
 
   const refundHeaders = {
     Authorization: `Bearer ${token}`,

@@ -15,3 +15,4 @@
 - [PostgreSQL harness lock synchronization](postgres-harness-locks.md) — observe granted and waiting advisory locks through pg_locks because piped psql output may be buffered.
 - [Tauri bundled origin](tauri-bundled-origin.md) — Tauri 2 bundled pages use http://tauri.localhost; native setup guards must allow that origin.
 - [Windows Actions Docker engine](windows-actions-docker-engine.md) — packaged Store Host smoke tests need Docker Desktop in Linux-container mode before Compose.
+- [Report export format contract](report-export-format-contract.md) — preserve trailing cash reconciliation fields when serializing every report format.

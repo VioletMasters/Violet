@@ -87,7 +87,7 @@ export function toXlsx(rows: Record<string, unknown>[]): Buffer {
 
 export function toPdf(lines: string[]): Buffer {
   const escaped = lines.slice(0, 1000).map((line) => line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"));
-  const stream = `BT /F1 9 Tf 36 756 Td ${escaped.map((line, i) => `${i ? "0 -12 Td " : ""}(${line.slice(0, 140)}) Tj`).join(" ")} ET`;
+  const stream = `BT /F1 9 Tf 36 756 Td ${escaped.map((line, i) => `${i ? "0 -12 Td " : ""}(${line}) Tj`).join(" ")} ET`;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
