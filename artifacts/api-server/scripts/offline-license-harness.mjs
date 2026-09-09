@@ -475,6 +475,7 @@ async function createCashRegressionSale(token, {
   idempotencyKey,
   paymentMethod,
   cashTendered,
+  payments,
 }) {
   const shiftId = await ensureActiveShift(token);
   const body = {
@@ -483,6 +484,7 @@ async function createCashRegressionSale(token, {
     items: [{ productId: cashRegressionProductId, quantity: 1 }],
     shiftId,
     ...(cashTendered === undefined ? {} : { cashTendered }),
+    ...(payments === undefined ? {} : { payments }),
   };
   return request("/api/sales", {
     method: "POST",
@@ -602,6 +604,43 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     "Non-cash sale must not persist cash tendered.",
   );
 
+  const splitKey = `cash-tendered-split-${randomUUID()}`;
+  const splitSale = await createCashRegressionSale(token, {
+    idempotencyKey: splitKey,
+    paymentMethod: "mixed",
+    payments: [
+      { method: "cash", amount: 2000, tenderedAmount: 2000 },
+      { method: "card", amount: 2500 },
+    ],
+  });
+  assert(splitSale.response.status === 201, `Split sale failed: ${splitSale.response.status} ${JSON.stringify(splitSale.body)}`);
+  assert(splitSale.body?.paymentMethod === "mixed", "Split sale must be stored as mixed.");
+  assert(splitSale.body?.payments?.length === 2, "Split sale must return both tender records.");
+  assert(splitSale.body.payments.find((payment) => payment.method === "cash")?.amount === 2000, "Split sale must retain the cash component.");
+  assert(splitSale.body.payments.find((payment) => payment.method === "card")?.amount === 2500, "Split sale must retain the card component.");
+  const [splitCashEvent, splitPaymentCount] = runSql(`
+    SELECT amount FROM cash_events
+      WHERE tenant_id = ${sqlString(tenantId)}
+        AND sale_id = (SELECT id FROM sales WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(splitKey)})
+        AND type = 'sale';
+    SELECT COUNT(*) FROM sale_payments
+      WHERE tenant_id = ${sqlString(tenantId)}
+        AND sale_id = (SELECT id FROM sales WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(splitKey)});
+  `).split("\n");
+  assert(splitCashEvent === "2000.00", `Split sale cash event must be 2000.00, got ${splitCashEvent}`);
+  assert(splitPaymentCount === "2", `Split sale must create two payment rows, got ${splitPaymentCount}`);
+
+  const splitTransactions = await request("/api/reports/transactions?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z&paymentMethod=mixed", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-violet-manager-access": managerAccessToken,
+    },
+  });
+  assert(splitTransactions.response.status === 200, `Split transaction report failed: ${splitTransactions.response.status} ${JSON.stringify(splitTransactions.body)}`);
+  const reportedSplit = splitTransactions.body?.data?.find((sale) => sale.id === splitSale.body?.id);
+  assert(reportedSplit?.cashReceived === 2000, `Split transaction report must show 2000 cash received, got ${reportedSplit?.cashReceived}`);
+  assert(reportedSplit?.changeDue === 0, `Split transaction report must show zero change, got ${reportedSplit?.changeDue}`);
+
   for (const [label, cashTendered] of [["missing", undefined], ["insufficient", 4499.99]]) {
     const invalidKey = `cash-tendered-${label}-${randomUUID()}`;
     const invalidSale = await createCashRegressionSale(token, {
@@ -617,6 +656,22 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     );
   }
 
+  const invalidSplitKey = `cash-tendered-split-invalid-${randomUUID()}`;
+  const invalidSplitSale = await createCashRegressionSale(token, {
+    idempotencyKey: invalidSplitKey,
+    paymentMethod: "mixed",
+    payments: [
+      { method: "cash", amount: 2000 },
+      { method: "card", amount: 2499 },
+    ],
+  });
+  assert(invalidSplitSale.response.status === 400, `Invalid split total should be rejected: ${invalidSplitSale.response.status} ${JSON.stringify(invalidSplitSale.body)}`);
+  assert(
+    runSql(`SELECT COUNT(*) FROM sales
+      WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(invalidSplitKey)};`) === "0",
+    "Invalid split total must not create a sale.",
+  );
+
   const report = await request("/api/reports/export/csv?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z&paymentMethod=cash", {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -626,6 +681,9 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   assert(report.response.status === 200, `Cash report export failed: ${report.response.status} ${JSON.stringify(report.body)}`);
   assert(typeof report.body === "string" && report.body.includes("cashReceived,changeDue"), "Cash report did not include cash received and change due columns.");
   assert(report.body.includes(",5000,500\r\n"), "Cash report did not expose 5000 received and 500 change.");
+  const splitExportRow = report.body.split("\r\n").find((row) => row.includes(splitSale.body.receiptNumber));
+  assert(splitExportRow?.includes(",2000,0"), `Cash report did not expose the split cash component: ${splitExportRow ?? "missing row"}`);
+  assert(!splitExportRow?.includes(",4500,0"), "Cash report treated the full split sale total as cash received.");
 }
 
 async function verifyRecoveredSale(token, managerAccessToken, idempotencyKey, expectedSaleId) {

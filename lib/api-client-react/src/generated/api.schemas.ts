@@ -615,6 +615,29 @@ export interface VoidedSaleItemInput {
   reason?: string;
 }
 
+export type SalePaymentInputMethod = typeof SalePaymentInputMethod[keyof typeof SalePaymentInputMethod];
+
+
+export const SalePaymentInputMethod = {
+  cash: 'cash',
+  card: 'card',
+  bank_transfer: 'bank_transfer',
+  store_credit: 'store_credit',
+  gift_card: 'gift_card',
+} as const;
+
+export interface SalePaymentInput {
+  method: SalePaymentInputMethod;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * Cash handed over for this tender; it may exceed amount to represent change.
+     * @minimum 0
+     */
+  tenderedAmount?: number;
+  reference?: string;
+}
+
 export type SaleInputPaymentMethod = typeof SaleInputPaymentMethod[keyof typeof SaleInputPaymentMethod];
 
 
@@ -640,6 +663,11 @@ export interface SaleInput {
   voidedItems?: VoidedSaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
   cashTendered?: number;
+  /**
+     * Split tenders whose amounts must add up to the sale total.
+     * @minItems 2
+     */
+  payments?: SalePaymentInput[];
   storeId?: string;
   registerId?: string;
   /** The authenticated cashier's active register shift. Sales cannot be completed without it. */

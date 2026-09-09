@@ -125,6 +125,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   }
 
   const paymentMethods = new Set(["cash", "card", "bank_transfer", "store_credit", "gift_card", "mixed"]);
+  const tenderMethods = new Set(["cash", "card", "bank_transfer", "store_credit", "gift_card"]);
   if (!paymentMethods.has(paymentMethod)) {
     res.status(400).json({ error: "Unsupported payment method" });
     return;
@@ -235,10 +236,29 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const tenderInputs = Array.isArray(payments) ? payments as Array<{ method?: unknown; amount?: unknown; tenderedAmount?: unknown; reference?: unknown }> : null;
-  if (tenderInputs && (tenderInputs.length === 0 || tenderInputs.some((p) =>
-    typeof p.method !== "string" || !paymentMethods.has(p.method) || !Number.isFinite(Number(p.amount)) || Number(p.amount) <= 0
-  ) || Math.abs(tenderInputs.reduce((sum, p) => sum + Number(p.amount), 0) - totalAmount) > 0.005)) {
+  const tenderInputs = payments === undefined
+    ? null
+    : Array.isArray(payments)
+      ? payments as Array<{ method?: unknown; amount?: unknown; tenderedAmount?: unknown; reference?: unknown }>
+      : undefined;
+  const invalidTenderInputs = tenderInputs === undefined
+    || (tenderInputs !== null && (
+      tenderInputs.length === 0
+      || tenderInputs.some((p) => {
+        const amount = Number(p.amount);
+        const tenderedAmount = p.tenderedAmount == null ? undefined : Number(p.tenderedAmount);
+        return typeof p.method !== "string"
+          || !tenderMethods.has(p.method)
+          || !Number.isFinite(amount)
+          || amount <= 0
+          || (p.method === "cash" && tenderedAmount !== undefined
+            && (!Number.isFinite(tenderedAmount) || tenderedAmount < amount));
+      })
+      || Math.abs(tenderInputs.reduce((sum, p) => sum + Number(p.amount), 0) - totalAmount) > 0.005
+    ));
+  if (invalidTenderInputs || (tenderInputs && tenderInputs.length < 2)
+    || (tenderInputs && tenderInputs.length > 1 && paymentMethod !== "mixed")
+    || (paymentMethod === "mixed" && (!tenderInputs || tenderInputs.length < 2))) {
     res.status(400).json({ error: "Split tender payments must be valid and equal the sale total" });
     return;
   }

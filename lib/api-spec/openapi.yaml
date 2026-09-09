@@ -3188,6 +3188,23 @@ components:
           type: string
           maxLength: 200
 
+    SalePaymentInput:
+      type: object
+      required: [method, amount]
+      properties:
+        method:
+          type: string
+          enum: [cash, card, bank_transfer, store_credit, gift_card]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        tenderedAmount:
+          type: number
+          minimum: 0
+          description: Cash handed over for this tender; it may exceed amount to represent change.
+        reference:
+          type: string
+
     SaleInput:
       type: object
       required: [items, paymentMethod, idempotencyKey, shiftId]
@@ -3213,6 +3230,12 @@ components:
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
         cashTendered:
           type: number
+        payments:
+          type: array
+          minItems: 2
+          description: Split tenders whose amounts must add up to the sale total.
+          items:
+            $ref: "#/components/schemas/SalePaymentInput"
         storeId:
           type: string
         registerId:

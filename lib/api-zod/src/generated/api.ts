@@ -973,6 +973,12 @@ export const createSaleBodyVoidedItemsItemUnitPriceMin = 0;
 
 export const createSaleBodyVoidedItemsItemReasonMax = 200;
 
+export const createSaleBodyPaymentsItemAmountExclusiveMin = 0;
+
+export const createSaleBodyPaymentsItemTenderedAmountMin = 0;
+
+export const createSaleBodyPaymentsMin = 2;
+
 
 
 export const CreateSaleBody = zod.object({
@@ -991,6 +997,12 @@ export const CreateSaleBody = zod.object({
 })).optional().describe('Audit-only cart lines removed before checkout. They do not affect totals or inventory.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "cashTendered": zod.number().optional(),
+  "payments": zod.array(zod.object({
+  "method": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card']),
+  "amount": zod.number().gt(createSaleBodyPaymentsItemAmountExclusiveMin),
+  "tenderedAmount": zod.number().min(createSaleBodyPaymentsItemTenderedAmountMin).optional().describe('Cash handed over for this tender; it may exceed amount to represent change.'),
+  "reference": zod.string().optional()
+})).min(createSaleBodyPaymentsMin).optional().describe('Split tenders whose amounts must add up to the sale total.'),
   "storeId": zod.string().optional(),
   "registerId": zod.string().optional(),
   "shiftId": zod.string().describe('The authenticated cashier\'s active register shift. Sales cannot be completed without it.'),

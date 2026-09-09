@@ -145,6 +145,8 @@ export * from './saleInput';
 export * from './saleInputPaymentMethod';
 export * from './saleItem';
 export * from './saleItemInput';
+export * from './salePaymentInput';
+export * from './salePaymentInputMethod';
 export * from './salePaymentMethod';
 export * from './salesPage';
 export * from './salesReport';
