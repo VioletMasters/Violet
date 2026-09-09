@@ -274,12 +274,77 @@ function parseXlsxRows(buffer) {
   return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
 }
 
+function parseCsvRows(text) {
+  const records = [];
+  let record = [];
+  let field = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character === "\"" && text[index + 1] === "\"") {
+        field += "\"";
+        index += 1;
+      } else if (character === "\"") {
+        quoted = false;
+      } else {
+        field += character;
+      }
+    } else if (character === "\"" && field.length === 0) {
+      quoted = true;
+    } else if (character === ",") {
+      record.push(field);
+      field = "";
+    } else if (character === "\r" && text[index + 1] === "\n") {
+      record.push(field);
+      records.push(record);
+      record = [];
+      field = "";
+      index += 1;
+    } else {
+      field += character;
+    }
+  }
+  if (field.length > 0 || record.length > 0) {
+    record.push(field);
+    records.push(record);
+  }
+  const headers = records.shift() ?? [];
+  return records.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
+}
+
 function parsePdfRows(buffer) {
-  const lines = [...buffer.toString("utf8").matchAll(/\(((?:\\.|[^)])*)\) Tj/g)].map(([, line]) => (
+  const fragments = [...buffer.toString("utf8").matchAll(/\(((?:\\.|[^)])*)\) Tj/g)].map(([, line]) => (
     line.replaceAll("\\(", "(").replaceAll("\\)", ")").replaceAll("\\\\", "\\")
   ));
-  const headers = (lines.shift() ?? "").split(" | ");
-  return lines.map((line) => Object.fromEntries(headers.map((header, index) => [header, line.split(" | ")[index] ?? ""])));
+  const startsRow = (fragment) => /^[0-9a-f-]{36} \| RCP-/.test(fragment);
+  const startsHeader = (fragment) => fragment.startsWith("id | receiptNumber");
+  const headerFragments = [];
+  const rows = [];
+  let headers;
+  let currentRow = [];
+  for (const fragment of fragments) {
+    if (!headers) {
+      if (startsRow(fragment)) {
+        headers = headerFragments.join("").split(" | ");
+        currentRow = [fragment];
+      } else {
+        headerFragments.push(fragment);
+      }
+      continue;
+    }
+    if (startsHeader(fragment)) {
+      if (currentRow.length) rows.push(currentRow.join(""));
+      currentRow = [];
+    } else if (startsRow(fragment)) {
+      if (currentRow.length) rows.push(currentRow.join(""));
+      currentRow = [fragment];
+    } else if (currentRow.length) {
+      currentRow.push(fragment);
+    }
+  }
+  if (currentRow.length) rows.push(currentRow.join(""));
+  return rows.map((line) => Object.fromEntries(headers.map((header, index) => [header, line.split(" | ")[index] ?? ""])));
 }
 
 function assert(condition, message) {
@@ -421,6 +486,11 @@ function seedDatabase(freePlanId, paidPlanId) {
       ${sqlString(tenantId)}, ${sqlString(freePlanId)}, 'active', 'not_required',
       ${sqlString(now)}, NULL
     );
+    INSERT INTO settings (
+      tenant_id, business_name, business_email, show_voided_items
+    ) VALUES (
+      ${sqlString(tenantId)}, 'Offline License Harness', ${sqlString(email)}, true
+    );
     INSERT INTO products (
       id, tenant_id, name, sku, price, cost_price, stock, min_stock, is_active
     ) VALUES (
@@ -540,6 +610,7 @@ async function createCashRegressionSale(token, {
   paymentMethod,
   cashTendered,
   payments,
+  voidedItems,
 }) {
   const shiftId = await ensureActiveShift(token);
   const body = {
@@ -549,6 +620,7 @@ async function createCashRegressionSale(token, {
     shiftId,
     ...(cashTendered === undefined ? {} : { cashTendered }),
     ...(payments === undefined ? {} : { payments }),
+    ...(voidedItems === undefined ? {} : { voidedItems }),
   };
   return request("/api/sales", {
     method: "POST",
@@ -854,7 +926,12 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   });
   assert(report.response.status === 200, `Cash report export failed: ${report.response.status} ${JSON.stringify(report.body)}`);
   assert(typeof report.body === "string" && report.body.includes("cashReceived,changeDue"), "Cash report did not include cash received and change due columns.");
-  assert(report.body.includes(",5000,500\r\n"), "Cash report did not expose 5000 received and 500 change.");
+  const cashReportRows = parseCsvRows(report.body);
+  const validCashReportRow = cashReportRows.find((row) => row.receiptNumber === validSale.body.receiptNumber);
+  assert(
+    Number(validCashReportRow?.cashReceived) === 5000 && Number(validCashReportRow?.changeDue) === 500,
+    `Cash report did not expose 5000 received and 500 change: ${JSON.stringify(validCashReportRow)}`,
+  );
   const splitExportRow = report.body.split("\r\n").find((row) => row.includes(splitSale.body.receiptNumber));
   assert(splitExportRow?.includes(",2000,0"), `Cash report did not expose the split cash component: ${splitExportRow ?? "missing row"}`);
   assert(!splitExportRow?.includes(",4500,0"), "Cash report treated the full split sale total as cash received.");
@@ -932,6 +1009,44 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     );
   }
 
+  const voidedSale = await createCashRegressionSale(token, {
+    idempotencyKey: `voided-report-${randomUUID()}`,
+    paymentMethod: "cash",
+    cashTendered: 4500,
+    voidedItems: [{
+      productId: shiftRegressionProductId,
+      quantity: 1,
+      unitPrice: 12.5,
+      reason: "Removed before checkout",
+    }],
+  });
+  assert(
+    voidedSale.response.status === 201,
+    `Voided report fixture sale failed: ${voidedSale.response.status} ${JSON.stringify(voidedSale.body)}`,
+  );
+  assert(
+    runSql(`
+      SELECT COUNT(*) FROM sale_items
+      WHERE sale_id = ${sqlString(voidedSale.body.id)}
+        AND product_id = ${sqlString(shiftRegressionProductId)}
+        AND quantity = 1
+        AND is_voided = true
+        AND void_reason = 'Removed before checkout';
+    `) === "1",
+    "Voided report fixture did not persist its voided item.",
+  );
+  runSql(`
+    UPDATE sales
+    SET status = 'voided'
+    WHERE tenant_id = ${sqlString(tenantId)} AND id = ${sqlString(voidedSale.body.id)};
+    INSERT INTO sale_voids (
+      tenant_id, sale_id, reason, voided_by, approved_by, snapshot
+    ) VALUES (
+      ${sqlString(tenantId)}, ${sqlString(voidedSale.body.id)}, 'Removed before checkout',
+      ${sqlString(userId)}, ${sqlString(userId)}, '{}'::jsonb
+    );
+  `);
+
   const refundSaleIds = [validSale.body.id, nonCashSale.body.id, splitSale.body.id]
     .map((saleId) => sqlString(saleId))
     .join(", ");
@@ -964,6 +1079,70 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     summary.body?.totalRefunds === expectedFinancialRefundTotal,
     `Financial summary must retain all refund totals: expected ${expectedFinancialRefundTotal}, got ${summary.body?.totalRefunds}`,
   );
+
+  const reportHeaders = {
+    Authorization: `Bearer ${token}`,
+    "x-violet-manager-access": managerAccessToken,
+  };
+  const expectedExportRows = [
+    { sale: validSale, status: "refunded", voidedItems: "" },
+    { sale: nonCashSale, status: "refunded", voidedItems: "" },
+    { sale: splitSale, status: "refunded", voidedItems: "" },
+    {
+      sale: voidedSale,
+      status: "voided",
+      voidedItems: "Register Shift Regression Product ×1 (Removed before checkout)",
+    },
+  ];
+  for (const format of ["csv", "xlsx", "pdf"]) {
+    const exportResponse = await request(`/api/reports/export/${format}?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z`, {
+      binary: format !== "csv",
+      headers: reportHeaders,
+    });
+    assert(exportResponse.response.status === 200, `${format.toUpperCase()} refund/void export failed: ${exportResponse.response.status}`);
+    const rows = format === "csv"
+      ? parseCsvRows(exportResponse.body)
+      : format === "xlsx"
+        ? parseXlsxRows(exportResponse.body)
+        : parsePdfRows(exportResponse.body);
+    for (const expected of expectedExportRows) {
+      const row = rows.find((candidate) => candidate.receiptNumber === expected.sale.body.receiptNumber);
+      assert(row, `${format.toUpperCase()} export omitted ${expected.sale.body.receiptNumber}.`);
+      assert(
+        row.status === expected.status,
+        `${format.toUpperCase()} export gave ${expected.sale.body.receiptNumber} status ${row.status}, expected ${expected.status}.`,
+      );
+      assert(
+        row.voidedItems === expected.voidedItems,
+        `${format.toUpperCase()} export gave ${expected.sale.body.receiptNumber} voided items ${JSON.stringify(row.voidedItems)}, expected ${JSON.stringify(expected.voidedItems)}.`,
+      );
+    }
+  }
+
+  for (const [status, includedSale, excludedSales] of [
+    ["refunded", validSale, [voidedSale]],
+    ["voided", voidedSale, [validSale, nonCashSale, splitSale]],
+  ]) {
+    const filtered = await request(`/api/reports/export/csv?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z&status=${status}`, {
+      headers: reportHeaders,
+    });
+    assert(filtered.response.status === 200, `${status} export filter failed: ${filtered.response.status}`);
+    const rows = parseCsvRows(filtered.body);
+    assert(
+      rows.length === (status === "refunded" ? 3 : 1),
+      `${status} export filter returned ${rows.length} rows.`,
+    );
+    assert(
+      rows.some((row) => row.receiptNumber === includedSale.body.receiptNumber),
+      `${status} export filter omitted ${includedSale.body.receiptNumber}.`,
+    );
+    for (const excludedSale of excludedSales) {
+      assert(
+        !rows.some((row) => row.receiptNumber === excludedSale.body.receiptNumber),
+        `${status} export filter reintroduced ${excludedSale.body.receiptNumber}.`,
+      );
+    }
+  }
 }
 
 async function verifyRecoveredSale(token, managerAccessToken, idempotencyKey, expectedSaleId) {

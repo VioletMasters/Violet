@@ -364,13 +364,15 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
   const [reportSettings] = await db.select({ showVoidedItems: settingsTable.showVoidedItems })
     .from(settingsTable).where(eq(settingsTable.tenantId, req.tenantId!)).limit(1);
   const baseQuery = { ...query, paymentMethod: undefined };
+  const exportConditions = filters(baseQuery, req.tenantId!);
+  if (query.status) exportConditions.push(eq(salesTable.status, query.status));
   const allRows = await db.select({
     id: salesTable.id,
     receiptNumber: salesTable.receiptNumber, createdAt: salesTable.createdAt, status: salesTable.status,
     storeId: salesTable.storeId, registerId: salesTable.registerId, cashierId: salesTable.cashierId,
     subtotal: salesTable.subtotal, discount: salesTable.discountAmount, tax: salesTable.taxAmount,
     total: salesTable.totalAmount, paymentMethod: salesTable.paymentMethod, cashTendered: salesTable.cashTendered,
-  }).from(salesTable).where(and(...filters(baseQuery, req.tenantId!))).orderBy(asc(salesTable.createdAt)).limit(100000);
+  }).from(salesTable).where(and(...exportConditions)).orderBy(asc(salesTable.createdAt)).limit(100000);
   let rows = allRows;
   if (query.paymentMethod && query.paymentMethod !== "mixed") {
     const splitPaymentRows = await db.select({ saleId: salePaymentsTable.saleId }).from(salePaymentsTable).where(and(
