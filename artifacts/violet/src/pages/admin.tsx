@@ -379,6 +379,28 @@ function TenantDetailDrawer({
                     </span>
                   </div>
                 )}
+                 {tenant.licenseId && (
+                   <>
+                     <div className="flex justify-between gap-4">
+                       <span className="text-muted-foreground">License ID</span>
+                       <span className="max-w-[190px] truncate font-mono text-xs" title={tenant.licenseId}>
+                         {tenant.licenseId}
+                       </span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-muted-foreground">Key ending</span>
+                       <span className="font-mono text-xs">{tenant.licenseKeyLast4 ? `••••${tenant.licenseKeyLast4}` : "—"}</span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-muted-foreground">License version</span>
+                       <span className="font-medium">{tenant.licenseVersion ?? "—"}</span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-muted-foreground">Last validated</span>
+                       <span className="font-medium">{tenant.licenseLastValidatedAt ? formatDate(tenant.licenseLastValidatedAt) : "—"}</span>
+                     </div>
+                   </>
+                 )}
                 {tenant.cancelAtPeriodEnd && (
                   <Alert className="mt-3 border-amber-500/30 bg-amber-500/10">
                     <AlertDescription className="text-xs text-amber-700 dark:text-amber-300">
