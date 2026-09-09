@@ -9,7 +9,7 @@ use std::{
 };
 
 use rand::{rngs::OsRng, RngCore};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, Runtime};
 
 const TRUSTED_LICENSE_SERVER_URL: &str = "https://Violetsolutions.replit.app";
@@ -122,6 +122,114 @@ fn require_setup_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
     } else {
         Err("This command is only available from Violet's local setup screen.".into())
     }
+}
+
+fn require_print_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
+    let current = webview
+        .url()
+        .map_err(|_| "Could not verify the current Violet window.".to_string())?;
+    let is_webview = matches!(current.scheme(), "http" | "https")
+        && current.host_str().is_some();
+    if is_bundled_setup_origin(&current) || is_webview {
+        Ok(())
+    } else {
+        Err("Native printing is only available from a Violet webview.".into())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct NativePrinter {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct NativePrintRequest {
+    printer_name: String,
+    content: String,
+}
+
+fn command_output_lines(command: &mut Command) -> Result<Vec<String>, String> {
+    let output = command.output().map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect())
+}
+
+#[tauri::command]
+fn list_native_printers(webview: tauri::WebviewWindow) -> Result<Vec<NativePrinter>, String> {
+    require_print_origin(&webview)?;
+
+    #[cfg(windows)]
+    {
+        let names = command_output_lines(Command::new("powershell").args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-Printer | Select-Object -ExpandProperty Name",
+        ]))?;
+        return Ok(names.into_iter().map(|name| NativePrinter { name }).collect());
+    }
+    #[cfg(not(windows))]
+    {
+        let names = command_output_lines(Command::new("lpstat").args(["-p"]))?;
+        return Ok(names
+            .into_iter()
+            .filter_map(|line| line.strip_prefix("printer "))
+            .filter_map(|line| line.split_whitespace().next())
+            .map(|name| NativePrinter { name: name.to_string() })
+            .collect());
+    }
+}
+
+#[tauri::command]
+fn print_native_document(
+    request: NativePrintRequest,
+    webview: tauri::WebviewWindow,
+) -> Result<(), String> {
+    require_print_origin(&webview)?;
+    if request.printer_name.trim().is_empty() || request.content.trim().is_empty() {
+        return Err("A printer name and printable document are required.".into());
+    }
+
+    let path = std::env::temp_dir().join(format!("violet-print-{}.txt", uuid::Uuid::new_v4()));
+    fs::write(&path, request.content.as_bytes()).map_err(|error| error.to_string())?;
+    let result = (|| {
+        #[cfg(windows)]
+        {
+            let printer = request.printer_name.replace('\'', "''");
+            let file = path.to_string_lossy().replace('\'', "''");
+            let script = format!(
+                "Start-Process -FilePath '{}' -Verb PrintTo -ArgumentList \"'{}'\"",
+                file, printer
+            );
+            let output = Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !output.status.success() {
+                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let output = Command::new("lp")
+                .args(["-d", request.printer_name.trim(), path.to_string_lossy().as_ref()])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !output.status.success() {
+                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+            }
+        }
+        Ok(())
+    })();
+    let _ = fs::remove_file(&path);
+    result
 }
 
 #[tauri::command]
@@ -799,7 +907,9 @@ pub fn run() {
             start_managed_host,
             resume_managed_host,
             retry_managed_host,
-            reset_managed_host
+            reset_managed_host,
+            list_native_printers,
+            print_native_document
         ])
         .run(tauri::generate_context!());
 
