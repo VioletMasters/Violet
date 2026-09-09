@@ -6,6 +6,7 @@ export const categoriesTable = pgTable("categories", {
   name: text("name").notNull(),
   description: text("description"),
   color: text("color"),
+  printDestination: text("print_destination").notNull().default("customer_receipt"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -24,6 +25,8 @@ export const productsTable = pgTable("products", {
   stock: integer("stock").notNull().default(0),
   minStock: integer("min_stock").notNull().default(5),
   imageUrl: text("image_url"),
+  printDestination: text("print_destination").notNull().default("customer_receipt"),
+  warehouseLocation: text("warehouse_location"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

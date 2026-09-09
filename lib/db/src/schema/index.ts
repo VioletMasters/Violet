@@ -15,3 +15,4 @@ export * from "./operations";
 export * from "./financial";
 export * from "./purchasing";
 export * from "./audit";
+export * from "./printers";
