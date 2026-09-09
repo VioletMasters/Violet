@@ -114,13 +114,16 @@ router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void
     eq(usersTable.id, assignedCashier), eq(usersTable.tenantId, req.tenantId!),
   )).limit(1);
   if (!cashier) { res.status(400).json({ error: "Cashier is unavailable for this tenant" }); return; }
-  const shift = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${registerId}))`);
     const [existing] = await tx.select().from(registerShiftsTable).where(and(
       eq(registerShiftsTable.tenantId, req.tenantId!), eq(registerShiftsTable.registerId, registerId),
       eq(registerShiftsTable.status, "open"),
     )).limit(1);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.cashierId !== assignedCashier) return { kind: "occupied" as const, shift: existing };
+      return { kind: "existing" as const, shift: existing };
+    }
     const [created] = await tx.insert(registerShiftsTable).values({
       tenantId: req.tenantId!, storeId: register.storeId, registerId,
       cashierId: assignedCashier, openedBy: req.user!.id, openingCash: String(openingCash),
@@ -130,9 +133,13 @@ router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void
       action: "shift.opened", entityType: "register_shift", entityId: created.id,
       after: { registerId, cashierId: assignedCashier, openingCash },
     });
-    return created;
+    return { kind: "created" as const, shift: created };
   });
-  res.status(201).json(shift);
+  if (result.kind === "occupied") {
+    res.status(409).json({ error: "This register already has an active cashier day" });
+    return;
+  }
+  res.status(result.kind === "existing" ? 200 : 201).json(result.shift);
 });
 
 router.post("/register-shifts/:id/close", requireAuth, async (req, res): Promise<void> => {
