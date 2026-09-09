@@ -23,6 +23,7 @@ import {
   verifyHostedLicenseCredentials,
 } from "../lib/remoteLicense";
 import { sendPasswordResetEmail } from "../lib/password-reset-email";
+import { ensureTenantLicense } from "../lib/entitlements";
 
 const router = Router();
 
@@ -90,6 +91,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       currentPeriodStart: new Date(),
     });
   }
+  await ensureTenantLicense(tenant.id);
 
   // Create default settings
   await db.insert(settingsTable).values({
