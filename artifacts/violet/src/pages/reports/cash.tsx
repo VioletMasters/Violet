@@ -1,17 +1,174 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useReportsContext } from "./context";
-import { getListRegisterShiftsQueryKey, useGetCashReport, useListRegisterShifts } from "@workspace/api-client-react";
+import {
+  getListRegisterShiftsQueryKey,
+  useCreateShiftCashEvent,
+  useGetCashReport,
+  useListRegisterShifts,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Banknote, ClipboardCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertCircle, Banknote, ClipboardCheck, LogOut, TrendingDown, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
-function cashEventDisplayAmount(event: any): string {
+export function cashEventDisplayAmount(event: any): string {
   const amount = Math.abs(Number(event.amount ?? 0));
   if (event.type === "sale") return `+${formatCurrency(amount)}`;
   if (["drop", "payout", "refund"].includes(event.type)) return `-${formatCurrency(amount)}`;
   return `${Number(event.amount ?? 0) >= 0 ? "+" : "-"}${formatCurrency(amount)}`;
+}
+
+type CashEventRecorderProps = {
+  storeId?: string;
+  registerId?: string;
+  cashierId?: string;
+};
+
+type OpenShift = {
+  id: string;
+  storeId: string;
+  storeName?: string | null;
+  registerId: string;
+  registerName?: string | null;
+  cashierName?: string | null;
+};
+
+export function CashEventRecorder({
+  storeId,
+  registerId,
+  cashierId,
+}: CashEventRecorderProps) {
+  const { isManagerAccessActive } = useAuth();
+  const queryClient = useQueryClient();
+  const [selectedShiftId, setSelectedShiftId] = useState("");
+  const [eventType, setEventType] = useState<"drop" | "payout">("drop");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+
+  const openShiftParams = useMemo(() => ({
+    status: "open" as const,
+    ...(storeId ? { storeId } : {}),
+    ...(registerId ? { registerId } : {}),
+    ...(cashierId ? { cashierId } : {}),
+  }), [cashierId, registerId, storeId]);
+  const { data: shiftsResponse, isLoading: isLoadingShifts } = useListRegisterShifts(openShiftParams, {
+    query: { queryKey: getListRegisterShiftsQueryKey(openShiftParams), enabled: isManagerAccessActive },
+  });
+  const openShifts = ((shiftsResponse as { data?: OpenShift[] } | undefined)?.data ?? []);
+  const createCashEvent = useCreateShiftCashEvent();
+
+  useEffect(() => {
+    if (!openShifts.some((shift) => shift.id === selectedShiftId)) {
+      setSelectedShiftId(openShifts[0]?.id ?? "");
+    }
+  }, [openShifts, selectedShiftId]);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsedAmount = Number(amount);
+    if (!selectedShiftId) {
+      toast.error("Choose an open register shift.");
+      return;
+    }
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Enter a positive amount.");
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error("Enter a reason for the cash movement.");
+      return;
+    }
+
+    createCashEvent.mutate(
+      { id: selectedShiftId, data: { type: eventType, amount: parsedAmount, reason: reason.trim() } },
+      {
+        onSuccess: () => {
+          // The full reports view may include additional display-only filters
+          // in its query key, so invalidate every cash-report variant.
+          queryClient.invalidateQueries({ queryKey: ["/api/reports/cash"] });
+          queryClient.invalidateQueries({ queryKey: getListRegisterShiftsQueryKey(openShiftParams) });
+          setAmount("");
+          setReason("");
+          toast.success(eventType === "drop" ? "Cash drop recorded." : "Cash payout recorded.");
+        },
+        onError: (error) => toast.error(error.message || "Could not record the cash movement."),
+      },
+    );
+  };
+
+  if (!isManagerAccessActive) return null;
+
+  return (
+    <Card className="border-primary/20 bg-primary/[0.03]">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg"><Banknote className="h-5 w-5 text-primary" />Record cash movement</CardTitle>
+        <CardDescription>Record money removed from an open drawer. Sales add cash; refunds, drops, and payouts remove cash.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+          <LogOut className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+          <p className="text-amber-900 dark:text-amber-100">Both cash drops and payouts leave the drawer and reduce the shift&apos;s expected closeout amount.</p>
+        </div>
+        {isLoadingShifts ? (
+          <div className="h-24 animate-pulse rounded-lg bg-muted" />
+        ) : openShifts.length === 0 ? (
+          <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            <AlertCircle className="h-4 w-4" />
+            No open register shifts match the selected filters.
+          </div>
+        ) : (
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="cash-event-shift">Open register shift</Label>
+              <Select value={selectedShiftId} onValueChange={setSelectedShiftId}>
+                <SelectTrigger id="cash-event-shift"><SelectValue placeholder="Choose an open shift" /></SelectTrigger>
+                <SelectContent>
+                  {openShifts.map((shift) => (
+                    <SelectItem key={shift.id} value={shift.id}>
+                      {[shift.storeName, shift.registerName].filter(Boolean).join(" / ") || shift.registerId}
+                      {" — "}{shift.cashierName || "Unknown cashier"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cash-event-type">Movement</Label>
+              <Select value={eventType} onValueChange={(value) => setEventType(value as "drop" | "payout")}>
+                <SelectTrigger id="cash-event-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="drop">Cash drop</SelectItem>
+                  <SelectItem value="payout">Cash payout</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cash-event-amount">Amount removed</Label>
+              <Input id="cash-event-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" required />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="cash-event-reason">Reason</Label>
+              <Textarea id="cash-event-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why is this money leaving the drawer?" maxLength={500} required />
+            </div>
+            <div className="flex justify-end md:col-span-2">
+              <Button type="submit" disabled={createCashEvent.isPending}>
+                {createCashEvent.isPending ? "Recording..." : `Record ${eventType === "drop" ? "cash drop" : "cash payout"}`}
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function ReportsCash() {
@@ -20,7 +177,9 @@ export default function ReportsCash() {
   const { data: response, isLoading } = useGetCashReport({
     startDate,
     endDate,
-    ...(storeId ? { storeId } : {})
+    ...(storeId ? { storeId } : {}),
+    ...(registerId ? { registerId } : {}),
+    ...(cashierId ? { cashierId } : {}),
   });
 
   const events = (response as any)?.data || [];
@@ -40,6 +199,7 @@ export default function ReportsCash() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <CashEventRecorder {...{ storeId, registerId, cashierId }} />
       
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-card shadow-sm border-border/50">

@@ -74,6 +74,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { CashEventRecorder, cashEventDisplayAmount } from "./reports/cash";
 
 type AnyRecord = Record<string, any>;
 type TabKey = "overview" | "sales" | "products" | "inventory" | "profit" | "cash" | "employees" | "purchasing" | "stores" | "audit";
@@ -449,7 +450,12 @@ export default function ReportsPage() {
 
         <TabsContent value="cash" className="space-y-5">
           <SectionHeader title="Cash management" description="Register events and cash movement for accountability at close" />
-          <Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Amount", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: money(row.amount) }))} emptyTitle="No cash events" /></CardContent></Card>
+          <CashEventRecorder
+            storeId={storeId === "all" ? undefined : storeId}
+            registerId={registerId === "all" ? undefined : registerId}
+            cashierId={cashierId === "all" ? undefined : cashierId}
+          />
+          <Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Signed drawer effect", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: cashEventDisplayAmount(row) }))} emptyTitle="No cash events" /></CardContent></Card>
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
