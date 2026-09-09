@@ -991,6 +991,9 @@ export const CreateSaleBody = zod.object({
 })).optional().describe('Audit-only cart lines removed before checkout. They do not affect totals or inventory.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "cashTendered": zod.number().optional(),
+  "storeId": zod.string().optional(),
+  "registerId": zod.string().optional(),
+  "shiftId": zod.string().optional(),
   "note": zod.string().optional()
 })
 

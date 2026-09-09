@@ -22,5 +22,8 @@ export interface SaleInput {
   voidedItems?: VoidedSaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
   cashTendered?: number;
+  storeId?: string;
+  registerId?: string;
+  shiftId?: string;
   note?: string;
 }
