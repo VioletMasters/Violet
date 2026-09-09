@@ -6,10 +6,7 @@ import { summarizeCashTender } from "../lib/cashTender";
 
 const router = Router();
 
-// GET /dashboard/stats
-router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const now = new Date();
+export async function getDashboardStats(tenantId: string, now = new Date()) {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -34,7 +31,7 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
   const inventoryRetailValue = products.reduce((sum, p) => sum + (parseFloat(p.price) * p.stock), 0);
   const inventoryMissingCostCount = products.filter((p) => p.stock > 0 && p.costPrice == null).length;
 
-  res.json({
+  return {
     todayRevenue: parseFloat(String(todaySales[0]?.revenue ?? 0)),
     weekRevenue: parseFloat(String(weekSales[0]?.revenue ?? 0)),
     monthRevenue: parseFloat(String(monthSales[0]?.revenue ?? 0)),
@@ -48,7 +45,12 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
     inventoryRetailValue,
     inventoryProjectedGrossProfit: inventoryMissingCostCount === 0 ? inventoryRetailValue - inventoryCostValue : null,
     inventoryMissingCostCount,
-  });
+  };
+}
+
+// GET /dashboard/stats
+router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getDashboardStats(req.tenantId!));
 });
 
 export async function getRecentSales(tenantId: string) {
@@ -152,10 +154,8 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
 });
 
 // GET /dashboard/top-products
-router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
+export async function getTopProducts(tenantId: string, now = new Date()) {
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const topItems = await db.select({
     productId: saleItemsTable.productId,
     productName: saleItemsTable.productName,
@@ -169,20 +169,22 @@ router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Pr
     .orderBy(desc(sql`SUM(${saleItemsTable.quantity})`))
     .limit(5);
 
-  res.json(topItems.map(i => ({
+  return topItems.map(i => ({
     productId: i.productId,
     name: i.productName,
     totalSold: Number(i.totalSold),
     totalRevenue: parseFloat(String(i.totalRevenue)),
     imageUrl: null,
-  })));
+  }));
+}
+
+router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getTopProducts(req.tenantId!));
 });
 
 // GET /dashboard/sales-trend
-router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
+export async function getSalesTrend(tenantId: string, now = new Date()) {
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const trend = await db.select({
     date: sql<string>`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')::text`,
     revenue: sql<number>`COALESCE(SUM(${salesTable.totalAmount}::numeric), 0)`,
@@ -193,11 +195,15 @@ router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Pro
     .groupBy(sql`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')`)
     .orderBy(sql`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')`);
 
-  res.json(trend.map(t => ({
+  return trend.map(t => ({
     date: t.date,
     revenue: parseFloat(String(t.revenue)),
     count: Number(t.count),
-  })));
+  }));
+}
+
+router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getSalesTrend(req.tenantId!));
 });
 
 export default router;
