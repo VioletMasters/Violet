@@ -5,6 +5,8 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { EntitlementUsage } from './entitlementUsage';
+import type { TenantDetailEntitlements } from './tenantDetailEntitlements';
 import type { TenantDetailStatus } from './tenantDetailStatus';
 import type { TenantDetailSubscriptionHistoryItem } from './tenantDetailSubscriptionHistoryItem';
 
@@ -29,6 +31,23 @@ export interface TenantDetail {
   /** @nullable */
   cancelRequestedAt?: string | null;
   licenseStatus?: string;
+  /** @nullable */
+  licenseId?: string | null;
+  /** @nullable */
+  licenseKeyLast4?: string | null;
+  /** @nullable */
+  licenseLifecycleStatus?: string | null;
+  /** @nullable */
+  licenseVersion?: string | null;
+  /** @nullable */
+  licenseActivatedAt?: string | null;
+  /** @nullable */
+  licenseExpiresAt?: string | null;
+  /** @nullable */
+  licenseLastValidatedAt?: string | null;
+  /** @nullable */
+  entitlements?: TenantDetailEntitlements;
+  usage?: EntitlementUsage | null;
   /** @nullable */
   whopMembershipId?: string | null;
   subscriptionHistory?: TenantDetailSubscriptionHistoryItem[];

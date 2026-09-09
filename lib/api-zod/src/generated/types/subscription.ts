@@ -5,10 +5,11 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { EntitlementUsage } from './entitlementUsage';
+import type { LicenseInfo } from './licenseInfo';
 import type { Plan } from './plan';
 import type { SubscriptionPaymentStatus } from './subscriptionPaymentStatus';
 import type { SubscriptionStatus } from './subscriptionStatus';
-import type { SubscriptionUsage } from './subscriptionUsage';
 
 export interface Subscription {
   id: string;
@@ -28,5 +29,6 @@ export interface Subscription {
   checkoutPending?: boolean;
   /** @nullable */
   lastWhopSyncAt?: string | null;
-  usage?: SubscriptionUsage;
+  usage?: EntitlementUsage;
+  license?: LicenseInfo | null;
 }

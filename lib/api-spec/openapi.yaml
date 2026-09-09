@@ -2439,6 +2439,43 @@ components:
         tokenExpiresAt:
           type: string
 
+    LicenseInfo:
+      type: object
+      required: [id, keyLast4, status, version]
+      properties:
+        id:
+          type: string
+        keyLast4:
+          type: string
+        status:
+          type: string
+        version:
+          type: string
+        activatedAt:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+        lastValidatedAt:
+          type: ["string", "null"]
+        entitlements:
+          type: ["object", "null"]
+          additionalProperties: true
+
+    EntitlementUsage:
+      type: object
+      required: [users, products, customers, branches, registers]
+      properties:
+        users:
+          type: number
+        products:
+          type: number
+        customers:
+          type: number
+        branches:
+          type: number
+        registers:
+          type: number
+
     ManagerAccessInput:
       type: object
       required: [email, password]
@@ -2590,6 +2627,27 @@ components:
           type: ["string", "null"]
         licenseStatus:
           type: string
+        licenseId:
+          type: ["string", "null"]
+        licenseKeyLast4:
+          type: ["string", "null"]
+        licenseLifecycleStatus:
+          type: ["string", "null"]
+        licenseVersion:
+          type: ["string", "null"]
+        licenseActivatedAt:
+          type: ["string", "null"]
+        licenseExpiresAt:
+          type: ["string", "null"]
+        licenseLastValidatedAt:
+          type: ["string", "null"]
+        entitlements:
+          type: ["object", "null"]
+          additionalProperties: true
+        usage:
+          allOf:
+            - $ref: "#/components/schemas/EntitlementUsage"
+          nullable: true
         whopMembershipId:
           type: ["string", "null"]
         subscriptionHistory:
@@ -3636,14 +3694,11 @@ components:
         lastWhopSyncAt:
           type: ["string", "null"]
         usage:
-          type: object
-          properties:
-            users:
-              type: number
-            products:
-              type: number
-            customers:
-              type: number
+          $ref: "#/components/schemas/EntitlementUsage"
+        license:
+          allOf:
+            - $ref: "#/components/schemas/LicenseInfo"
+          nullable: true
 
     SubscriptionEvent:
       type: object

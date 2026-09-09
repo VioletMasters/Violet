@@ -1481,10 +1481,22 @@ export const GetSubscriptionResponse = zod.object({
   "checkoutPending": zod.boolean().optional(),
   "lastWhopSyncAt": zod.string().nullish(),
   "usage": zod.object({
-  "users": zod.number().optional(),
-  "products": zod.number().optional(),
-  "customers": zod.number().optional()
-}).optional()
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).optional(),
+  "license": zod.object({
+  "id": zod.string(),
+  "keyLast4": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "activatedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "lastValidatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish()
+}).nullish()
 })
 
 
@@ -2191,6 +2203,21 @@ export const GetAdminTenantResponse = zod.object({
   "cancelAtPeriodEnd": zod.boolean().optional(),
   "cancelRequestedAt": zod.string().nullish(),
   "licenseStatus": zod.string().optional(),
+  "licenseId": zod.string().nullish(),
+  "licenseKeyLast4": zod.string().nullish(),
+  "licenseLifecycleStatus": zod.string().nullish(),
+  "licenseVersion": zod.string().nullish(),
+  "licenseActivatedAt": zod.string().nullish(),
+  "licenseExpiresAt": zod.string().nullish(),
+  "licenseLastValidatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish(),
+  "usage": zod.object({
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).nullish(),
   "whopMembershipId": zod.string().nullish(),
   "subscriptionHistory": zod.array(zod.object({
   "id": zod.string(),

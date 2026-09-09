@@ -438,6 +438,8 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
 
   // Subscription is authoritative for plan — fall back to tenant.planId for legacy rows
   const plan = await resolvePlan(subscription, tenant);
+  const entitlementState = await getTenantEntitlementState(tenant.id);
+  const license = entitlementState?.license ?? null;
   const eventPlanIds = Array.from(
     new Set(subscriptionEvents.flatMap((event) => [event.fromPlanId, event.toPlanId].filter(Boolean) as string[])),
   );
@@ -466,6 +468,15 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
     cancelRequestedAt: subscription?.cancelRequestedAt?.toISOString() ?? null,
     licenseStatus: tenant.licenseStatus,
+    licenseId: license?.id ?? null,
+    licenseKeyLast4: license?.licenseKeyLast4 ?? null,
+    licenseLifecycleStatus: license?.status ?? null,
+    licenseVersion: license?.version ?? null,
+    licenseActivatedAt: license?.activatedAt?.toISOString() ?? null,
+    licenseExpiresAt: license?.expiresAt?.toISOString() ?? null,
+    licenseLastValidatedAt: license?.lastValidatedAt?.toISOString() ?? null,
+    entitlements: entitlementState?.entitlements ?? null,
+    usage: entitlementState?.usage ?? null,
     whopMembershipId: subscription?.whopMembershipId ?? null,
     subscriptionHistory: subscriptionEvents.map((event) => ({
       id: event.id,
@@ -714,6 +725,7 @@ router.post("/admin/tenants/:id/subscription/cancel", requireSuperAdmin, async (
         effectiveAt: immediate ? now : subscription.currentPeriodEnd,
         actorId: req.user!.id,
       });
+      await ensureTenantLicense(id, tx);
     });
     await audit(req, immediate ? "subscription.cancelled" : "subscription.cancellation_requested", "subscription", subscription.id, `${immediate ? "Cancelled" : "Scheduled cancellation for"} ${tenant.name}`, { reason });
     res.json({
@@ -776,6 +788,7 @@ router.post("/admin/tenants/:id/subscription/reactivate", requireSuperAdmin, asy
         effectiveAt: now,
         actorId: req.user!.id,
       });
+      await ensureTenantLicense(id, tx);
     });
     await audit(req, "subscription.reactivated", "subscription", subscription.id, `Reactivated ${tenant.name} subscription`);
     res.json({ success: true, status: "active", message: "The subscription will continue renewing normally." });

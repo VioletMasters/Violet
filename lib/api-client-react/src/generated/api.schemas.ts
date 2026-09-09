@@ -109,6 +109,34 @@ export interface LicenseVerificationResponse {
   tokenExpiresAt?: string;
 }
 
+/**
+ * @nullable
+ */
+export type LicenseInfoEntitlements = { [key: string]: unknown } | null;
+
+export interface LicenseInfo {
+  id: string;
+  keyLast4: string;
+  status: string;
+  version: string;
+  /** @nullable */
+  activatedAt?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
+  lastValidatedAt?: string | null;
+  /** @nullable */
+  entitlements?: LicenseInfoEntitlements;
+}
+
+export interface EntitlementUsage {
+  users: number;
+  products: number;
+  customers: number;
+  branches: number;
+  registers: number;
+}
+
 export interface ManagerAccessInput {
   email: string;
   /** @minLength 1 */
@@ -207,6 +235,11 @@ export const TenantDetailStatus = {
   expired: 'expired',
 } as const;
 
+/**
+ * @nullable
+ */
+export type TenantDetailEntitlements = { [key: string]: unknown } | null;
+
 export type TenantDetailSubscriptionHistoryItem = {
   id: string;
   eventType: string;
@@ -243,6 +276,23 @@ export interface TenantDetail {
   /** @nullable */
   cancelRequestedAt?: string | null;
   licenseStatus?: string;
+  /** @nullable */
+  licenseId?: string | null;
+  /** @nullable */
+  licenseKeyLast4?: string | null;
+  /** @nullable */
+  licenseLifecycleStatus?: string | null;
+  /** @nullable */
+  licenseVersion?: string | null;
+  /** @nullable */
+  licenseActivatedAt?: string | null;
+  /** @nullable */
+  licenseExpiresAt?: string | null;
+  /** @nullable */
+  licenseLastValidatedAt?: string | null;
+  /** @nullable */
+  entitlements?: TenantDetailEntitlements;
+  usage?: EntitlementUsage | null;
   /** @nullable */
   whopMembershipId?: string | null;
   subscriptionHistory?: TenantDetailSubscriptionHistoryItem[];
@@ -982,12 +1032,6 @@ export const SubscriptionPaymentStatus = {
   past_due: 'past_due',
 } as const;
 
-export type SubscriptionUsage = {
-  users?: number;
-  products?: number;
-  customers?: number;
-};
-
 export interface Subscription {
   id: string;
   tenantId: string;
@@ -1006,7 +1050,8 @@ export interface Subscription {
   checkoutPending?: boolean;
   /** @nullable */
   lastWhopSyncAt?: string | null;
-  usage?: SubscriptionUsage;
+  usage?: EntitlementUsage;
+  license?: LicenseInfo | null;
 }
 
 export type SubscriptionEventEventType = typeof SubscriptionEventEventType[keyof typeof SubscriptionEventEventType];
