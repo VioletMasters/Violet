@@ -33,7 +33,11 @@ function DefaultAppRoute() {
 }
 
 function CashReportsRoute() {
-  return <div data-testid="cash-route-probe">Cash route loaded</div>;
+  return (
+    <ReportsLayout>
+      <ReportsCash />
+    </ReportsLayout>
+  );
 }
 
 function RootRoute() {
@@ -88,7 +92,7 @@ function Router() {
       <Route path="/reset-password" component={ResetPasswordPage} />
       
       {/* App Routes (catch-all that renders AppLayout) */}
-      <Route path="/:rest*" component={AppRoutes} />
+      <Route path="/*" component={AppRoutes} />
     </Switch>
   );
 }
