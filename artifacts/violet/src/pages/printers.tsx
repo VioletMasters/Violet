@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Printer as PrinterIcon, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { discoverDesktopPrinters, isDesktopPrinterAvailable } from "@/lib/desktop-print";
 
 const roleLabels: Record<string, string> = {
   customer_receipt: "Customer receipt",
@@ -55,6 +56,8 @@ export default function PrintersPage() {
     isDefault: true,
     isActive: true,
   });
+  const [detectedPrinters, setDetectedPrinters] = useState<string[]>([]);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const stores = Array.isArray(storesResponse) ? storesResponse : [];
   const registers = Array.isArray(registersResponse) ? registersResponse : [];
@@ -112,6 +115,24 @@ export default function PrintersPage() {
     createMutation.mutate({ data: form });
   };
 
+  const detectPrinters = async () => {
+    if (!isDesktopPrinterAvailable()) {
+      toast.info("Printer detection is available in the Violet desktop app.");
+      return;
+    }
+    setIsDetecting(true);
+    try {
+      const detected = await discoverDesktopPrinters();
+      setDetectedPrinters(detected.map((printer) => printer.name));
+      if (detected[0] && !form.deviceName) update("deviceName", detected[0].name);
+      toast.success(`${detected.length} native printer${detected.length === 1 ? "" : "s"} detected.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not detect native printers.");
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl space-y-6">
       <div>
@@ -154,8 +175,9 @@ export default function PrintersPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Native device name</Label>
-                  <Input value={form.deviceName} onChange={(event) => update("deviceName", event.target.value)} placeholder="EPSON TM-T20III" />
+                  <div className="flex items-center justify-between gap-2"><Label>Native device name</Label><Button type="button" variant="ghost" size="sm" onClick={() => void detectPrinters()} disabled={isDetecting}>{isDetecting ? "Detecting..." : "Detect"}</Button></div>
+                  <Input list="detected-native-printers" value={form.deviceName} onChange={(event) => update("deviceName", event.target.value)} placeholder="EPSON TM-T20III" />
+                  {detectedPrinters.length > 0 && <datalist id="detected-native-printers">{detectedPrinters.map((name) => <option key={name} value={name} />)}</datalist>}
                 </div>
               </div>
               <div className="space-y-2">
