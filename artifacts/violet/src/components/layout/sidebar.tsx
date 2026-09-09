@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { 
   ShoppingCart, 
   Settings, 
-  Settings2,
   ShieldAlert
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,7 +15,6 @@ export function Sidebar() {
   const links = [
     { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
     { href: "/settings", label: "Settings", icon: Settings },
-    { href: "/advanced", label: "Advanced", icon: Settings2 },
   ];
 
   if (user?.role === "super_admin") {
