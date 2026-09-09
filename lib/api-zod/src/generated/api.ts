@@ -2033,7 +2033,8 @@ export const GetCashReportQueryParams = zod.object({
   "startDate": zod.date(),
   "endDate": zod.date(),
   "storeId": zod.coerce.string().optional(),
-  "registerId": zod.coerce.string().optional()
+  "registerId": zod.coerce.string().optional(),
+  "shiftId": zod.coerce.string().optional()
 })
 
 export const GetCashReportResponse = zod.record(zod.string(), zod.unknown())

@@ -14,6 +14,8 @@ interface ReportsContextType {
   setStoreId: (id: string) => void;
   registerId: string;
   setRegisterId: (id: string) => void;
+  shiftId: string;
+  setShiftId: (id: string) => void;
   cashierId: string;
   setCashierId: (id: string) => void;
   transactionStatus: TransactionStatus;
@@ -35,6 +37,7 @@ export function ReportsProvider({ children }: { children: React.ReactNode }) {
   
   const [storeId, setStoreId] = useState<string>("");
   const [registerId, setRegisterId] = useState<string>("");
+  const [shiftId, setShiftId] = useState<string>("");
   const [cashierId, setCashierId] = useState<string>("");
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>("all");
 
@@ -76,6 +79,7 @@ export function ReportsProvider({ children }: { children: React.ReactNode }) {
       startDate, endDate, setCustomDateRange,
       storeId, setStoreId,
       registerId, setRegisterId,
+       shiftId, setShiftId,
       cashierId, setCashierId,
       transactionStatus, setTransactionStatus
     }}>

@@ -1673,6 +1673,7 @@ paths:
         - $ref: "#/components/parameters/ReportEndDate"
         - $ref: "#/components/parameters/ReportStoreId"
         - $ref: "#/components/parameters/ReportRegisterId"
+        - $ref: "#/components/parameters/ReportShiftId"
       responses:
         "200":
           description: Cash report
@@ -2308,6 +2309,10 @@ components:
       schema: { type: string }
     ReportRegisterId:
       name: registerId
+      in: query
+      schema: { type: string }
+    ReportShiftId:
+      name: shiftId
       in: query
       schema: { type: string }
     ReportCashierId:

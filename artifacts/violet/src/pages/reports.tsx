@@ -163,7 +163,7 @@ function ReportTable({ columns, rows, emptyTitle = "No records found" }: { colum
   );
 }
 
-function ReportToolbar({ datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, cashierId, setCashierId, paymentMethod, setPaymentMethod, transactionStatus, setTransactionStatus, stores, registers, employees, onExport, onPrint }: AnyRecord) {
+function ReportToolbar({ datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, shiftId, setShiftId, cashierId, setCashierId, paymentMethod, setPaymentMethod, transactionStatus, setTransactionStatus, stores, registers, shifts, employees, onExport, onPrint }: AnyRecord) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm lg:flex-row lg:items-center">
       <div className="flex items-center gap-2 text-sm font-medium"><Filter className="h-4 w-4 text-primary" />Filters</div>
@@ -181,6 +181,18 @@ function ReportToolbar({ datePreset, setDatePreset, setCustomStart, setCustomEnd
       <Select value={registerId} onValueChange={setRegisterId}>
         <SelectTrigger className="w-full lg:w-44"><Landmark className="mr-2 h-4 w-4" /><SelectValue placeholder="All registers" /></SelectTrigger>
         <SelectContent><SelectItem value="all">All registers</SelectItem>{(registers ?? []).map((register: AnyRecord) => <SelectItem key={register.id} value={register.id}>{register.name}</SelectItem>)}</SelectContent>
+      </Select>
+      <Select value={shiftId} onValueChange={setShiftId}>
+        <SelectTrigger className="w-full lg:w-48"><Landmark className="mr-2 h-4 w-4" /><SelectValue placeholder="All shifts" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All shifts</SelectItem>
+          {(shifts ?? []).map((shift: AnyRecord) => (
+            <SelectItem key={shift.id} value={shift.id}>
+              {[shift.storeName, shift.registerName, shift.cashierName].filter(Boolean).join(" / ") || shift.id}
+              {shift.status === "open" ? " (Open)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
       </Select>
       <Select value={cashierId} onValueChange={setCashierId}>
         <SelectTrigger className="w-full lg:w-44"><Users className="mr-2 h-4 w-4" /><SelectValue placeholder="All cashiers" /></SelectTrigger>
@@ -216,6 +228,7 @@ export default function ReportsPage() {
   const [storeId, setStoreId] = useState("all");
   const [registerId, setRegisterId] = useState("all");
   const [cashierId, setCashierId] = useState("all");
+  const [shiftId, setShiftId] = useState("all");
   const [paymentMethod, setPaymentMethod] = useState("all");
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>("all");
   const [page, setPage] = useState(1);
@@ -249,7 +262,16 @@ export default function ReportsPage() {
   const transactionParams = { ...params, ...(transactionStatus === "all" ? {} : { status: transactionStatus }), page, limit: 25 };
   const transactionsQuery = useGetReportTransactions(transactionParams, { query: { queryKey: getGetReportTransactionsQueryKey(transactionParams), enabled: enabled(["sales", "employees"]) } });
   const productsQuery = useGetProductReport(params, { query: { queryKey: getGetProductReportQueryKey(params), enabled: enabled(["products", "profit"]) } });
-  const cashQuery = useGetCashReport(params, { query: { queryKey: getGetCashReportQueryKey(params), enabled: enabled("cash") } });
+  const cashShiftParams = {
+    ...(storeId === "all" ? {} : { storeId }),
+    ...(registerId === "all" ? {} : { registerId }),
+    ...(cashierId === "all" ? {} : { cashierId }),
+  };
+  const shiftsQuery = useListRegisterShifts(cashShiftParams, {
+    query: { queryKey: getListRegisterShiftsQueryKey(cashShiftParams), enabled: enabled("cash") },
+  });
+  const cashParams = { ...params, ...(shiftId === "all" ? {} : { shiftId }) };
+  const cashQuery = useGetCashReport(cashParams, { query: { queryKey: getGetCashReportQueryKey(cashParams), enabled: enabled("cash") } });
   const settlementParams = {
     status: "closed" as const,
     startDate: range.startDate,
@@ -270,6 +292,7 @@ export default function ReportsPage() {
   const products = ((productsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const transactions = ((transactionsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const cashRows = ((cashQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
+  const cashMovements = ((cashQuery.data as AnyRecord | undefined)?.movements ?? []) as AnyRecord[];
   const settlementRows = ((settlementsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const purchaseRows = ((purchasingQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const storeRows = ((storeQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
@@ -281,6 +304,7 @@ export default function ReportsPage() {
   const reportStores = (Array.isArray(storesQuery.data) ? storesQuery.data : (storesQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const reportRegisters = (Array.isArray(registersQuery.data) ? registersQuery.data : (registersQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const reportEmployees = (Array.isArray(employeesQuery.data) ? employeesQuery.data : (employeesQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
+  const reportShifts = ((shiftsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
 
   const handleExport = async (formatName: "csv" | "xlsx" | "pdf") => {
     try {
@@ -328,7 +352,7 @@ export default function ReportsPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-4 w-4 text-emerald-500" />Live from your operational records</div>
       </div>
 
-      <ReportToolbar {...{ ...range, datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, cashierId, setCashierId, paymentMethod, setPaymentMethod, transactionStatus, setTransactionStatus, stores: reportStores, registers: reportRegisters, employees: reportEmployees, onExport: handleExport, onPrint: () => window.print() }} />
+      <ReportToolbar {...{ ...range, datePreset, setDatePreset, setCustomStart, setCustomEnd, customStart, customEnd, storeId, setStoreId, registerId, setRegisterId, shiftId, setShiftId, cashierId, setCashierId, paymentMethod, setPaymentMethod, transactionStatus, setTransactionStatus, stores: reportStores, registers: reportRegisters, shifts: reportShifts, employees: reportEmployees, onExport: handleExport, onPrint: () => window.print() }} />
 
       <Tabs value={activeTab} onValueChange={(value) => { setActiveTab(value as TabKey); setPage(1); }}>
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/70 p-1">
@@ -455,7 +479,8 @@ export default function ReportsPage() {
             registerId={registerId === "all" ? undefined : registerId}
             cashierId={cashierId === "all" ? undefined : cashierId}
           />
-          <Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Signed drawer effect", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: cashEventDisplayAmount(row) }))} emptyTitle="No cash events" /></CardContent></Card>
+           <Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Signed drawer effect", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: cashEventDisplayAmount(row) }))} emptyTitle="No cash events" /></CardContent></Card>
+           <Card><CardHeader><CardTitle>Cash movement history</CardTitle><CardDescription>Review every drop and payout with its reason and recording manager.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "createdAt", label: "When" }, { key: "type", label: "Movement" }, { key: "amount", label: "Signed drawer effect", align: "right" }, { key: "reason", label: "Reason" }, { key: "recordedByName", label: "Recorded by" }, { key: "storeRegister", label: "Store / register" }]} rows={cashMovements.map((row) => ({ ...row, createdAt: row.createdAt ? formatDateTime(row.createdAt) : "—", type: String(row.type ?? "").replace("_", " "), amount: cashEventDisplayAmount(row), reason: row.reason || "—", recordedByName: row.recordedByName || "Unknown manager", storeRegister: [row.storeName, row.registerName].filter(Boolean).join(" / ") || row.registerId }))} emptyTitle="No cash drops or payouts" /></CardContent></Card>
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>

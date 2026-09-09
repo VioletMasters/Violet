@@ -143,6 +143,7 @@ export * from './reportData';
 export * from './reportEndDateParameter';
 export * from './reportPaymentMethodParameter';
 export * from './reportRegisterIdParameter';
+export * from './reportShiftIdParameter';
 export * from './reportStartDateParameter';
 export * from './reportStoreIdParameter';
 export * from './reportTransactionStatusParameter';

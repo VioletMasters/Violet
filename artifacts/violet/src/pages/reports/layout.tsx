@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { ReportsProvider, useReportsContext } from "./context";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getListRegistersQueryKey, useListStores, useListRegisters, useListEmployees } from "@workspace/api-client-react";
+import { getListRegistersQueryKey, getListRegisterShiftsQueryKey, useListStores, useListRegisters, useListEmployees, useListRegisterShifts } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Download, Printer, Filter } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,6 +27,7 @@ function ReportFilters() {
     startDate, endDate, setCustomDateRange,
     storeId, setStoreId,
     registerId, setRegisterId,
+    shiftId, setShiftId,
     cashierId, setCashierId,
     transactionStatus, setTransactionStatus
   } = useReportsContext();
@@ -35,10 +36,18 @@ function ReportFilters() {
   const registerParams = storeId ? { storeId } : undefined;
   const { data: registersResponse } = useListRegisters(registerParams, { query: { queryKey: getListRegistersQueryKey(registerParams), enabled: !!storeId } });
   const { data: employeesResponse } = useListEmployees();
+  const shiftParams = {
+    ...(storeId ? { storeId } : {}),
+    ...(registerId ? { registerId } : {}),
+  };
+  const { data: shiftsResponse } = useListRegisterShifts(shiftParams, {
+    query: { queryKey: getListRegisterShiftsQueryKey(shiftParams) },
+  });
 
   const stores = (Array.isArray(storesResponse) ? storesResponse : (storesResponse as any)?.data || []) as any[];
   const registers = (Array.isArray(registersResponse) ? registersResponse : (registersResponse as any)?.data || []) as any[];
   const employees = (Array.isArray(employeesResponse) ? employeesResponse : (employeesResponse as any)?.data || []) as any[];
+  const shifts = ((shiftsResponse as any)?.data || []) as any[];
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-6 bg-card border rounded-lg p-2 shadow-sm">
@@ -105,7 +114,7 @@ function ReportFilters() {
       </Select>
 
       <div className="flex items-center gap-2 px-2 border-r">
-        <Select value={storeId || "all"} onValueChange={(v) => { setStoreId(v === "all" ? "" : v); setRegisterId(""); }}>
+        <Select value={storeId || "all"} onValueChange={(v) => { setStoreId(v === "all" ? "" : v); setRegisterId(""); setShiftId(""); }}>
           <SelectTrigger className="w-[140px] h-8 text-xs bg-transparent border-none shadow-none focus:ring-0">
             <SelectValue placeholder="All Stores" />
           </SelectTrigger>
@@ -117,7 +126,7 @@ function ReportFilters() {
           </SelectContent>
         </Select>
 
-        <Select value={registerId || "all"} onValueChange={(v) => setRegisterId(v === "all" ? "" : v)} disabled={!storeId}>
+          <Select value={registerId || "all"} onValueChange={(v) => { setRegisterId(v === "all" ? "" : v); setShiftId(""); }} disabled={!storeId}>
           <SelectTrigger className="w-[140px] h-8 text-xs bg-transparent border-none shadow-none focus:ring-0">
             <SelectValue placeholder="All Registers" />
           </SelectTrigger>
@@ -125,6 +134,21 @@ function ReportFilters() {
             <SelectItem value="all">All Registers</SelectItem>
             {registers.map(r => (
               <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={shiftId || "all"} onValueChange={(v) => setShiftId(v === "all" ? "" : v)}>
+          <SelectTrigger className="w-[160px] h-8 text-xs bg-transparent border-none shadow-none focus:ring-0">
+            <SelectValue placeholder="All Shifts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Shifts</SelectItem>
+            {shifts.map((shift) => (
+              <SelectItem key={shift.id} value={shift.id}>
+                {[shift.storeName, shift.registerName, shift.cashierName].filter(Boolean).join(" / ") || shift.id}
+                {shift.status === "open" ? " (Open)" : ""}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

@@ -315,7 +315,13 @@ router.get("/reports/cash", requireManagerAccess, async (req, res): Promise<void
   const conditions: SQL[] = [eq(cashEventsTable.tenantId, req.tenantId!), gte(cashEventsTable.createdAt, new Date(query.startDate!)), lte(cashEventsTable.createdAt, new Date(query.endDate!))];
   if (query.storeId) conditions.push(eq(cashEventsTable.storeId, query.storeId));
   if (query.registerId) conditions.push(eq(cashEventsTable.registerId, query.registerId));
-  const rows = await db.select({ type: cashEventsTable.type, amount: sql<string>`SUM(${cashEventsTable.amount}::numeric)`, count: sql<number>`COUNT(*)` })
+  if (query.shiftId) conditions.push(eq(cashEventsTable.shiftId, query.shiftId));
+  const movementConditions = [
+    ...conditions,
+    inArray(cashEventsTable.type, ["drop", "payout"]),
+  ];
+  const [rows, movements] = await Promise.all([
+    db.select({ type: cashEventsTable.type, amount: sql<string>`SUM(${cashEventsTable.amount}::numeric)`, count: sql<number>`COUNT(*)` })
     .from(cashEventsTable)
     .leftJoin(salesTable, and(
       eq(cashEventsTable.saleId, salesTable.id),
@@ -325,8 +331,47 @@ router.get("/reports/cash", requireManagerAccess, async (req, res): Promise<void
       ...conditions,
       or(isNull(cashEventsTable.saleId), ne(salesTable.status, "voided")),
     ))
-    .groupBy(cashEventsTable.type);
-  res.json({ data: rows.map((r) => ({ ...r, amount: money(r.amount), count: Number(r.count) })) });
+    .groupBy(cashEventsTable.type),
+    db.select({
+      id: cashEventsTable.id,
+      type: cashEventsTable.type,
+      amount: cashEventsTable.amount,
+      reason: cashEventsTable.reason,
+      storeId: cashEventsTable.storeId,
+      storeName: storesTable.name,
+      registerId: cashEventsTable.registerId,
+      registerName: registersTable.name,
+      shiftId: cashEventsTable.shiftId,
+      createdBy: cashEventsTable.createdBy,
+      recordedByName: sql<string>`NULLIF(TRIM(CONCAT(${usersTable.firstName}, ' ', ${usersTable.lastName})), '')`,
+      createdAt: cashEventsTable.createdAt,
+    })
+      .from(cashEventsTable)
+      .leftJoin(storesTable, and(
+        eq(cashEventsTable.storeId, storesTable.id),
+        eq(storesTable.tenantId, req.tenantId!),
+      ))
+      .leftJoin(registersTable, and(
+        eq(cashEventsTable.registerId, registersTable.id),
+        eq(registersTable.tenantId, req.tenantId!),
+      ))
+      .leftJoin(usersTable, and(
+        eq(cashEventsTable.createdBy, usersTable.id),
+        eq(usersTable.tenantId, req.tenantId!),
+      ))
+      .where(and(...movementConditions))
+      .orderBy(desc(cashEventsTable.createdAt))
+      .limit(1000),
+  ]);
+  res.json({
+    data: rows.map((r) => ({ ...r, amount: money(r.amount), count: Number(r.count) })),
+    movements: movements.map((movement) => ({
+      ...movement,
+      amount: money(movement.amount),
+      createdAt: movement.createdAt.toISOString(),
+      recordedByName: movement.recordedByName || "Unknown manager",
+    })),
+  });
 });
 
 router.get("/reports/purchasing", requireManagerAccess, async (req, res): Promise<void> => {

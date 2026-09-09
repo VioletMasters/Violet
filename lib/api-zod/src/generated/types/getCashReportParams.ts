@@ -7,6 +7,7 @@
  */
 import type { ReportEndDateParameter } from './reportEndDateParameter';
 import type { ReportRegisterIdParameter } from './reportRegisterIdParameter';
+import type { ReportShiftIdParameter } from './reportShiftIdParameter';
 import type { ReportStartDateParameter } from './reportStartDateParameter';
 import type { ReportStoreIdParameter } from './reportStoreIdParameter';
 
@@ -15,4 +16,5 @@ startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
+shiftId?: ReportShiftIdParameter;
 };

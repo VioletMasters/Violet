@@ -172,17 +172,19 @@ export function CashEventRecorder({
 }
 
 export default function ReportsCash() {
-  const { startDate, endDate, storeId, registerId, cashierId } = useReportsContext();
+  const { startDate, endDate, storeId, registerId, shiftId, cashierId } = useReportsContext();
 
   const { data: response, isLoading } = useGetCashReport({
     startDate,
     endDate,
     ...(storeId ? { storeId } : {}),
     ...(registerId ? { registerId } : {}),
+    ...(shiftId ? { shiftId } : {}),
     ...(cashierId ? { cashierId } : {}),
   });
 
   const events = (response as any)?.data || [];
+  const movements = (response as any)?.movements || [];
   const settlementParams = {
     status: "closed" as const,
     startDate,
@@ -289,6 +291,54 @@ export default function ReportsCash() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <CardHeader>
+          <CardTitle>Cash movement history</CardTitle>
+          <CardDescription>Every cash drop and payout in the selected store, register, shift, and date range.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-y">
+                <tr>
+                  <th className="px-4 py-3 font-medium">When</th>
+                  <th className="px-4 py-3 font-medium">Movement</th>
+                  <th className="px-4 py-3 font-medium text-right">Amount</th>
+                  <th className="px-4 py-3 font-medium">Reason</th>
+                  <th className="px-4 py-3 font-medium">Recorded by</th>
+                  <th className="px-4 py-3 font-medium">Store / register</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <tr key={index} className="border-b last:border-0">
+                      {Array.from({ length: 6 }).map((__, cellIndex) => <td key={cellIndex} className="px-4 py-3"><div className="h-4 w-24 animate-pulse rounded bg-muted" /></td>)}
+                    </tr>
+                  ))
+                ) : movements.length > 0 ? (
+                  movements.map((movement: any) => (
+                    <tr key={movement.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{movement.createdAt ? format(parseISO(movement.createdAt), "MMM d, yyyy h:mm a") : "—"}</td>
+                      <td className="px-4 py-3"><Badge variant={movement.type === "drop" ? "default" : "destructive"} className="text-[10px] uppercase">{movement.type}</Badge></td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-destructive">{cashEventDisplayAmount(movement)}</td>
+                      <td className="px-4 py-3 min-w-48">{movement.reason || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{movement.recordedByName || "Unknown manager"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        <div>{movement.storeName || movement.storeId || "Unknown store"}</div>
+                        <div className="text-xs">{movement.registerName || movement.registerId || "Unknown register"}</div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-muted-foreground"><Banknote className="mx-auto mb-2 h-8 w-8 opacity-30" />No cash drops or payouts recorded for this period.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
       </Card>
 
       <Card className="border-border/50 shadow-sm overflow-hidden">

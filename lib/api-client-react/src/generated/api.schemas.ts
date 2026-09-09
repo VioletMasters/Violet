@@ -1604,6 +1604,8 @@ export type ReportStoreIdParameter = string;
 
 export type ReportRegisterIdParameter = string;
 
+export type ReportShiftIdParameter = string;
+
 export type ReportCashierIdParameter = string;
 
 export type ReportPaymentMethodParameter = string;
@@ -1780,6 +1782,7 @@ startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
+shiftId?: ReportShiftIdParameter;
 };
 
 export type GetInventoryMovementReportParams = {
