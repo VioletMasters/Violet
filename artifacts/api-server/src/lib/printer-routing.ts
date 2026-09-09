@@ -98,7 +98,7 @@ function buildJob(
     printerId: printer?.id ?? null,
     documentType,
     status: printer ? "queued" : "failed",
-    payload: JSON.stringify(payload),
+    payload: JSON.stringify({ ...payload, printerName: printer?.deviceName ?? null }),
     errorMessage: printer ? null : `No active ${documentType.replace("_", " ")} printer is configured for this register.`,
     idempotencyKey,
   };

@@ -11,6 +11,7 @@
     "beforeBuildCommand": "npm run prepare:self-host && npm run build"
   },
   "app": {
+    "withGlobalTauri": true,
     "security": {
       "csp": null
     }

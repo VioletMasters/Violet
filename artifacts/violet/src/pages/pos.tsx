@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import { dispatchSalePrintJobs } from "@/lib/desktop-print";
 
 interface CartItem extends PosProduct {
   cartQuantity: number;
@@ -190,6 +191,7 @@ export default function POSPage() {
           receiptNumber: sale.receiptNumber,
           printJobs: sale.printJobs,
         });
+        void dispatchSalePrintJobs(sale.printJobs);
         checkoutAttemptKey.current = null;
       },
       onError: (err) => {
