@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, salesTable, productsTable, customersTable, saleItemsTable } from "@workspace/db";
-import { eq, and, gte, sql, desc, lt } from "drizzle-orm";
+import { db, salesTable, productsTable, customersTable, saleItemsTable, salePaymentsTable } from "@workspace/db";
+import { eq, and, gte, sql, desc, lt, inArray } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
+import { summarizeCashTender } from "../lib/cashTender";
 
 const router = Router();
 
@@ -58,11 +59,31 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
     .orderBy(desc(salesTable.createdAt))
     .limit(10);
 
+  const payments = sales.length === 0 ? [] : await db.select({
+    saleId: salePaymentsTable.saleId,
+    method: salePaymentsTable.method,
+    amount: salePaymentsTable.amount,
+    tenderedAmount: salePaymentsTable.tenderedAmount,
+  }).from(salePaymentsTable).where(and(
+    eq(salePaymentsTable.tenantId, tenantId),
+    inArray(salePaymentsTable.saleId, sales.map((sale) => sale.id)),
+    eq(salePaymentsTable.method, "cash"),
+  ));
+  const paymentsBySale = new Map<string, typeof payments>();
+  for (const payment of payments) {
+    paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
+  }
+
   const result = await Promise.all(sales.map(async (sale) => {
     const items = await db.select().from(saleItemsTable).where(and(
       eq(saleItemsTable.saleId, sale.id),
       eq(saleItemsTable.isVoided, false),
     ));
+    const cashTender = summarizeCashTender(paymentsBySale.get(sale.id) ?? [], {
+      paymentMethod: sale.paymentMethod,
+      totalAmount: sale.totalAmount,
+      cashTendered: sale.cashTendered,
+    });
     return {
       id: sale.id,
       receiptNumber: sale.receiptNumber,
@@ -72,6 +93,8 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
       taxAmount: parseFloat(sale.taxAmount),
       discountAmount: parseFloat(sale.discountAmount),
       totalAmount: parseFloat(sale.totalAmount),
+      cashReceived: cashTender?.received ?? null,
+      changeDue: cashTender?.changeDue ?? null,
       paymentMethod: sale.paymentMethod,
       status: sale.status,
       cashierId: sale.cashierId,
