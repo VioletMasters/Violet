@@ -51,9 +51,7 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
   });
 });
 
-// GET /dashboard/recent-sales
-router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
+export async function getRecentSales(tenantId: string) {
   const sales = await db.select({
     sale: salesTable,
     customerFirstName: customersTable.firstName,
@@ -145,7 +143,12 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
     };
   });
 
-  res.json(result);
+  return result;
+}
+
+// GET /dashboard/recent-sales
+router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getRecentSales(req.tenantId!));
 });
 
 // GET /dashboard/top-products
