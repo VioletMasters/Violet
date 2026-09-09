@@ -315,7 +315,7 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
     receiptNumber: salesTable.receiptNumber, createdAt: salesTable.createdAt, status: salesTable.status,
     storeId: salesTable.storeId, registerId: salesTable.registerId, cashierId: salesTable.cashierId,
     subtotal: salesTable.subtotal, discount: salesTable.discountAmount, tax: salesTable.taxAmount,
-    total: salesTable.totalAmount, paymentMethod: salesTable.paymentMethod,
+    total: salesTable.totalAmount, paymentMethod: salesTable.paymentMethod, cashTendered: salesTable.cashTendered,
   }).from(salesTable).where(and(...filters(query, req.tenantId!))).orderBy(asc(salesTable.createdAt)).limit(100000);
   const voidedItemsBySale = new Map<string, string[]>();
   if (reportSettings?.showVoidedItems && rows.length > 0) {
@@ -332,6 +332,10 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
   const exportRows = rows.map((r) => ({
     ...r,
     createdAt: r.createdAt.toISOString(),
+    cashReceived: r.paymentMethod === "cash" && r.cashTendered != null ? Number(r.cashTendered) : null,
+    changeDue: r.paymentMethod === "cash" && r.cashTendered != null
+      ? Number(r.cashTendered) - Number(r.total)
+      : null,
     ...(reportSettings?.showVoidedItems
       ? { voidedItems: (voidedItemsBySale.get(r.id) ?? []).join("; ") }
       : {}),

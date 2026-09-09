@@ -3122,6 +3122,9 @@ components:
           type: number
         totalAmount:
           type: number
+        cashTendered:
+          type: ["number", "null"]
+          description: Amount of cash the customer handed over. Change is the difference from totalAmount.
         paymentMethod:
           type: string
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]

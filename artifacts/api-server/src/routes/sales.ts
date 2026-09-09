@@ -50,6 +50,7 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: 
     taxAmount: parseFloat(sale.taxAmount),
     discountAmount: parseFloat(sale.discountAmount),
     totalAmount: parseFloat(sale.totalAmount),
+    cashTendered: sale.cashTendered == null ? null : Number(sale.cashTendered),
     paymentMethod: sale.paymentMethod,
     status: sale.status,
     cashierId: sale.cashierId,
