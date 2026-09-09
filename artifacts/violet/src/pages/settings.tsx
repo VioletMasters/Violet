@@ -283,13 +283,19 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {canConfigureStoresAndRegisters ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Store className="h-5 w-5 text-primary" /> Stores & registers</CardTitle>
-            <CardDescription>Create the register that cashiers select when they start their day.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Advanced</h2>
+          <p className="text-sm text-muted-foreground">Operational setup and register rules that affect how your store runs across terminals.</p>
+        </div>
+
+        {canConfigureStoresAndRegisters ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Store className="h-5 w-5 text-primary" /> Stores & registers</CardTitle>
+              <CardDescription>Create the register that cashiers select when they start their day.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
           <div>
             <div className="mb-3">
               <h3 className="text-sm font-semibold">Create a store</h3>
@@ -343,16 +349,38 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-5 w-5 text-amber-600" /> Register setup is restricted</CardTitle>
+              <CardDescription>Only the business owner or administrator/IT role can create stores and registers. Ask one of them to complete this setup.</CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-5 w-5 text-primary" /> Register operating rules</CardTitle>
+            <CardDescription>How register access works across cashier accounts and Store Client PCs.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="font-medium">One active cashier</p>
+              <p className="mt-1 text-xs text-muted-foreground">A register cannot be started by a second cashier until the current cashier settles and clocks out.</p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="font-medium">Opening float is recorded</p>
+              <p className="mt-1 text-xs text-muted-foreground">Cashiers enter the physical starting cash, then count the drawer again at clock out for variance.</p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="font-medium">PCs are not locked yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">The same cashier can continue the active shift from another PC. Permanent PC-to-register binding is not enabled.</p>
+            </div>
           </CardContent>
         </Card>
-      ) : (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-5 w-5 text-amber-600" /> Register setup is restricted</CardTitle>
-            <CardDescription>Only the business owner or administrator/IT role can create stores and registers. Ask one of them to complete this setup.</CardDescription>
-          </CardHeader>
-        </Card>
-      )}
+      </section>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         <Card>
