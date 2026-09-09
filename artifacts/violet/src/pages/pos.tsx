@@ -27,10 +27,11 @@ import {
   useListRegisters,
   useListPosProducts,
   useOpenRegisterShift,
+  useRetryPrintJob,
 } from "@workspace/api-client-react";
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ArrowLeftRight, Package, Clock3, LogIn, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import type { PosProduct, SaleInputPaymentMethod } from "@workspace/api-client-react";
+import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -55,6 +56,7 @@ type PaymentCompletion = {
   tendered?: number;
   change: number;
   receiptNumber?: string;
+  printJobs?: PrintJob[];
 };
 
 type RegisterShift = {
@@ -104,6 +106,12 @@ export default function POSPage() {
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const checkoutAttemptKey = React.useRef<string | null>(null);
   const queryClient = useQueryClient();
+  const retryPrintJob = useRetryPrintJob({
+    mutation: {
+      onSuccess: () => toast.success("Print job queued again."),
+      onError: (error) => toast.error(error.message || "Could not retry this print job."),
+    },
+  });
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
@@ -180,6 +188,7 @@ export default function POSPage() {
           tendered: hasCashPayment && tendered != null && Number.isFinite(tendered) ? tendered : undefined,
           change,
           receiptNumber: sale.receiptNumber,
+          printJobs: sale.printJobs,
         });
         checkoutAttemptKey.current = null;
       },
@@ -896,6 +905,34 @@ export default function POSPage() {
               {formatCurrency(paymentCompletion?.change ?? 0)}
             </p>
           </div>
+          {paymentCompletion?.printJobs && paymentCompletion.printJobs.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-4 text-left">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Printing</p>
+                <span className="text-xs text-muted-foreground">Sale already completed</span>
+              </div>
+              {paymentCompletion.printJobs.map((job) => (
+                <div key={job.id} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{job.documentType.replaceAll("_", " ")}</span>
+                  <Badge variant={job.status === "printed" ? "secondary" : job.status === "failed" ? "destructive" : "outline"}>{job.status}</Badge>
+                  {job.status === "failed" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={retryPrintJob.isPending}
+                      onClick={() => retryPrintJob.mutate({ id: job.id })}
+                    >
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {paymentCompletion.printJobs.some((job) => job.status === "failed") && (
+                <p className="text-xs text-muted-foreground">The transaction was saved. A manager can retry failed documents from Settings → Printers.</p>
+              )}
+            </div>
+          )}
           <AlertDialogFooter className="sm:justify-center">
             <AlertDialogAction className="h-12 min-w-40 text-base">
               Okay

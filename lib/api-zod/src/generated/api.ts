@@ -380,6 +380,22 @@ export const GetRecentSalesResponseItem = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1019,6 +1035,22 @@ export const ListSalesResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })),
@@ -1119,6 +1151,22 @@ export const CreateSaleResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1173,6 +1221,22 @@ export const GetSaleResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1235,6 +1299,22 @@ export const RefundSaleResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })

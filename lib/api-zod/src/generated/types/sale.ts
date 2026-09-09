@@ -5,6 +5,7 @@
  * Violet Enterprise API
  * OpenAPI spec version: 0.1.0
  */
+import type { PrintJob } from './printJob';
 import type { SaleItem } from './saleItem';
 import type { SalePaymentMethod } from './salePaymentMethod';
 import type { SaleStatus } from './saleStatus';
@@ -42,6 +43,8 @@ export interface Sale {
   items: SaleItem[];
   /** Internal-only voided lines. Customer-facing receipts must use items only. */
   voidedItems?: SaleItem[];
+  /** Independent receipt and operational ticket jobs created after the sale commits. */
+  printJobs?: PrintJob[];
   tenantId: string;
   createdAt: string;
 }

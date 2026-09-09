@@ -807,6 +807,8 @@ export interface Sale {
   items: SaleItem[];
   /** Internal-only voided lines. Customer-facing receipts must use items only. */
   voidedItems?: SaleItem[];
+  /** Independent receipt and operational ticket jobs created after the sale commits. */
+  printJobs?: PrintJob[];
   tenantId: string;
   createdAt: string;
 }
