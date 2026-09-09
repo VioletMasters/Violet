@@ -24,5 +24,6 @@ export interface ProductInput {
   brandId?: string | null;
   imageUrl?: string;
   printDestination?: string;
-  warehouseLocation?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
 }

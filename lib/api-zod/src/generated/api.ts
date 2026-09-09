@@ -526,7 +526,7 @@ export const CreateProductBody = zod.object({
   "brandId": zod.string().nullish(),
   "imageUrl": zod.string().optional(),
   "printDestination": zod.string().default(createProductBodyPrintDestinationDefault),
-  "warehouseLocation": zod.string().optional()
+  "warehouseLocation": zod.string().nullish()
 })
 
 export const createProductResponsePrintDestinationDefault = `customer_receipt`;
@@ -649,7 +649,7 @@ export const UpdateProductBody = zod.object({
   "brandId": zod.string().nullish(),
   "imageUrl": zod.string().optional(),
   "printDestination": zod.string().optional(),
-  "warehouseLocation": zod.string().optional(),
+  "warehouseLocation": zod.string().nullish(),
   "isActive": zod.boolean().optional()
 })
 
