@@ -10,6 +10,7 @@ import { eq, ilike, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
 import { requireSession, requireSuperAdmin } from "../middlewares/auth";
 import { summarizeCashTender } from "../lib/cashTender";
 import { getWhopClient } from "../lib/whopClient";
+import { ensureTenantLicense, getTenantEntitlementState } from "../lib/entitlements";
 import { deleteTenantAccount } from "../lib/abandonedPaidSignups";
 import fs from "node:fs";
 import path from "node:path";
@@ -567,6 +568,7 @@ router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<
         effectiveAt: now,
         actorId: req.user!.id,
       });
+      await ensureTenantLicense(id, tx);
     }
     return [updatedTenant];
   });

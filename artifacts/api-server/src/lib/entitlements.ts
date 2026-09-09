@@ -15,6 +15,7 @@ import { eq, sql } from "drizzle-orm";
 
 export const FREE_PRODUCT_LIMIT = 250;
 export const FREE_CUSTOMER_LIMIT = 500;
+type DbExecutor = Pick<typeof db, "select" | "insert" | "update">;
 
 export type EntitlementResource = "users" | "registers" | "branches" | "products" | "customers";
 
@@ -77,52 +78,76 @@ function licenseStatus(
   return "ACTIVE";
 }
 
-export async function resolveTenantPlan(tenantId: string) {
-  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+export async function resolveTenantPlan(tenantId: string, executor: DbExecutor = db) {
+  const [tenant] = await executor.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
   if (!tenant) return null;
-  const [subscription] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.tenantId, tenantId)).limit(1);
+  const [subscription] = await executor
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.tenantId, tenantId))
+    .limit(1);
   const planId = subscription?.planId ?? tenant.planId;
   const [plan] = planId
-    ? await db.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1)
+    ? await executor.select().from(plansTable).where(eq(plansTable.id, planId)).limit(1)
     : [null];
   return { tenant, subscription: subscription ?? null, plan: plan ?? null };
 }
 
-export async function ensureTenantLicense(tenantId: string) {
-  const resolved = await resolveTenantPlan(tenantId);
+export async function ensureTenantLicense(tenantId: string, executor: DbExecutor = db) {
+  const resolved = await resolveTenantPlan(tenantId, executor);
   if (!resolved?.plan) return null;
 
   const snapshot = buildEntitlements(resolved.plan);
   const nextStatus = licenseStatus(resolved.tenant, resolved.subscription);
   const expiresAt = resolved.subscription?.currentPeriodEnd ?? resolved.tenant.licenseValidUntil ?? null;
-  const [existing] = await db.select().from(licensesTable).where(eq(licensesTable.tenantId, tenantId)).limit(1);
+  const [existing] = await executor
+    .select()
+    .from(licensesTable)
+    .where(eq(licensesTable.tenantId, tenantId))
+    .limit(1);
 
   if (existing) {
-    const [updated] = await db.update(licensesTable).set({
-      planId: resolved.plan.id,
-      status: nextStatus,
-      subscriptionStatus: resolved.subscription?.status ?? "active",
-      entitlements: snapshot,
-      expiresAt,
-      lastValidatedAt: new Date(),
-    }).where(eq(licensesTable.id, existing.id)).returning();
+    const [updated] = await executor
+      .update(licensesTable)
+      .set({
+        planId: resolved.plan.id,
+        status: nextStatus,
+        subscriptionStatus: resolved.subscription?.status ?? "active",
+        entitlements: snapshot,
+        expiresAt,
+        lastValidatedAt: new Date(),
+      })
+      .where(eq(licensesTable.id, existing.id))
+      .returning();
     return updated;
   }
 
   const licenseKey = createLicenseKey();
-  const [created] = await db.insert(licensesTable).values({
-    tenantId,
-    planId: resolved.plan.id,
-    licenseKeyHash: hashLicenseKey(licenseKey),
-    licenseKeyLast4: licenseKey.slice(-4),
-    status: nextStatus,
-    subscriptionStatus: resolved.subscription?.status ?? "active",
-    entitlements: snapshot,
-    activatedAt: new Date(),
-    expiresAt,
-    lastValidatedAt: new Date(),
-  }).returning();
-  return created;
+  await executor
+    .insert(licensesTable)
+    .values({
+      tenantId,
+      planId: resolved.plan.id,
+      licenseKeyHash: hashLicenseKey(licenseKey),
+      licenseKeyLast4: licenseKey.slice(-4),
+      status: nextStatus,
+      subscriptionStatus: resolved.subscription?.status ?? "active",
+      entitlements: snapshot,
+      activatedAt: new Date(),
+      expiresAt,
+      lastValidatedAt: new Date(),
+    })
+    .onConflictDoNothing({ target: licensesTable.tenantId });
+
+  // The tenant-level unique constraint makes backfill and concurrent login
+  // provisioning idempotent. Re-read after the insert so callers always
+  // receive the canonical row, even when another request won the race.
+  const [created] = await executor
+    .select()
+    .from(licensesTable)
+    .where(eq(licensesTable.tenantId, tenantId))
+    .limit(1);
+  return created ?? null;
 }
 
 export async function getTenantEntitlementState(tenantId: string) {

@@ -7,6 +7,7 @@ import {
 } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { getWhopClient } from "./whopClient";
+import { ensureTenantLicense } from "./entitlements";
 
 type WhopClient = Awaited<ReturnType<typeof getWhopClient>>;
 type Membership = Awaited<ReturnType<WhopClient["memberships"]["retrieve"]>>;
@@ -242,6 +243,7 @@ async function applyMembership(
         updatedAt: now,
       })
       .where(eq(tenantsTable.id, tenantId));
+    await ensureTenantLicense(tenantId, tx);
   });
 
   return access;
@@ -493,6 +495,7 @@ export async function syncExistingMembership(tenantId: string): Promise<void> {
           updatedAt: now,
         })
         .where(eq(tenantsTable.id, tenantId));
+      await ensureTenantLicense(tenantId, tx);
     });
     return;
   }

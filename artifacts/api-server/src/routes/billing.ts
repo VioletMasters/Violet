@@ -22,6 +22,7 @@ import {
   syncPendingCheckout,
   type PaidTier,
 } from "../lib/subscriptionSync";
+import { ensureTenantLicense } from "../lib/entitlements";
 
 const router = Router();
 
@@ -414,6 +415,7 @@ router.post("/billing/cancel", requireSession, async (req, res): Promise<void> =
           })
           .where(eq(tenantsTable.id, req.tenantId!));
       }
+      await ensureTenantLicense(req.tenantId!, tx);
 
       await tx.insert(subscriptionEventsTable).values({
         tenantId: req.tenantId!,
@@ -495,6 +497,7 @@ router.post("/billing/reactivate", requireSession, async (req, res): Promise<voi
           updatedAt: now,
         })
         .where(eq(tenantsTable.id, req.tenantId!));
+      await ensureTenantLicense(req.tenantId!, tx);
       await tx.insert(subscriptionEventsTable).values({
         tenantId: req.tenantId!,
         subscriptionId: subscription.id,
