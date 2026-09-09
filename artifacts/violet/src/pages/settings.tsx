@@ -21,6 +21,7 @@ import {
   Boxes,
   LayoutDashboard,
   Package,
+  Printer,
   Receipt,
   Settings2,
   ShieldCheck,
@@ -56,6 +57,7 @@ const managementLinks = [
   { href: "/reports", label: "Reports", description: "Review sales, inventory, and business reporting.", icon: BarChart3 },
   { href: "/reports/cash", label: "Cashier settlements", description: "Review closed cashier days by store, register, and cashier.", icon: Banknote },
   { href: "/advanced", label: "Advanced", description: "Stores, registers, and operational controls.", icon: Settings2 },
+  { href: "/settings/printers", label: "Printers", description: "Route receipts, warehouse tickets, and print history.", icon: Printer },
   { href: "/subscription", label: "Subscription", description: "Review your Violet plan and billing.", icon: Settings2 },
 ];
 

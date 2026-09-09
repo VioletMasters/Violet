@@ -26,6 +26,7 @@ import Advanced from './pages/advanced';
 import Subscription from './pages/subscription';
 import Admin from './pages/admin';
 import Suppliers from './pages/suppliers';
+import Printers from './pages/printers';
 
 function DefaultAppRoute() {
   const { user } = useAuth();
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="/reports/cash" component={CashReportsRoute} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
+        <Route path="/settings/printers" component={Printers} />
         <Route path="/advanced" component={Advanced} />
         <Route path="/subscription" component={Subscription} />
         <Route path="/change-password" component={ChangePasswordPage} />
