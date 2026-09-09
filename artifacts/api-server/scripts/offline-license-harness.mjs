@@ -16,6 +16,7 @@ const email = `offline-license-harness-${randomUUID()}@example.test`;
 const tenantId = randomUUID();
 const userId = randomUUID();
 const productId = randomUUID();
+const cashRegressionProductId = randomUUID();
 const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString("hex");
 const passwordHash = hashPassword(password);
 
@@ -354,6 +355,9 @@ function seedDatabase(freePlanId, paidPlanId) {
     ) VALUES (
       ${sqlString(productId)}, ${sqlString(tenantId)}, 'Forced Shutdown Harness Product',
       ${sqlString(`HARNESS-${productId.slice(0, 8)}`)}, '12.50', '5.00', 3, 1, true
+    ), (
+      ${sqlString(cashRegressionProductId)}, ${sqlString(tenantId)}, 'Cash Tendered Regression Product',
+      ${sqlString(`CASH-${cashRegressionProductId.slice(0, 8)}`)}, '4500.00', '1000.00', 10, 1, true
     );
   `);
 }
@@ -429,6 +433,88 @@ async function createSale(token, idempotencyKey) {
       items: [{ productId, quantity: 1 }],
     }),
   });
+}
+
+async function createCashRegressionSale(token, {
+  idempotencyKey,
+  paymentMethod,
+  cashTendered,
+}) {
+  const body = {
+    idempotencyKey,
+    paymentMethod,
+    items: [{ productId: cashRegressionProductId, quantity: 1 }],
+    ...(cashTendered === undefined ? {} : { cashTendered }),
+  };
+  return request("/api/sales", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+async function verifyCashTenderedRegression(token, managerAccessToken) {
+  const validKey = `cash-tendered-valid-${randomUUID()}`;
+  const validSale = await createCashRegressionSale(token, {
+    idempotencyKey: validKey,
+    paymentMethod: "cash",
+    cashTendered: 5000,
+  });
+  assert(validSale.response.status === 201, `Cash sale failed: ${validSale.response.status} ${JSON.stringify(validSale.body)}`);
+  assert(validSale.body?.totalAmount === 4500, `Expected cash sale total to be 4500, got ${validSale.body?.totalAmount}`);
+  assert(validSale.body?.cashTendered === 5000, `Expected cash tendered to be 5000, got ${validSale.body?.cashTendered}`);
+  assert(validSale.body.cashTendered - validSale.body.totalAmount === 500, "Expected cash change to be 500.");
+
+  const [storedTotal, storedCashTendered, storedPaymentMethod] = runSql(`
+    SELECT total_amount FROM sales
+      WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(validKey)};
+    SELECT cash_tendered FROM sales
+      WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(validKey)};
+    SELECT payment_method FROM sales
+      WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(validKey)};
+  `).split("\n");
+  assert(storedTotal === "4500.00", `Expected stored cash sale total to be 4500.00, got ${storedTotal}`);
+  assert(storedCashTendered === "5000.00", `Expected stored cash tendered to be 5000.00, got ${storedCashTendered}`);
+  assert(storedPaymentMethod === "cash", `Expected stored payment method to be cash, got ${storedPaymentMethod}`);
+
+  const nonCashKey = `cash-tendered-card-${randomUUID()}`;
+  const nonCashSale = await createCashRegressionSale(token, {
+    idempotencyKey: nonCashKey,
+    paymentMethod: "card",
+    cashTendered: 5000,
+  });
+  assert(nonCashSale.response.status === 201, `Non-cash sale failed: ${nonCashSale.response.status} ${JSON.stringify(nonCashSale.body)}`);
+  assert(nonCashSale.body?.cashTendered === null, "Non-cash sale must not expose cash tendered.");
+  assert(
+    runSql(`SELECT cash_tendered IS NULL FROM sales
+      WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(nonCashKey)};`) === "t",
+    "Non-cash sale must not persist cash tendered.",
+  );
+
+  for (const [label, cashTendered] of [["missing", undefined], ["insufficient", 4499.99]]) {
+    const invalidKey = `cash-tendered-${label}-${randomUUID()}`;
+    const invalidSale = await createCashRegressionSale(token, {
+      idempotencyKey: invalidKey,
+      paymentMethod: "cash",
+      cashTendered,
+    });
+    assert(invalidSale.response.status === 400, `${label} cash should be rejected: ${invalidSale.response.status} ${JSON.stringify(invalidSale.body)}`);
+    assert(
+      runSql(`SELECT COUNT(*) FROM sales
+        WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(invalidKey)};`) === "0",
+      `${label} cash must not create a sale.`,
+    );
+  }
+
+  const report = await request("/api/reports/export/csv?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z&paymentMethod=cash", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-violet-manager-access": managerAccessToken,
+    },
+  });
+  assert(report.response.status === 200, `Cash report export failed: ${report.response.status} ${JSON.stringify(report.body)}`);
+  assert(typeof report.body === "string" && report.body.includes("cashReceived,changeDue"), "Cash report did not include cash received and change due columns.");
+  assert(report.body.includes(",5000,500\r\n"), "Cash report did not expose 5000 received and 500 change.");
 }
 
 async function verifyRecoveredSale(token, managerAccessToken, idempotencyKey, expectedSaleId) {
@@ -651,6 +737,10 @@ async function main() {
     assert(managerUnlock.response.status === 200, `Manager unlock failed: ${managerUnlock.response.status} ${JSON.stringify(managerUnlock.body)}`);
     const managerAccessToken = managerUnlock.body?.accessToken;
     assert(typeof managerAccessToken === "string" && managerAccessToken.length > 20, "Manager unlock did not return an access token.");
+
+    markBoundary("cash tendered and change regression");
+    await verifyCashTenderedRegression(upgraded.token, managerAccessToken);
+    console.log("PASS cash checkout persists tendered cash, derives change, rejects invalid cash, and keeps non-cash sales cash-free");
 
     const saleIdempotencyKey = `forced-checkout-${randomUUID()}`;
     const saleLock = holdSaleIdempotencyLock(saleIdempotencyKey);
