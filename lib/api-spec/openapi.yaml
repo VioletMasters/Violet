@@ -1358,6 +1358,16 @@ paths:
           description: Shift list
           content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
 
+  /register-shifts/current:
+    get:
+      operationId: getCurrentRegisterShift
+      tags: [operations]
+      summary: Get the authenticated cashier's open shift
+      responses:
+        "200":
+          description: Current shift or null
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
   /register-shifts/open:
     post:
       operationId: openRegisterShift

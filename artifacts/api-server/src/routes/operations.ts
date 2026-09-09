@@ -4,7 +4,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
-import { requireManagerAccess } from "../middlewares/auth";
+import { isManagerRole, requireAuth, requireManagerAccess } from "../middlewares/auth";
 
 const router = Router();
 
@@ -44,7 +44,7 @@ router.post("/stores", requireManagerAccess, async (req, res): Promise<void> => 
   }
 });
 
-router.get("/registers", requireManagerAccess, async (req, res): Promise<void> => {
+router.get("/registers", requireAuth, async (req, res): Promise<void> => {
   const conditions: SQL[] = [eq(registersTable.tenantId, req.tenantId!)];
   if (typeof req.query.storeId === "string") conditions.push(eq(registersTable.storeId, req.query.storeId));
   const rows = await db.select().from(registersTable).where(and(...conditions)).orderBy(registersTable.name);
@@ -87,7 +87,16 @@ router.get("/register-shifts", requireManagerAccess, async (req, res): Promise<v
   res.json({ data: rows });
 });
 
-router.post("/register-shifts/open", requireManagerAccess, async (req, res): Promise<void> => {
+router.get("/register-shifts/current", requireAuth, async (req, res): Promise<void> => {
+  const [shift] = await db.select().from(registerShiftsTable).where(and(
+    eq(registerShiftsTable.tenantId, req.tenantId!),
+    eq(registerShiftsTable.cashierId, req.user!.id),
+    eq(registerShiftsTable.status, "open"),
+  )).orderBy(desc(registerShiftsTable.openedAt)).limit(1);
+  res.json({ shift: shift ?? null });
+});
+
+router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void> => {
   const { registerId, cashierId } = req.body ?? {}; const openingCash = amount(req.body?.openingCash);
   if (typeof registerId !== "string" || openingCash == null) {
     res.status(400).json({ error: "registerId and a non-negative openingCash are required" }); return;
@@ -95,7 +104,12 @@ router.post("/register-shifts/open", requireManagerAccess, async (req, res): Pro
   const [register] = await db.select().from(registersTable)
     .where(and(eq(registersTable.id, registerId), eq(registersTable.tenantId, req.tenantId!))).limit(1);
   if (!register) { res.status(404).json({ error: "Register not found" }); return; }
-  const assignedCashier = typeof cashierId === "string" ? cashierId : req.user!.id;
+  if (!isManagerRole(req.user!.role) && typeof cashierId === "string" && cashierId !== req.user!.id) {
+    res.status(403).json({ error: "Cashiers can only open their own shift" }); return;
+  }
+  const assignedCashier = isManagerRole(req.user!.role) && typeof cashierId === "string"
+    ? cashierId
+    : req.user!.id;
   const [cashier] = await db.select({ id: usersTable.id }).from(usersTable).where(and(
     eq(usersTable.id, assignedCashier), eq(usersTable.tenantId, req.tenantId!),
   )).limit(1);
@@ -121,7 +135,7 @@ router.post("/register-shifts/open", requireManagerAccess, async (req, res): Pro
   res.status(201).json(shift);
 });
 
-router.post("/register-shifts/:id/close", requireManagerAccess, async (req, res): Promise<void> => {
+router.post("/register-shifts/:id/close", requireAuth, async (req, res): Promise<void> => {
   const id = String(req.params.id); const closingCash = amount(req.body?.closingCash);
   if (closingCash == null) { res.status(400).json({ error: "A non-negative closingCash is required" }); return; }
   const result = await db.transaction(async (tx) => {
@@ -129,6 +143,9 @@ router.post("/register-shifts/:id/close", requireManagerAccess, async (req, res)
     const [shift] = await tx.select().from(registerShiftsTable)
       .where(and(eq(registerShiftsTable.id, id), eq(registerShiftsTable.tenantId, req.tenantId!))).limit(1);
     if (!shift) return { kind: "missing" as const };
+    if (!isManagerRole(req.user!.role) && shift.cashierId !== req.user!.id) {
+      return { kind: "forbidden" as const };
+    }
     if (shift.status === "closed") return { kind: "closed" as const, shift };
     const [cash] = await tx.select({ total: sql<string>`COALESCE(SUM(${cashEventsTable.amount}::numeric), 0)` })
       .from(cashEventsTable).where(and(eq(cashEventsTable.tenantId, req.tenantId!), eq(cashEventsTable.shiftId, id)));
@@ -146,6 +163,7 @@ router.post("/register-shifts/:id/close", requireManagerAccess, async (req, res)
     return { kind: "updated" as const, shift: closed };
   });
   if (result.kind === "missing") { res.status(404).json({ error: "Shift not found" }); return; }
+  if (result.kind === "forbidden") { res.status(403).json({ error: "You can only settle your own shift" }); return; }
   res.json(result.shift);
 });
 

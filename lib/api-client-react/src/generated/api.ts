@@ -4842,6 +4842,83 @@ export function useListRegisterShifts<TData = Awaited<ReturnType<typeof listRegi
 
 
 
+export const getGetCurrentRegisterShiftUrl = () => {
+
+
+
+
+  return `/api/register-shifts/current`
+}
+
+/**
+ * @summary Get the authenticated cashier's open shift
+ */
+export const getCurrentRegisterShift = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReportData> => {
+
+  return customFetch<ReportData>(getGetCurrentRegisterShiftUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentRegisterShiftQueryKey = () => {
+    return [
+    `/api/register-shifts/current`
+    ] as const;
+    }
+
+
+export const getGetCurrentRegisterShiftQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentRegisterShiftQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentRegisterShift>>> = ({ signal }) => getCurrentRegisterShift({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentRegisterShiftQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentRegisterShift>>>
+export type GetCurrentRegisterShiftQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the authenticated cashier's open shift
+ */
+
+export function useGetCurrentRegisterShift<TData = Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentRegisterShiftQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getOpenRegisterShiftUrl = () => {
 
 

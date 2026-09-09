@@ -1612,6 +1612,12 @@ export const ListRegisterShiftsResponse = zod.record(zod.string(), zod.unknown()
 
 
 /**
+ * @summary Get the authenticated cashier's open shift
+ */
+export const GetCurrentRegisterShiftResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
  * @summary Open a register shift; returns the existing open shift idempotently
  */
 export const openRegisterShiftBodyOpeningCashMin = 0;
