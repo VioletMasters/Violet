@@ -18,6 +18,7 @@ const userId = randomUUID();
 const secondUserId = randomUUID();
 const storeId = randomUUID();
 const registerId = randomUUID();
+const secondRegisterId = randomUUID();
 const productId = randomUUID();
 const cashRegressionProductId = randomUUID();
 const shiftRegressionProductId = randomUUID();
@@ -359,7 +360,9 @@ function seedDatabase(freePlanId, paidPlanId) {
     INSERT INTO stores (id, tenant_id, code, name)
     VALUES (${sqlString(storeId)}, ${sqlString(tenantId)}, 'MAIN', 'Main Store');
     INSERT INTO registers (id, tenant_id, store_id, code, name)
-    VALUES (${sqlString(registerId)}, ${sqlString(tenantId)}, ${sqlString(storeId)}, 'REG-1', 'Register 1');
+    VALUES
+      (${sqlString(registerId)}, ${sqlString(tenantId)}, ${sqlString(storeId)}, 'REG-1', 'Register 1'),
+      (${sqlString(secondRegisterId)}, ${sqlString(tenantId)}, ${sqlString(storeId)}, 'REG-2', 'Register 2');
     INSERT INTO subscriptions (
       tenant_id, plan_id, status, payment_status,
       current_period_start, current_period_end
@@ -410,6 +413,16 @@ async function signIn(expectedPlanId, expectedPlanName) {
   assert(body?.tenant?.planId === expectedPlanId, `Expected plan ${expectedPlanId}, got ${body?.tenant?.planId}`);
   assert(body?.tenant?.planName === expectedPlanName, `Expected plan name ${expectedPlanName}, got ${body?.tenant?.planName}`);
   assert(typeof body?.token === "string" && body.token.length > 20, "Offline sign-in did not return a session token.");
+  return body;
+}
+
+async function signInSecondCashier() {
+  const { response, body } = await request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: secondEmail, password: secondPassword }),
+  });
+  assert(response.status === 200, `Second cashier sign-in failed: ${response.status} ${JSON.stringify(body)}`);
+  assert(typeof body?.token === "string" && body.token.length > 20, "Second cashier sign-in did not return a session token.");
   return body;
 }
 
@@ -564,6 +577,82 @@ async function verifyRegisterShiftLifecycle(token, expectedPlanId, expectedPlanN
     body: JSON.stringify({ closingCash: 50 }),
   });
   assert(secondClosed.response.status === 200, `Second cashier cleanup settlement failed: ${secondClosed.response.status}`);
+}
+
+async function verifyConcurrentRegisterOpenings(managerToken, cashierToken) {
+  const openingRequests = await Promise.all([
+    request("/api/register-shifts/open", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${managerToken}` },
+      body: JSON.stringify({ registerId, openingCash: 0 }),
+    }),
+    request("/api/register-shifts/open", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cashierToken}` },
+      body: JSON.stringify({ registerId, openingCash: 0 }),
+    }),
+  ]);
+  const successfulOpenings = openingRequests.filter(({ response }) => response.status === 201);
+  const occupiedResponses = openingRequests.filter(({ response }) => response.status === 409);
+  const statuses = openingRequests.map(({ response }) => response.status).join(", ");
+  assert(successfulOpenings.length === 1, `Expected one concurrent register opening to succeed, got ${statuses}`);
+  assert(occupiedResponses.length === 1, `Expected one concurrent register opening conflict, got ${statuses}`);
+  assert(
+    occupiedResponses[0].body?.error === "This register already has an active cashier day",
+    `Concurrent register opening returned the wrong conflict: ${JSON.stringify(occupiedResponses[0].body)}`,
+  );
+  const winningShiftId = successfulOpenings[0].body?.id;
+  assert(typeof winningShiftId === "string", "Concurrent register opening did not return a shift id.");
+  assert(
+    runSql(`SELECT COUNT(*) FROM register_shifts
+      WHERE tenant_id = ${sqlString(tenantId)}
+        AND register_id = ${sqlString(registerId)}
+        AND status = 'open';`) === "1",
+    "Concurrent register openings created more than one open shift for the register.",
+  );
+
+  const closedConcurrentShift = await request(`/api/register-shifts/${winningShiftId}/close`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${managerToken}` },
+    body: JSON.stringify({ closingCash: 0 }),
+  });
+  assert(
+    closedConcurrentShift.response.status === 200,
+    `Could not close the concurrent register shift: ${closedConcurrentShift.response.status} ${JSON.stringify(closedConcurrentShift.body)}`,
+  );
+
+  const firstCashierShift = await request("/api/register-shifts/open", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cashierToken}` },
+    body: JSON.stringify({ registerId: secondRegisterId, openingCash: 0 }),
+  });
+  assert(
+    firstCashierShift.response.status === 201,
+    `Cashier could not open the first different register: ${firstCashierShift.response.status} ${JSON.stringify(firstCashierShift.body)}`,
+  );
+  const secondCashierShift = await request("/api/register-shifts/open", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cashierToken}` },
+    body: JSON.stringify({ registerId, openingCash: 0 }),
+  });
+  assert(
+    secondCashierShift.response.status === 409,
+    `Cashier opened two registers at once: ${secondCashierShift.response.status} ${JSON.stringify(secondCashierShift.body)}`,
+  );
+  assert(
+    secondCashierShift.body?.error === "This cashier already has an active cashier day",
+    `Opening a second register returned the wrong conflict: ${JSON.stringify(secondCashierShift.body)}`,
+  );
+
+  const closedSecondRegisterShift = await request(`/api/register-shifts/${firstCashierShift.body.id}/close`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${managerToken}` },
+    body: JSON.stringify({ closingCash: 0 }),
+  });
+  assert(
+    closedSecondRegisterShift.response.status === 200,
+    `Could not close the second-register shift: ${closedSecondRegisterShift.response.status} ${JSON.stringify(closedSecondRegisterShift.body)}`,
+  );
 }
 
 async function verifyCashTenderedRegression(token, managerAccessToken) {
@@ -751,24 +840,32 @@ async function cleanup() {
       DELETE FROM sale_payments WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE tenant_id = ${sqlString(tenantId)});
       DELETE FROM cash_events WHERE tenant_id = ${sqlString(tenantId)};
+      DELETE FROM register_shifts WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM inventory_movements WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM audit_events WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM sales WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM products WHERE tenant_id = ${sqlString(tenantId)};
-      DELETE FROM sessions WHERE user_id = ${sqlString(userId)};
+      DELETE FROM sessions WHERE user_id IN (${sqlString(userId)}, ${sqlString(secondUserId)});
       DELETE FROM subscriptions WHERE tenant_id = ${sqlString(tenantId)};
       DELETE FROM users WHERE id = ${sqlString(userId)};
+      DELETE FROM users WHERE id = ${sqlString(secondUserId)};
       DELETE FROM tenants WHERE id = ${sqlString(tenantId)};
     `);
 
     const remainingFixtures = runSql(`
       SELECT COUNT(*) FROM sessions WHERE user_id = ${sqlString(userId)}
       UNION ALL
+      SELECT COUNT(*) FROM sessions WHERE user_id = ${sqlString(secondUserId)}
+      UNION ALL
       SELECT COUNT(*) FROM subscriptions WHERE tenant_id = ${sqlString(tenantId)}
       UNION ALL
       SELECT COUNT(*) FROM users WHERE id = ${sqlString(userId)}
       UNION ALL
+      SELECT COUNT(*) FROM users WHERE id = ${sqlString(secondUserId)}
+      UNION ALL
       SELECT COUNT(*) FROM tenants WHERE id = ${sqlString(tenantId)}
+      UNION ALL
+      SELECT COUNT(*) FROM register_shifts WHERE tenant_id = ${sqlString(tenantId)}
       UNION ALL
       SELECT COUNT(*) FROM products WHERE id = ${sqlString(productId)}
       UNION ALL
@@ -906,6 +1003,11 @@ async function main() {
     assert(managerUnlock.response.status === 200, `Manager unlock failed: ${managerUnlock.response.status} ${JSON.stringify(managerUnlock.body)}`);
     const managerAccessToken = managerUnlock.body?.accessToken;
     assert(typeof managerAccessToken === "string" && managerAccessToken.length > 20, "Manager unlock did not return an access token.");
+
+    markBoundary("concurrent register openings");
+    const secondLogin = await signInSecondCashier();
+    await verifyConcurrentRegisterOpenings(upgraded.token, secondLogin.token);
+    console.log("PASS concurrent register openings allow one cashier day, reject the competing drawer, and block a second register for the same cashier");
 
     markBoundary("cashier day register lifecycle");
     await verifyRegisterShiftLifecycle(upgraded.token, paidPlan.id, paidPlan.name);
