@@ -2,11 +2,13 @@ import { Router } from "express";
 import {
   auditEventsTable, cashEventsTable, customersTable, db, inventoryMovementsTable,
   refundsTable, refundItemsTable, registerShiftsTable, saleDiscountsTable,
-  saleItemsTable, salePaymentsTable, salesTable, settingsTable, productsTable,
+  saleItemsTable, salePaymentsTable, salesTable, settingsTable, productsTable, categoriesTable,
+  printJobsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
 import { summarizeCashTender } from "../lib/cashTender";
+import { createSalePrintJobs } from "../lib/printer-routing";
 
 const router = Router();
 
@@ -21,9 +23,10 @@ type SaleResponseOptions = {
 };
 
 async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: SaleResponseOptions = {}) {
-  const [items, payments] = await Promise.all([
+  const [items, payments, printJobs] = await Promise.all([
     db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, sale.id)),
     db.select().from(salePaymentsTable).where(and(eq(salePaymentsTable.saleId, sale.id), eq(salePaymentsTable.tenantId, sale.tenantId))),
+    db.select().from(printJobsTable).where(and(eq(printJobsTable.saleId, sale.id), eq(printJobsTable.tenantId, sale.tenantId))),
   ]);
   const cashTender = summarizeCashTender(payments, {
     paymentMethod: sale.paymentMethod,
@@ -70,6 +73,16 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: 
       id: payment.id, method: payment.method, amount: Number(payment.amount),
       tenderedAmount: payment.tenderedAmount == null ? null : Number(payment.tenderedAmount),
       reference: payment.reference,
+    })),
+    printJobs: printJobs.map((job) => ({
+      id: job.id,
+      documentType: job.documentType,
+      status: job.status,
+      printerId: job.printerId,
+      errorMessage: job.errorMessage,
+      retryCount: job.retryCount,
+      createdAt: job.createdAt.toISOString(),
+      printedAt: job.printedAt?.toISOString() ?? null,
     })),
     items: items.filter((item) => !item.isVoided).map(toResponseItem),
     ...(showVoidedItems
@@ -181,6 +194,14 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "One or more products are unavailable for this business" });
     return;
   }
+
+  const categoryIds = [...new Set(products.map((product) => product.categoryId).filter((id): id is string => Boolean(id)))];
+  const categories = categoryIds.length === 0
+    ? []
+    : await db.select({ id: categoriesTable.id, printDestination: categoriesTable.printDestination })
+      .from(categoriesTable)
+      .where(and(eq(categoriesTable.tenantId, tenantId), inArray(categoriesTable.id, categoryIds)));
+  const categoryDestinations = new Map(categories.map((category) => [category.id, category.printDestination]));
 
   if (customerId && !customer[0]) {
     res.status(400).json({ error: "Customer is unavailable for this business" });
@@ -387,6 +408,19 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       action: "sale.completed", entityType: "sale", entityId: created.id,
       after: { receiptNumber: created.receiptNumber, totalAmount, paymentMethod: created.paymentMethod },
     });
+    await createSalePrintJobs(tx, created, validLineItems.map((item) => ({
+      product: {
+        id: item.product.id,
+        name: item.product.name,
+        sku: item.product.sku,
+        categoryId: item.product.categoryId,
+        printDestination: item.product.printDestination,
+        warehouseLocation: item.product.warehouseLocation,
+      },
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+    })), categoryDestinations);
     return { sale: created, existing: false };
   });
 
