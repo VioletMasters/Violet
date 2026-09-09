@@ -3303,7 +3303,7 @@ components:
           type: string
           default: customer_receipt
         warehouseLocation:
-          type: string
+          type: ["string", "null"]
 
     ProductImportInput:
       type: object
@@ -3395,7 +3395,7 @@ components:
         printDestination:
           type: string
         warehouseLocation:
-          type: string
+          type: ["string", "null"]
         isActive:
           type: boolean
 
