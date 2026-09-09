@@ -46,7 +46,7 @@ const productSchema = z.object({
 });
 
 type ProductForm = z.infer<typeof productSchema>;
-type CatalogAttribute = { id: string; name: string; productCount?: number };
+type CatalogAttribute = { id: string; name: string; productCount?: number; printDestination?: string };
 type ProductImportRow = {
   name: string;
   description?: string;
@@ -261,6 +261,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCatalogItem, setEditingCatalogItem] = useState<(CatalogAttribute & { kind: "category" | "brand" }) | null>(null);
   const [catalogName, setCatalogName] = useState("");
+  const [catalogPrintDestination, setCatalogPrintDestination] = useState("customer_receipt");
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFileName, setImportFileName] = useState("");
   const [importRows, setImportRows] = useState<ProductImportRow[]>([]);
@@ -479,13 +480,17 @@ export default function ProductsPage() {
 
   const openCatalogEdit = (kind: "category" | "brand", attribute: CatalogAttribute) => {
     setCatalogName(attribute.name);
+    setCatalogPrintDestination(attribute.printDestination || "customer_receipt");
     setEditingCatalogItem({ ...attribute, kind });
   };
 
   const saveCatalogEdit = () => {
     if (!editingCatalogItem || !catalogName.trim()) return;
     if (editingCatalogItem.kind === "category") {
-      updateCategoryMutation.mutate({ id: editingCatalogItem.id, data: { name: catalogName.trim() } });
+      updateCategoryMutation.mutate({
+        id: editingCatalogItem.id,
+        data: { name: catalogName.trim(), printDestination: catalogPrintDestination },
+      });
       return;
     }
     updateBrandMutation.mutate({ id: editingCatalogItem.id, data: { name: catalogName.trim() } });
@@ -874,6 +879,23 @@ export default function ProductsPage() {
               }}
               autoFocus
             />
+            {editingCatalogItem?.kind === "category" && (
+              <div className="space-y-2">
+                <Label>Default print destination</Label>
+                <Select value={catalogPrintDestination} onValueChange={setCatalogPrintDestination}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="customer_receipt">Customer receipt only</SelectItem>
+                    <SelectItem value="warehouse">Warehouse ticket</SelectItem>
+                    <SelectItem value="kitchen">Kitchen ticket</SelectItem>
+                    <SelectItem value="packing">Packing ticket</SelectItem>
+                    <SelectItem value="office">Office ticket</SelectItem>
+                    <SelectItem value="custom">Custom ticket</SelectItem>
+                    <SelectItem value="none">No automatic ticket</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => setEditingCatalogItem(null)}>Cancel</Button>
