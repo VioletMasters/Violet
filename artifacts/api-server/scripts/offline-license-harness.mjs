@@ -665,6 +665,8 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   assert(validSale.response.status === 201, `Cash sale failed: ${validSale.response.status} ${JSON.stringify(validSale.body)}`);
   assert(validSale.body?.totalAmount === 4500, `Expected cash sale total to be 4500, got ${validSale.body?.totalAmount}`);
   assert(validSale.body?.cashTendered === 5000, `Expected cash tendered to be 5000, got ${validSale.body?.cashTendered}`);
+  assert(validSale.body?.cashReceived === 5000, `Expected cash history received to be 5000, got ${validSale.body?.cashReceived}`);
+  assert(validSale.body?.changeDue === 500, `Expected cash history change to be 500, got ${validSale.body?.changeDue}`);
   assert(validSale.body.cashTendered - validSale.body.totalAmount === 500, "Expected cash change to be 500.");
 
   const [storedTotal, storedCashTendered, storedPaymentMethod] = runSql(`
@@ -687,6 +689,8 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   });
   assert(nonCashSale.response.status === 201, `Non-cash sale failed: ${nonCashSale.response.status} ${JSON.stringify(nonCashSale.body)}`);
   assert(nonCashSale.body?.cashTendered === null, "Non-cash sale must not expose cash tendered.");
+  assert(nonCashSale.body?.cashReceived === null, "Non-cash sale history must not expose cash received.");
+  assert(nonCashSale.body?.changeDue === null, "Non-cash sale history must not expose change due.");
   assert(
     runSql(`SELECT cash_tendered IS NULL FROM sales
       WHERE tenant_id = ${sqlString(tenantId)} AND idempotency_key = ${sqlString(nonCashKey)};`) === "t",
@@ -707,6 +711,8 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   assert(splitSale.body?.payments?.length === 2, "Split sale must return both tender records.");
   assert(splitSale.body.payments.find((payment) => payment.method === "cash")?.amount === 2000, "Split sale must retain the cash component.");
   assert(splitSale.body.payments.find((payment) => payment.method === "card")?.amount === 2500, "Split sale must retain the card component.");
+  assert(splitSale.body?.cashReceived === 2000, `Split sale history must show 2000 cash received, got ${splitSale.body?.cashReceived}`);
+  assert(splitSale.body?.changeDue === 0, `Split sale history must show zero change, got ${splitSale.body?.changeDue}`);
   const [splitCashEvent, splitPaymentCount] = runSql(`
     SELECT amount FROM cash_events
       WHERE tenant_id = ${sqlString(tenantId)}
@@ -729,6 +735,34 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   const reportedSplit = splitTransactions.body?.data?.find((sale) => sale.id === splitSale.body?.id);
   assert(reportedSplit?.cashReceived === 2000, `Split transaction report must show 2000 cash received, got ${reportedSplit?.cashReceived}`);
   assert(reportedSplit?.changeDue === 0, `Split transaction report must show zero change, got ${reportedSplit?.changeDue}`);
+
+  const transactionHistory = await request("/api/reports/transactions?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-violet-manager-access": managerAccessToken,
+    },
+  });
+  assert(transactionHistory.response.status === 200, `Transaction history failed: ${transactionHistory.response.status} ${JSON.stringify(transactionHistory.body)}`);
+  const reportedCash = transactionHistory.body?.data?.find((sale) => sale.id === validSale.body?.id);
+  const reportedCard = transactionHistory.body?.data?.find((sale) => sale.id === nonCashSale.body?.id);
+  assert(reportedCash?.cashReceived === 5000, `Cash transaction history must show 5000 received, got ${reportedCash?.cashReceived}`);
+  assert(reportedCash?.changeDue === 500, `Cash transaction history must show 500 change, got ${reportedCash?.changeDue}`);
+  assert(reportedCard?.cashReceived === null, `Card transaction history must show null cash received, got ${reportedCard?.cashReceived}`);
+  assert(reportedCard?.changeDue === null, `Card transaction history must show null change due, got ${reportedCard?.changeDue}`);
+
+  const salesHistory = await request("/api/sales?limit=100", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-violet-manager-access": managerAccessToken,
+    },
+  });
+  assert(salesHistory.response.status === 200, `Sales history failed: ${salesHistory.response.status} ${JSON.stringify(salesHistory.body)}`);
+  const listedCash = salesHistory.body?.data?.find((sale) => sale.id === validSale.body?.id);
+  const listedCard = salesHistory.body?.data?.find((sale) => sale.id === nonCashSale.body?.id);
+  assert(listedCash?.cashReceived === 5000, `Sales history must show 5000 cash received, got ${listedCash?.cashReceived}`);
+  assert(listedCash?.changeDue === 500, `Sales history must show 500 change, got ${listedCash?.changeDue}`);
+  assert(listedCard?.cashReceived === null, `Sales history card sale must show null cash received, got ${listedCard?.cashReceived}`);
+  assert(listedCard?.changeDue === null, `Sales history card sale must show null change due, got ${listedCard?.changeDue}`);
 
   for (const [label, cashTendered] of [["missing", undefined], ["insufficient", 4499.99]]) {
     const invalidKey = `cash-tendered-${label}-${randomUUID()}`;
