@@ -2452,6 +2452,23 @@ components:
           type: ["string", "null"]
         licenseValidUntil:
           type: ["string", "null"]
+        licenseId:
+          type: ["string", "null"]
+        licenseKeyLast4:
+          type: ["string", "null"]
+        licenseVersion:
+          type: ["string", "null"]
+        licenseLifecycleStatus:
+          type: ["string", "null"]
+        licenseActivatedAt:
+          type: ["string", "null"]
+        entitlements:
+          type: ["object", "null"]
+          additionalProperties: true
+        usage:
+          allOf:
+            - $ref: "#/components/schemas/EntitlementUsage"
+          nullable: true
         licenseSessionToken:
           type: string
         tokenExpiresAt:

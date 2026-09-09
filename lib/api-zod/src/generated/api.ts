@@ -201,6 +201,19 @@ export const VerifyHostedLicenseResponse = zod.object({
   "paymentStatus": zod.string().nullable(),
   "licenseStatus": zod.string().nullable(),
   "licenseValidUntil": zod.string().nullable(),
+  "licenseId": zod.string().nullish(),
+  "licenseKeyLast4": zod.string().nullish(),
+  "licenseVersion": zod.string().nullish(),
+  "licenseLifecycleStatus": zod.string().nullish(),
+  "licenseActivatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish(),
+  "usage": zod.object({
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).nullish(),
   "licenseSessionToken": zod.string().optional(),
   "tokenExpiresAt": zod.string().optional()
 })
@@ -227,6 +240,19 @@ export const RevalidateHostedLicenseResponse = zod.object({
   "paymentStatus": zod.string().nullable(),
   "licenseStatus": zod.string().nullable(),
   "licenseValidUntil": zod.string().nullable(),
+  "licenseId": zod.string().nullish(),
+  "licenseKeyLast4": zod.string().nullish(),
+  "licenseVersion": zod.string().nullish(),
+  "licenseLifecycleStatus": zod.string().nullish(),
+  "licenseActivatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish(),
+  "usage": zod.object({
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).nullish(),
   "licenseSessionToken": zod.string().optional(),
   "tokenExpiresAt": zod.string().optional()
 })

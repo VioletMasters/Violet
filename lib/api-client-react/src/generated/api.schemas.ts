@@ -92,6 +92,19 @@ export interface LicenseRevalidateInput {
   installationId: string;
 }
 
+/**
+ * @nullable
+ */
+export type LicenseVerificationResponseEntitlements = { [key: string]: unknown } | null;
+
+export interface EntitlementUsage {
+  users: number;
+  products: number;
+  customers: number;
+  branches: number;
+  registers: number;
+}
+
 export interface LicenseVerificationResponse {
   valid: boolean;
   message: string;
@@ -105,6 +118,19 @@ export interface LicenseVerificationResponse {
   licenseStatus: string | null;
   /** @nullable */
   licenseValidUntil: string | null;
+  /** @nullable */
+  licenseId?: string | null;
+  /** @nullable */
+  licenseKeyLast4?: string | null;
+  /** @nullable */
+  licenseVersion?: string | null;
+  /** @nullable */
+  licenseLifecycleStatus?: string | null;
+  /** @nullable */
+  licenseActivatedAt?: string | null;
+  /** @nullable */
+  entitlements?: LicenseVerificationResponseEntitlements;
+  usage?: EntitlementUsage | null;
   licenseSessionToken?: string;
   tokenExpiresAt?: string;
 }
@@ -127,14 +153,6 @@ export interface LicenseInfo {
   lastValidatedAt?: string | null;
   /** @nullable */
   entitlements?: LicenseInfoEntitlements;
-}
-
-export interface EntitlementUsage {
-  users: number;
-  products: number;
-  customers: number;
-  branches: number;
-  registers: number;
 }
 
 export interface ManagerAccessInput {

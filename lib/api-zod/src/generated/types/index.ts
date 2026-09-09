@@ -76,6 +76,7 @@ export * from './licenseInfo';
 export * from './licenseInfoEntitlements';
 export * from './licenseRevalidateInput';
 export * from './licenseVerificationResponse';
+export * from './licenseVerificationResponseEntitlements';
 export * from './licenseVerifyInput';
 export * from './listAdminSalesFormat';
 export * from './listAdminSalesParams';
