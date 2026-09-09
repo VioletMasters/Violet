@@ -2516,6 +2516,141 @@ components:
           type: string
       required: [error]
 
+    # ── Printers ──────────────────────────────────────────────────────────────
+    Printer:
+      type: object
+      required: [id, tenantId, name, role, connectionType, deviceName, isActive, isDefault]
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        storeId:
+          type: ["string", "null"]
+        registerId:
+          type: ["string", "null"]
+        name:
+          type: string
+        role:
+          type: string
+          enum: [customer_receipt, warehouse, kitchen, packing, office, custom]
+        connectionType:
+          type: string
+          enum: [os, usb, network, shared]
+        deviceName:
+          type: string
+        deviceAddress:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    PrinterInput:
+      type: object
+      required: [name, role, deviceName]
+      properties:
+        name:
+          type: string
+        storeId:
+          type: ["string", "null"]
+        registerId:
+          type: ["string", "null"]
+        role:
+          type: string
+        connectionType:
+          type: string
+        deviceName:
+          type: string
+        deviceAddress:
+          type: string
+        platform:
+          type: string
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+
+    PrinterUpdate:
+      allOf:
+        - $ref: "#/components/schemas/PrinterInput"
+
+    PrintersResponse:
+      type: object
+      required: [data, roles, connectionTypes]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Printer"
+        roles:
+          type: array
+          items:
+            type: string
+        connectionTypes:
+          type: array
+          items:
+            type: string
+
+    PrintJob:
+      type: object
+      required: [id, tenantId, documentType, status, payload, retryCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        saleId:
+          type: ["string", "null"]
+        storeId:
+          type: ["string", "null"]
+        registerId:
+          type: ["string", "null"]
+        printerId:
+          type: ["string", "null"]
+        documentType:
+          type: string
+        status:
+          type: string
+          enum: [queued, printing, printed, failed, cancelled]
+        payload:
+          type: string
+        errorMessage:
+          type: ["string", "null"]
+        retryCount:
+          type: integer
+        createdAt:
+          type: string
+        printedAt:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+
+    PrintJobsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrintJob"
+
+    PrintJobStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [queued, printing, printed, failed, cancelled]
+        errorMessage:
+          type: string
+
     # ── Auth ───────────────────────────────────────────────────────────────────
     RegisterInput:
       type: object
