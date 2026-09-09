@@ -77,56 +77,41 @@ export default function ReportsCash() {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
               <tr>
-                <th className="px-4 py-3 font-medium">Date & Time</th>
-                <th className="px-4 py-3 font-medium">Type</th>
-                <th className="px-4 py-3 font-medium">Reason</th>
-                <th className="px-4 py-3 font-medium">Register</th>
-                <th className="px-4 py-3 font-medium">Staff</th>
+                <th className="px-4 py-3 font-medium">Event</th>
+                <th className="px-4 py-3 font-medium text-right">Events</th>
                 <th className="px-4 py-3 font-medium text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
+                  Array.from({ length: 2 }).map((_, i) => (
                   <tr key={i} className="border-b last:border-0">
-                    <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-32" /></td>
-                    <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-16" /></td>
-                    <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-48" /></td>
-                    <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-20" /></td>
-                    <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-24" /></td>
-                    <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-16 ml-auto" /></td>
+                      <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-32" /></td>
+                      <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-16 ml-auto" /></td>
+                      <td className="px-4 py-3"><div className="h-4 bg-muted rounded animate-pulse w-24 ml-auto" /></td>
                   </tr>
                 ))
               ) : events.length > 0 ? (
                 events.map((e: any) => (
                   <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {format(parseISO(e.createdAt), "MMM d, yyyy h:mm a")}
-                    </td>
-                    <td className="px-4 py-3">
+                      <td className="px-4 py-3">
                       <Badge variant={e.type === 'drop' ? 'default' : 'destructive'} className="text-[10px] uppercase">
-                        {e.type}
+                          {String(e.type ?? "unknown").replace("_", " ")}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 font-medium">
-                      {e.reason}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {e.registerName || e.registerId}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {e.cashierName || 'Unknown'}
+                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+                        {Number(e.count ?? 0)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-bold">
                       <span className={e.type === 'drop' ? 'text-emerald-500' : 'text-destructive'}>
-                        {e.type === 'drop' ? '+' : '-'}{formatCurrency(e.amount)}
+                          {e.type === 'drop' ? '+' : '-'}{formatCurrency(e.amount)}
                       </span>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={3} className="px-4 py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
                       <Banknote className="h-8 w-8 mb-2 opacity-30" />
                       <p>No cash events recorded for this period.</p>
