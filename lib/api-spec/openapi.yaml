@@ -1896,7 +1896,7 @@ paths:
         - name: limit
           in: query
           schema:
-            type: integer
+            type: number
             default: 50
       responses:
         "200":
@@ -2624,7 +2624,7 @@ components:
         errorMessage:
           type: ["string", "null"]
         retryCount:
-          type: integer
+          type: number
         createdAt:
           type: string
         printedAt:
