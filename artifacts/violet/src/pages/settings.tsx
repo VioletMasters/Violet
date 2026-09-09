@@ -54,6 +54,7 @@ const managementLinks = [
   { href: "/employees", label: "Employees", description: "Manage your team and employee details.", icon: UserRoundCog },
   { href: "/suppliers", label: "Suppliers", description: "Maintain supplier contacts and purchasing partners.", icon: Truck },
   { href: "/reports", label: "Reports", description: "Review sales, inventory, and business reporting.", icon: BarChart3 },
+  { href: "/advanced", label: "Advanced", description: "Stores, registers, and operational controls.", icon: Settings2 },
   { href: "/subscription", label: "Subscription", description: "Review your Violet plan and billing.", icon: Settings2 },
 ];
 

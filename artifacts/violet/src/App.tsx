@@ -20,6 +20,7 @@ import Customers from './pages/customers';
 import Employees from './pages/employees';
 import Reports from './pages/reports';
 import Settings from './pages/settings';
+import Advanced from './pages/advanced';
 import Subscription from './pages/subscription';
 import Admin from './pages/admin';
 import Suppliers from './pages/suppliers';
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="/suppliers" component={Suppliers} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
+        <Route path="/advanced" component={Advanced} />
         <Route path="/subscription" component={Subscription} />
         <Route path="/change-password" component={ChangePasswordPage} />
         <Route path="/admin" component={Admin} />
