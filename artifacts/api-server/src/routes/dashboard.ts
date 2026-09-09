@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, salesTable, productsTable, customersTable, saleItemsTable, salePaymentsTable } from "@workspace/db";
+import { db, salesTable, productsTable, customersTable, saleItemsTable, salePaymentsTable, usersTable } from "@workspace/db";
 import { eq, and, gte, sql, desc, lt, inArray } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
 import { summarizeCashTender } from "../lib/cashTender";
@@ -54,7 +54,21 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
 // GET /dashboard/recent-sales
 router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const sales = await db.select().from(salesTable)
+  const sales = await db.select({
+    sale: salesTable,
+    customerFirstName: customersTable.firstName,
+    customerLastName: customersTable.lastName,
+    cashierFirstName: usersTable.firstName,
+    cashierLastName: usersTable.lastName,
+  }).from(salesTable)
+    .leftJoin(customersTable, and(
+      eq(salesTable.customerId, customersTable.id),
+      eq(customersTable.tenantId, tenantId),
+    ))
+    .leftJoin(usersTable, and(
+      eq(salesTable.cashierId, usersTable.id),
+      eq(usersTable.tenantId, tenantId),
+    ))
     .where(eq(salesTable.tenantId, tenantId))
     .orderBy(desc(salesTable.createdAt))
     .limit(10);
@@ -66,7 +80,7 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
     tenderedAmount: salePaymentsTable.tenderedAmount,
   }).from(salePaymentsTable).where(and(
     eq(salePaymentsTable.tenantId, tenantId),
-    inArray(salePaymentsTable.saleId, sales.map((sale) => sale.id)),
+    inArray(salePaymentsTable.saleId, sales.map(({ sale }) => sale.id)),
     eq(salePaymentsTable.method, "cash"),
   ));
   const paymentsBySale = new Map<string, typeof payments>();
@@ -82,7 +96,7 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
       eq(salesTable.tenantId, tenantId),
     ))
     .where(and(
-      inArray(saleItemsTable.saleId, sales.map((sale) => sale.id)),
+      inArray(saleItemsTable.saleId, sales.map(({ sale }) => sale.id)),
       eq(saleItemsTable.isVoided, false),
     ));
   const itemsBySale = new Map<string, typeof items>();
@@ -92,7 +106,7 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
     itemsBySale.set(item.item.saleId, saleItems);
   }
 
-  const result = sales.map((sale) => {
+  const result = sales.map(({ sale, customerFirstName, customerLastName, cashierFirstName, cashierLastName }) => {
     const saleItems = itemsBySale.get(sale.id) ?? [];
     const cashTender = summarizeCashTender(paymentsBySale.get(sale.id) ?? [], {
       paymentMethod: sale.paymentMethod,
@@ -103,7 +117,9 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
       id: sale.id,
       receiptNumber: sale.receiptNumber,
       customerId: sale.customerId ?? null,
-      customerName: null,
+      customerName: customerFirstName && customerLastName
+        ? `${customerFirstName} ${customerLastName}`
+        : null,
       subtotal: parseFloat(sale.subtotal),
       taxAmount: parseFloat(sale.taxAmount),
       discountAmount: parseFloat(sale.discountAmount),
@@ -113,7 +129,9 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
       paymentMethod: sale.paymentMethod,
       status: sale.status,
       cashierId: sale.cashierId,
-      cashierName: "",
+      cashierName: cashierFirstName && cashierLastName
+        ? `${cashierFirstName} ${cashierLastName}`
+        : "",
       items: saleItems.map(({ item }) => ({
         productId: item.productId,
         productName: item.productName,
