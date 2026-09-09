@@ -112,6 +112,26 @@ CREATE TABLE IF NOT EXISTS public.license_sessions (
 CREATE INDEX IF NOT EXISTS license_sessions_tenant_idx ON public.license_sessions (tenant_id);
 CREATE INDEX IF NOT EXISTS license_sessions_expires_idx ON public.license_sessions (expires_at);
 
+CREATE TABLE IF NOT EXISTS public.licenses (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    tenant_id uuid NOT NULL UNIQUE,
+    plan_id uuid NOT NULL,
+    license_key_hash text NOT NULL UNIQUE,
+    license_key_last4 text NOT NULL,
+    status text DEFAULT 'ACTIVE'::text NOT NULL,
+    subscription_status text DEFAULT 'active'::text NOT NULL,
+    version text DEFAULT '1'::text NOT NULL,
+    entitlements jsonb DEFAULT '{}'::jsonb NOT NULL,
+    activated_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    last_validated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS licenses_tenant_idx ON public.licenses (tenant_id);
+CREATE INDEX IF NOT EXISTS licenses_status_idx ON public.licenses (status);
+
 CREATE TABLE IF NOT EXISTS public.settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,

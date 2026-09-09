@@ -2,6 +2,7 @@ export * from "./tenants";
 export * from "./users";
 export * from "./sessions";
 export * from "./licenseSessions";
+export * from "./licenses";
 export * from "./plans";
 export * from "./products";
 export * from "./brands";
