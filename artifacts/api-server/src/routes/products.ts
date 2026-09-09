@@ -2,6 +2,7 @@ import { Router } from "express";
 import { brandsTable, db, productsTable, categoriesTable } from "@workspace/db";
 import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
+import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
 const router = Router();
 
@@ -160,6 +161,16 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
     res.status(400).json({ error: "name, sku, and price are required" });
     return;
   }
+  try {
+    await enforceTenantLimit(tenantId, "products");
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
+  }
 
   const [[category], [brand]] = await Promise.all([
     categoryId
@@ -230,6 +241,16 @@ router.post("/products/import", requireManagerAccess, async (req, res): Promise<
 
   const tenantId = req.tenantId!;
   const result = { total: rows.length, created: 0, updated: 0, skipped: 0, errors: [] as Array<{ row: number; message: string }> };
+  try {
+    await enforceTenantLimit(tenantId, "products", rows.length);
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
+  }
 
   await db.transaction(async (tx) => {
     for (let index = 0; index < rows.length; index += 1) {

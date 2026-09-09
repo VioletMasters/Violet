@@ -5,6 +5,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
 import { isManagerRole, requireAuth, requireManagerAccess } from "../middlewares/auth";
+import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
 function canConfigureStoresAndRegisters(role: string): boolean {
   return role === "owner" || role === "administrator" || role === "super_admin";
@@ -26,6 +27,16 @@ router.get("/stores", requireManagerAccess, async (req, res): Promise<void> => {
 router.post("/stores", requireManagerAccess, async (req, res): Promise<void> => {
   if (!canConfigureStoresAndRegisters(req.user!.role)) {
     res.status(403).json({ error: "Only the owner or administrator can create stores and registers" }); return;
+  }
+  try {
+    await enforceTenantLimit(req.tenantId!, "branches");
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
   }
   const { code, name, address, timezone } = req.body ?? {};
   if (typeof code !== "string" || !code.trim() || typeof name !== "string" || !name.trim()) {
@@ -61,6 +72,16 @@ router.get("/registers", requireAuth, async (req, res): Promise<void> => {
 router.post("/registers", requireManagerAccess, async (req, res): Promise<void> => {
   if (!canConfigureStoresAndRegisters(req.user!.role)) {
     res.status(403).json({ error: "Only the owner or administrator can create stores and registers" }); return;
+  }
+  try {
+    await enforceTenantLimit(req.tenantId!, "registers");
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
   }
   const { storeId, code, name } = req.body ?? {};
   if (typeof storeId !== "string" || typeof code !== "string" || !code.trim() || typeof name !== "string" || !name.trim()) {
