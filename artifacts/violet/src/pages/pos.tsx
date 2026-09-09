@@ -16,16 +16,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  getGetCurrentRegisterShiftQueryKey,
   listPosProducts,
   useConfirmManagerPassword,
+  useCloseRegisterShift,
   useCreateSale,
+  useGetCurrentRegisterShift,
   useGetPosTaxSettings,
+  useListRegisters,
   useListPosProducts,
+  useOpenRegisterShift,
 } from "@workspace/api-client-react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package, Clock3, LogIn, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface CartItem extends PosProduct {
   cartQuantity: number;
@@ -50,6 +56,25 @@ type PaymentCompletion = {
   receiptNumber?: string;
 };
 
+type RegisterShift = {
+  id: string;
+  storeId: string;
+  registerId: string;
+  cashierId: string;
+  openingCash: string | number;
+  expectedCash?: string | number | null;
+  closingCash?: string | number | null;
+  variance?: string | number | null;
+  openedAt: string;
+};
+
+type RegisterOption = {
+  id: string;
+  name: string;
+  code: string;
+  storeId: string;
+};
+
 function createCheckoutIdempotencyKey(): string {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
@@ -68,7 +93,13 @@ export default function POSPage() {
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
   const [managerPassword, setManagerPassword] = useState("");
   const [paymentCompletion, setPaymentCompletion] = useState<PaymentCompletion | null>(null);
+  const [openingCash, setOpeningCash] = useState("");
+  const [selectedRegisterId, setSelectedRegisterId] = useState("");
+  const [closingCash, setClosingCash] = useState("");
+  const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
+  const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const checkoutAttemptKey = React.useRef<string | null>(null);
+  const queryClient = useQueryClient();
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
@@ -77,7 +108,41 @@ export default function POSPage() {
     isLoading: isLoadingTaxSettings,
     isError: hasTaxSettingsError,
   } = useGetPosTaxSettings();
+  const { data: currentShiftResponse, isLoading: isLoadingShift } = useGetCurrentRegisterShift();
+  const { data: registersResponse } = useListRegisters();
+  const currentShift = (currentShiftResponse as { shift?: RegisterShift | null } | undefined)?.shift ?? null;
+  const registers = ((registersResponse as { data?: RegisterOption[] } | undefined)?.data ?? []);
   const products = productsData?.data || [];
+
+  React.useEffect(() => {
+    if (!selectedRegisterId && registers.length === 1) {
+      setSelectedRegisterId(registers[0].id);
+    }
+  }, [registers, selectedRegisterId]);
+
+  const openShift = useOpenRegisterShift({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
+        setOpeningCash("");
+        setShiftDialogOpen(false);
+        toast.success("Cashier day started.");
+      },
+      onError: (error) => toast.error(error.message || "Could not start the cashier day."),
+    },
+  });
+
+  const closeShift = useCloseRegisterShift({
+    mutation: {
+      onSuccess: (shift) => {
+        queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
+        setClosingCash("");
+        setSettlementDialogOpen(false);
+        toast.success(`Settlement complete. Variance: ${formatCurrency(Number((shift as RegisterShift).variance ?? 0))}`);
+      },
+      onError: (error) => toast.error(error.message || "Could not settle the cashier day."),
+    },
+  });
 
   const createSale = useCreateSale({
     mutation: {
@@ -234,7 +299,7 @@ export default function POSPage() {
   const taxRate = posTaxSettings?.taxRate ?? 0;
   const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
-  const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError;
+  const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError || isLoadingShift || !currentShift;
   const parsedCashTendered = Number.parseFloat(cashTendered);
   const cashPaymentInvalid = paymentMethod === "cash" && (
     !cashTendered
@@ -243,7 +308,7 @@ export default function POSPage() {
   );
 
   const handleCheckout = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || !currentShift) return;
     const idempotencyKey = checkoutAttemptKey.current ?? createCheckoutIdempotencyKey();
     checkoutAttemptKey.current = idempotencyKey;
     
@@ -262,9 +327,32 @@ export default function POSPage() {
           unitPrice: item.unitPrice,
           reason: item.reason,
         })),
-        cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined
+        cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined,
+        storeId: currentShift.storeId,
+        registerId: currentShift.registerId,
+        shiftId: currentShift.id,
       }
     });
+  };
+
+  const handleStartShift = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const amount = Number(openingCash);
+    if (!selectedRegisterId || !Number.isFinite(amount) || amount < 0) {
+      toast.error("Choose a register and enter a valid opening float.");
+      return;
+    }
+    openShift.mutate({ data: { registerId: selectedRegisterId, openingCash: amount } });
+  };
+
+  const handleSettleShift = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const amount = Number(closingCash);
+    if (!currentShift || !Number.isFinite(amount) || amount < 0) {
+      toast.error("Enter the physical cash counted at clock out.");
+      return;
+    }
+    closeShift.mutate({ id: currentShift.id, data: { closingCash: amount } });
   };
 
   React.useEffect(() => {
@@ -284,6 +372,37 @@ export default function POSPage() {
     <div className="h-[calc(100vh-theme(spacing.16)-theme(spacing.8))] flex gap-6 overflow-hidden relative">
       {/* Products Grid */}
       <div className="flex-1 flex flex-col min-w-0 bg-background rounded-xl border border-border/50 overflow-hidden shadow-sm">
+        <div className={`border-b px-4 py-3 ${currentShift ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/10"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${currentShift ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-700"}`}>
+                <Clock3 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">
+                  {isLoadingShift ? "Checking cashier day..." : currentShift ? "Cashier day is active" : "Cashier day not started"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {currentShift
+                    ? `Opening float ${formatCurrency(Number(currentShift.openingCash))}`
+                    : "Start a register shift before processing sales."}
+                </p>
+              </div>
+            </div>
+            {currentShift ? (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setSettlementDialogOpen(true)}>
+                <LogOut className="h-4 w-4" /> Clock out & settle
+              </Button>
+            ) : (
+              <Button size="sm" className="gap-2" onClick={() => setShiftDialogOpen(true)} disabled={registers.length === 0}>
+                <LogIn className="h-4 w-4" /> Start day
+              </Button>
+            )}
+          </div>
+          {!isLoadingShift && !currentShift && registers.length === 0 && (
+            <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">No registers are configured yet. Ask a manager to set one up.</p>
+          )}
+        </div>
         <div className="p-4 border-b border-border/50 flex gap-4 bg-card">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -452,6 +571,65 @@ export default function POSPage() {
       </div>
 
       {/* Payment Modal */}
+      <Dialog
+        open={shiftDialogOpen}
+        onOpenChange={setShiftDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Start cashier day</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-5" onSubmit={handleStartShift}>
+            <p className="text-sm text-muted-foreground">Choose the register and record the physical cash placed in the drawer before sales begin.</p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Register</label>
+              <Select value={selectedRegisterId} onValueChange={setSelectedRegisterId}>
+                <SelectTrigger><SelectValue placeholder="Choose a register" /></SelectTrigger>
+                <SelectContent>
+                  {registers.map((register) => (
+                    <SelectItem key={register.id} value={register.id}>{register.name} ({register.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="opening-float" className="text-sm font-medium">Opening float</label>
+              <Input id="opening-float" type="number" min="0" step="0.01" value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} placeholder="0.00" required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShiftDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={openShift.isPending}>{openShift.isPending ? "Starting..." : "Start day"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={settlementDialogOpen}
+        onOpenChange={setSettlementDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Clock out & settle</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-5" onSubmit={handleSettleShift}>
+            <p className="text-sm text-muted-foreground">Count all physical cash in the drawer and enter the amount before closing this cashier day.</p>
+            <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Opening float</span><span className="font-medium">{formatCurrency(Number(currentShift?.openingCash ?? 0))}</span></div>
+              <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Expected cash</span><span className="font-medium">Calculated at settlement</span></div>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="closing-cash" className="text-sm font-medium">Physical cash counted</label>
+              <Input id="closing-cash" type="number" min="0" step="0.01" value={closingCash} onChange={(event) => setClosingCash(event.target.value)} placeholder="0.00" required autoFocus />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setSettlementDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={closeShift.isPending}>{closeShift.isPending ? "Settling..." : "Clock out"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={paymentModalOpen}
         onOpenChange={(open) => {
