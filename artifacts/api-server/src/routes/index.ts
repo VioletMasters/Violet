@@ -19,6 +19,7 @@ import billingRouter from "./billing";
 import licenseRouter from "./license";
 import operationsRouter from "./operations";
 import purchasingRouter from "./purchasing";
+import printersRouter from "./printers";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(billingRouter);
 router.use(licenseRouter);
 router.use(operationsRouter);
 router.use(purchasingRouter);
+router.use(printersRouter);
 
 export default router;
