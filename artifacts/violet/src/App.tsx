@@ -19,6 +19,8 @@ import Inventory from './pages/inventory';
 import Customers from './pages/customers';
 import Employees from './pages/employees';
 import Reports from './pages/reports';
+import ReportsCash from './pages/reports/cash';
+import { ReportsLayout } from './pages/reports/layout';
 import Settings from './pages/settings';
 import Advanced from './pages/advanced';
 import Subscription from './pages/subscription';
@@ -58,6 +60,11 @@ function AppRoutes() {
         <Route path="/customers" component={Customers} />
         <Route path="/employees" component={Employees} />
         <Route path="/suppliers" component={Suppliers} />
+        <Route path="/reports/cash">
+          <ReportsLayout>
+            <ReportsCash />
+          </ReportsLayout>
+        </Route>
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
         <Route path="/advanced" component={Advanced} />
