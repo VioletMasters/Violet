@@ -1,0 +1,1302 @@
+I want to make a major but carefully controlled change to Violet Enterprise's account, licensing, subscription, and plan architecture.
+
+IMPORTANT:
+Violet is already built. DO NOT rebuild Violet from scratch.
+
+You must inspect the existing codebase, database schema, authentication system, licensing system, desktop application, admin dashboard, pricing page, and current account-registration flow before making changes.
+
+Preserve all existing functionality that is not directly related to this licensing/plan change.
+
+==================================================
+CURRENT VIOLET SYSTEM
+==================================================
+
+Currently, users must:
+
+1. Sign up for a Violet account.
+2. Receive/obtain a Violet license.
+3. Enter/use that license in the Violet application.
+4. Use Violet based on their licensed access.
+
+The current public pricing page has:
+
+- Free
+- Starter
+- Professional
+- Enterprise
+
+I now want to simplify the customer experience and change the underlying licensing architecture.
+
+==================================================
+NEW VIOLET BUSINESS MODEL
+==================================================
+
+There should be ONE Violet application.
+
+Customers should NOT need to download a separate "Violet Free" application and a separate "Violet Plus" application.
+
+Instead:
+
+VIOLET
+│
+├── FREE
+│   └── Restricted functionality
+│
+└── PAID
+    ├── STARTER
+    ├── PROFESSIONAL
+    └── ENTERPRISE
+
+The customer-facing concept should be:
+
+Violet Free
+Violet Plus
+
+However, internally, the licensing system must still support the different paid plan levels:
+
+- FREE
+- STARTER
+- PROFESSIONAL
+- ENTERPRISE
+
+"Violet Plus" represents the paid/full Violet product, while Starter, Professional, and Enterprise determine the exact paid entitlements.
+
+Do NOT remove the existing Starter, Professional, or Enterprise capabilities from the backend.
+
+Instead, reorganize the licensing system so that:
+
+FREE = Violet Free
+
+STARTER = Violet Plus / Starter
+
+PROFESSIONAL = Violet Plus / Professional
+
+ENTERPRISE = Violet Plus / Enterprise
+
+==================================================
+NEW ACCOUNT REGISTRATION FLOW
+==================================================
+
+The biggest change is that customers should NOT have to purchase anything just to start using Violet Free.
+
+A new customer should be able to:
+
+1. Visit Violet.
+2. Click "Start Free".
+3. Create a Violet account.
+4. Their account is automatically assigned the FREE plan.
+5. Violet automatically provisions a valid FREE license for that account.
+6. They can log into Violet using their account/license.
+7. They immediately have access to the restricted Free version.
+
+There should be NO payment required to obtain the Free license.
+
+There should be NO manual license request required for a normal Free account.
+
+The system should automatically create the license after successful account creation.
+
+==================================================
+LICENSE ARCHITECTURE
+==================================================
+
+The license remains an important part of Violet.
+
+Every Violet account must have a license.
+
+The license must know which account it belongs to and which plan it represents.
+
+At minimum, the license should contain or be associated with:
+
+- License ID
+- License key
+- Account ID
+- Customer/business ID
+- Plan
+- License status
+- Created date
+- Activated date
+- Expiration date if applicable
+- Subscription status
+- Maximum users
+- Maximum registers
+- Maximum branches
+- Maximum products
+- Enabled features
+- Last validation date
+- Last validation timestamp
+- License version
+- Created/updated timestamps
+
+The exact implementation should follow the existing Violet database architecture where possible.
+
+Do not duplicate data unnecessarily if the existing schema already has appropriate relationships.
+
+The important relationship is:
+
+ACCOUNT
+   ↓
+LICENSE
+   ↓
+PLAN
+   ↓
+ENTITLEMENTS
+
+For example:
+
+Account:
+ABC Supermarket
+
+License:
+VL-XXXXXXXX
+
+Plan:
+STARTER
+
+Status:
+ACTIVE
+
+Therefore Violet knows that ABC Supermarket is a Starter customer.
+
+==================================================
+LICENSE STATUS
+==================================================
+
+The license system must support at minimum:
+
+ACTIVE
+SUSPENDED
+EXPIRED
+REVOKED
+TRIAL if already supported
+PENDING if needed
+
+A license must be considered valid only when the account is authorized and the license status permits access.
+
+The server must be authoritative.
+
+Do NOT rely solely on information stored locally inside the desktop application.
+
+A customer must not be able to edit a local configuration file and turn:
+
+FREE → STARTER
+
+or:
+
+FREE → ENTERPRISE
+
+The server/license authority must determine the customer's actual plan.
+
+==================================================
+FREE PLAN
+==================================================
+
+Every newly registered account automatically starts on:
+
+FREE
+
+The Free plan should retain the restrictions we have already discussed.
+
+Use the existing Free limitations where they already exist, but organize them through a centralized entitlement system.
+
+Example:
+
+FREE
+
+- 1 register
+- 1 branch
+- 2 users
+- Up to 250 products
+- Basic inventory
+- Cash/card checkout
+- Basic reports
+- Limited customization
+- Limited customer/supplier functionality
+- No advanced analytics
+- No multi-branch
+- No advanced inventory
+- No priority support
+- No advanced integrations
+- No enterprise functionality
+
+IMPORTANT:
+
+Do not hard-code these restrictions into random UI components.
+
+Create/use a centralized plan entitlement system.
+
+==================================================
+PAID PLANS
+==================================================
+
+The existing paid plans should remain available internally:
+
+STARTER
+PROFESSIONAL
+ENTERPRISE
+
+These plans should determine the customer's actual feature limits.
+
+For example:
+
+STARTER:
+- 2 registers
+- 1 branch
+- 5 users
+- Up to 2,000 products
+- Advanced inventory
+- Employee tools
+- Supplier tools
+- Detailed reports
+
+PROFESSIONAL:
+- Unlimited registers
+- Up to 3 branches
+- Up to 20 users
+- Unlimited products
+- Multi-branch support
+- Advanced analytics
+- Priority support
+
+ENTERPRISE:
+- Unlimited registers
+- Unlimited products
+- Unlimited branches
+- Custom onboarding
+- White-label capabilities
+- Dedicated support
+- Self-hosting options
+- Enterprise functionality
+
+IMPORTANT:
+
+Use the existing Violet feature definitions and limits where possible rather than blindly replacing them with the examples above.
+
+Inspect the existing implementation first.
+
+==================================================
+VIOLET PLUS
+==================================================
+
+The customer-facing paid product should be referred to as:
+
+Violet Plus
+
+Violet Plus means the customer has a paid Violet license.
+
+Internally, the exact paid tier remains:
+
+STARTER
+PROFESSIONAL
+ENTERPRISE
+
+For example:
+
+Customer sees:
+Violet Plus
+
+System sees:
+plan = STARTER
+
+or:
+
+Customer sees:
+Violet Plus
+
+System sees:
+plan = PROFESSIONAL
+
+or:
+
+Customer sees:
+Violet Plus
+
+System sees:
+plan = ENTERPRISE
+
+This allows us to simplify the marketing while retaining the flexibility of multiple paid plans.
+
+==================================================
+UPGRADE FLOW
+==================================================
+
+A Free customer should be able to upgrade from inside Violet.
+
+Example:
+
+Current plan:
+
+Violet Free
+
+The application should show:
+
+Upgrade to Violet Plus
+
+The customer selects a paid plan:
+
+Starter
+Professional
+Enterprise
+
+Then the customer proceeds through the existing or newly implemented payment process.
+
+DO NOT grant paid functionality merely because the user clicked "Upgrade."
+
+The account should only become paid after the payment/subscription has been successfully confirmed.
+
+The flow should be:
+
+FREE ACCOUNT
+    ↓
+Select paid plan
+    ↓
+Payment
+    ↓
+Payment successfully confirmed
+    ↓
+Subscription activated
+    ↓
+License upgraded
+    ↓
+License plan becomes STARTER/PROFESSIONAL/ENTERPRISE
+    ↓
+Paid features become available
+
+==================================================
+LICENSE UPGRADE
+==================================================
+
+The customer's existing account/license should be upgraded rather than forcing the customer to create an entirely new Violet account.
+
+Example:
+
+Before:
+
+Account:
+ABC Supermarket
+
+License:
+VL-123456
+
+Plan:
+FREE
+
+After successful Starter payment:
+
+Account:
+ABC Supermarket
+
+License:
+VL-123456
+
+Plan:
+STARTER
+
+Status:
+ACTIVE
+
+This is important.
+
+Do not unnecessarily generate a completely unrelated account.
+
+The license should remain associated with the same customer account unless the existing architecture requires a different mechanism.
+
+If the current system requires a new license key when changing plans, that is acceptable, but the new license must remain associated with the same account and customer.
+
+Prefer updating the existing license record if the current architecture safely supports that.
+
+==================================================
+PAYMENT / SUBSCRIPTION ARCHITECTURE
+==================================================
+
+Inspect the current payment/subscription implementation first.
+
+If payment processing already exists, integrate with it rather than replacing it.
+
+If payment processing is not implemented yet, build the licensing architecture so a payment provider can be connected cleanly.
+
+DO NOT store raw credit card information in Violet.
+
+Payment confirmation must be handled securely.
+
+The server should maintain the subscription state.
+
+At minimum, the system should be able to determine:
+
+- unpaid
+- active
+- past due
+- cancelled
+- expired
+- refunded
+- suspended
+
+A paid license should not remain permanently active if the customer's subscription has ended, unless the business rules explicitly allow a grace period.
+
+==================================================
+PLAN ENFORCEMENT
+==================================================
+
+This is extremely important.
+
+Plan restrictions must be enforced SERVER-SIDE.
+
+Do NOT simply hide buttons in the frontend.
+
+For example, if Free allows 250 products:
+
+The UI may hide/disable the "Add Product" option after 250.
+
+BUT the backend must also reject attempts to exceed the limit.
+
+Example:
+
+POST /products
+
+Server checks:
+
+account.plan = FREE
+
+product_count = 250
+
+free_product_limit = 250
+
+Result:
+
+REJECT
+
+"Your Free plan has reached the 250-product limit. Upgrade to Violet Plus to add more products."
+
+The same principle must apply to:
+
+- users
+- registers
+- branches
+- products
+- storage
+- reports
+- analytics
+- integrations
+- API access
+- customization
+- inventory functions
+- multi-branch functions
+- enterprise functionality
+
+Create a centralized entitlement/plan service where possible.
+
+For example:
+
+canUseFeature(account, "advanced_inventory")
+
+getPlanLimit(account, "products")
+
+canCreateUser(account)
+
+canCreateRegister(account)
+
+canCreateBranch(account)
+
+This should prevent plan logic from being duplicated throughout the application.
+
+==================================================
+SUPER ADMIN CONTROL
+==================================================
+
+I need full control as the Violet Super Admin.
+
+The Super Admin dashboard must show:
+
+CUSTOMER
+
+PLAN
+
+LICENSE
+
+LICENSE STATUS
+
+SUBSCRIPTION STATUS
+
+USAGE
+
+ENTITLEMENTS
+
+For example:
+
+ABC Supermarket
+
+Plan:
+STARTER
+
+License:
+VL-XXXXXXXX
+
+License Status:
+ACTIVE
+
+Subscription:
+ACTIVE
+
+Users:
+4 / 5
+
+Registers:
+2 / 2
+
+Branches:
+1 / 1
+
+Products:
+1,438 / 2,000
+
+The Super Admin must be able to:
+
+- View customer
+- View license
+- View current plan
+- Change plan
+- Suspend license
+- Reactivate license
+- Revoke license
+- Extend expiration if applicable
+- View subscription status
+- View usage
+- View enabled features
+- Override specific entitlements if the existing architecture supports this
+- Manually upgrade a customer when appropriate
+- Manually downgrade a customer when appropriate
+
+Every manual plan/license change should be logged in an audit log.
+
+==================================================
+CUSTOMER DASHBOARD
+==================================================
+
+Customers should be able to see their current plan.
+
+For Free:
+
+Your Plan:
+Violet Free
+
+Status:
+Active
+
+Usage:
+
+Products:
+183 / 250
+
+Users:
+2 / 2
+
+Registers:
+1 / 1
+
+Branches:
+1 / 1
+
+Then show:
+
+Upgrade to Violet Plus
+
+For paid users:
+
+Your Plan:
+Violet Plus
+
+Tier:
+Starter
+
+License:
+VL-XXXXXXXX
+
+Status:
+Active
+
+Subscription:
+Active
+
+Usage:
+
+Products:
+1,438 / 2,000
+
+Users:
+4 / 5
+
+etc.
+
+==================================================
+APPLICATION STARTUP
+==================================================
+
+When the Violet desktop application starts:
+
+1. Authenticate the user.
+2. Validate the account.
+3. Validate the license.
+4. Retrieve the authoritative plan.
+5. Retrieve the plan entitlements.
+6. Cache only what is necessary for normal application operation.
+7. Apply the appropriate feature access.
+
+The application should NOT trust a locally stored plan value.
+
+For example, changing:
+
+plan=ENTERPRISE
+
+in a local file must NOT unlock Enterprise.
+
+The server must respond with the actual entitlement.
+
+==================================================
+OFFLINE OPERATION
+==================================================
+
+Inspect Violet's existing offline/local-server architecture.
+
+If Violet supports offline operation, do not break it.
+
+Determine how license validation should work when the POS temporarily loses Internet access.
+
+If offline operation is already supported, implement a secure grace period based on the last successful license validation.
+
+For example, the application may continue operating for a limited period after losing connectivity, depending on the existing architecture and business rules.
+
+Do NOT create an insecure system where a customer can remain permanently offline and bypass licensing.
+
+Document the chosen behavior.
+
+==================================================
+CURRENT CUSTOMERS / MIGRATION
+==================================================
+
+This change must NOT break existing Violet customers.
+
+Inspect the current database and license structure.
+
+Existing customers must be migrated safely.
+
+Determine how their current plans/licenses map to the new system.
+
+For example:
+
+Existing Free → FREE
+
+Existing Starter → STARTER
+
+Existing Professional → PROFESSIONAL
+
+Existing Enterprise → ENTERPRISE
+
+Do NOT automatically downgrade existing paying customers.
+
+Do NOT invalidate existing valid paid licenses.
+
+Create whatever database migration is required.
+
+The migration must be idempotent and safe to run.
+
+==================================================
+PRICING PAGE
+==================================================
+
+The current pricing page shows:
+
+Free
+Starter
+Professional
+Enterprise
+
+I want the customer-facing experience simplified.
+
+The primary customer-facing products should be:
+
+Violet Free
+Violet Plus
+
+However, the paid plan selection may still show:
+
+Starter
+Professional
+Enterprise
+
+if those are the actual pricing tiers.
+
+The page should clearly explain that:
+
+Violet Free:
+Free forever with limited features.
+
+Violet Plus:
+Full Violet functionality, with the available paid tier determining the included limits/features.
+
+Do not remove the underlying Starter, Professional, and Enterprise plan logic.
+
+Do not invent pricing.
+
+Preserve the existing pricing unless I explicitly instruct you to change it.
+
+==================================================
+REGISTRATION
+==================================================
+
+The "Start Free" button should create a normal Violet account.
+
+The customer should NOT have to:
+
+- enter a license manually
+- pay
+- contact an administrator
+- wait for manual approval
+
+unless the existing security architecture requires verification.
+
+After successful registration:
+
+Account created
+↓
+FREE plan assigned
+↓
+FREE license automatically created
+↓
+Account activated
+↓
+Customer can use Violet Free
+
+==================================================
+LICENSE SCREEN
+==================================================
+
+Review the current Violet license activation screen.
+
+Do not remove it blindly.
+
+Instead, determine how it should behave under the new system.
+
+A Free customer should not be forced through an unnecessarily complicated manual license acquisition process.
+
+If a license is automatically generated for them, the application should be able to retrieve/activate it through their authenticated account.
+
+Paid customers should still have a valid license associated with their account.
+
+The license screen should clearly communicate:
+
+License
+Plan
+Status
+Account
+Expiration/subscription status if applicable
+
+==================================================
+SECURITY
+==================================================
+
+Do not trust client-side values for:
+
+- plan
+- license status
+- subscription status
+- feature access
+- product limits
+- user limits
+- branch limits
+- register limits
+
+All important authorization decisions must be validated server-side.
+
+Prevent:
+
+- changing plan IDs through browser developer tools
+- modifying local configuration files
+- modifying local storage
+- changing API requests to claim Enterprise
+- manipulating license values
+- bypassing product limits
+- bypassing user limits
+- bypassing branch limits
+
+Use the existing authentication/authorization architecture wherever possible.
+
+==================================================
+AUDIT LOGGING
+==================================================
+
+Create/extend an audit log for important licensing events.
+
+Log:
+
+- license created
+- license activated
+- plan changed
+- license suspended
+- license reactivated
+- license revoked
+- subscription activated
+- subscription cancelled
+- subscription expired
+- Super Admin manual override
+- important entitlement changes
+
+Include:
+
+- timestamp
+- account
+- actor
+- previous value
+- new value
+- reason when applicable
+
+==================================================
+API DESIGN
+==================================================
+
+Inspect the existing API architecture.
+
+Do not create duplicate APIs unnecessarily.
+
+Where appropriate, provide a central account/license endpoint such as:
+
+GET /api/account/license
+
+or adapt the existing endpoint.
+
+The response should allow the client to determine authorized functionality without exposing sensitive information.
+
+Conceptually:
+
+{
+  account: {...},
+  license: {
+    status: "ACTIVE",
+    plan: "STARTER"
+  },
+  entitlements: {
+    products: 2000,
+    users: 5,
+    registers: 2,
+    branches: 1,
+    advancedInventory: true,
+    analytics: false
+  }
+}
+
+Use the actual Violet API conventions rather than blindly copying this example.
+
+==================================================
+DATABASE
+==================================================
+
+Inspect the existing database schema before making changes.
+
+Do not create duplicate tables if equivalent tables already exist.
+
+If necessary, create/update structures for:
+
+plans
+licenses
+subscriptions
+entitlements
+account plan assignments
+license audit history
+
+Use foreign keys and appropriate indexes.
+
+The database must enforce data integrity where practical.
+
+==================================================
+SUPER ADMIN PLAN MANAGEMENT
+==================================================
+
+I want to be able to change plans from the Super Admin dashboard.
+
+Example:
+
+Customer:
+ABC Supermarket
+
+Current:
+FREE
+
+Action:
+
+Change Plan
+
+Options:
+
+FREE
+STARTER
+PROFESSIONAL
+ENTERPRISE
+
+If I change:
+
+FREE → STARTER
+
+the system must update the authoritative license/account entitlement.
+
+If I change:
+
+STARTER → PROFESSIONAL
+
+the customer's available functionality should immediately reflect Professional.
+
+Do not require reinstalling Violet.
+
+Do not require creating a new account.
+
+Do not require manually editing the customer's computer.
+
+==================================================
+IMPORTANT ARCHITECTURAL PRINCIPLE
+==================================================
+
+There should be ONE Violet codebase and ONE primary Violet desktop application.
+
+Do NOT create:
+
+VioletFree.exe
+VioletPlus.exe
+
+unless there is an unavoidable technical reason.
+
+Prefer:
+
+Violet Enterprise.exe
+
+with the account/license determining access.
+
+The same application can therefore be:
+
+Violet Free
+
+for one customer and:
+
+Violet Plus / Starter
+
+for another customer.
+
+==================================================
+LOCAL / SELF-HOSTED VIOLET
+==================================================
+
+Violet also supports a local/server architecture where cashier systems connect to a Violet server.
+
+Do NOT break this architecture.
+
+The licensing system must work correctly with:
+
+- local server
+- LAN clients
+- remote server
+- self-hosted deployments where supported
+- desktop client
+- web dashboard
+
+Determine where license validation should occur based on the existing architecture.
+
+The central authoritative licensing/account service must not be bypassable simply because the POS server is running locally.
+
+==================================================
+DO NOT BREAK EXISTING FUNCTIONALITY
+==================================================
+
+Before changing anything, inspect:
+
+- authentication
+- registration
+- login
+- license generation
+- license activation
+- license validation
+- account database
+- subscription database
+- pricing page
+- desktop application
+- server
+- API
+- Super Admin
+- customer dashboard
+- feature gating
+- Docker configuration
+- environment variables
+- existing migrations
+- existing tests
+
+Make changes incrementally.
+
+Do not delete working functionality simply because it is not immediately needed.
+
+==================================================
+TESTING
+==================================================
+
+Create comprehensive tests for the new licensing architecture.
+
+At minimum test:
+
+1. New user registers.
+2. Account automatically receives FREE plan.
+3. FREE license is automatically generated.
+4. User can log into Violet.
+5. Free restrictions are enforced.
+6. Free user cannot bypass limits through API calls.
+7. Free user cannot manipulate the client to become Enterprise.
+8. Free user can select a paid plan.
+9. Payment confirmation changes subscription state.
+10. Successful payment upgrades the license.
+11. STARTER entitlements become active.
+12. PROFESSIONAL entitlements work.
+13. ENTERPRISE entitlements work.
+14. Expired subscription removes paid access according to business rules.
+15. Suspended license blocks appropriate functionality.
+16. Revoked license blocks appropriate functionality.
+17. Super Admin can change a plan.
+18. Super Admin changes are audited.
+19. Existing customers remain valid.
+20. Existing paid customers are not accidentally downgraded.
+21. Desktop application receives the correct plan.
+22. LAN/server clients receive the correct plan.
+23. Local/self-hosted architecture remains functional.
+24. Application cannot unlock paid features through client-side manipulation.
+
+==================================================
+MIGRATION SAFETY
+==================================================
+
+Before modifying the database:
+
+- inspect current schema
+- identify existing license records
+- identify existing customer accounts
+- identify current plan values
+- create a proper migration
+- ensure rollback considerations are documented
+
+Do not destroy existing production/customer data.
+
+If seed/demo data is required, clearly separate it from production data.
+
+==================================================
+IMPLEMENTATION PROCESS
+==================================================
+
+Do NOT immediately start changing files.
+
+First inspect the existing implementation and determine:
+
+1. How accounts are currently created.
+2. How licenses are currently generated.
+3. How licenses are validated.
+4. Where plan information currently lives.
+5. How Starter/Professional/Enterprise currently work.
+6. How the desktop application obtains license information.
+7. How the server validates licenses.
+8. How subscriptions currently work.
+9. How the Super Admin manages customers/licenses.
+10. Which database tables are involved.
+
+Then provide a concise implementation plan.
+
+After that, implement the changes.
+
+Do not stop after creating the plan.
+
+Actually implement the complete working system.
+
+==================================================
+FINAL ACCEPTANCE CRITERIA
+==================================================
+
+The finished system should behave like this:
+
+NEW CUSTOMER
+
+Customer visits Violet.
+
+Clicks:
+
+"Start Free"
+
+Creates account.
+
+Violet automatically creates:
+
+Account
++
+FREE license
++
+FREE plan entitlements
+
+Customer opens Violet.
+
+Violet validates:
+
+Account
++
+License
++
+Plan
+
+Customer receives:
+
+Violet Free
+
+with the appropriate restrictions.
+
+--------------------------------------------------
+
+UPGRADE
+
+Customer clicks:
+
+"Upgrade to Violet Plus"
+
+Chooses:
+
+Starter
+or
+Professional
+or
+Enterprise
+
+Customer pays.
+
+Payment is confirmed.
+
+Violet updates:
+
+Subscription
++
+License
++
+Plan
++
+Entitlements
+
+Customer now receives:
+
+Violet Plus
+
+with the selected paid tier.
+
+--------------------------------------------------
+
+SUPER ADMIN
+
+I can see:
+
+Customer
+License
+Plan
+Subscription
+Status
+Usage
+Features
+
+I can manage:
+
+FREE
+STARTER
+PROFESSIONAL
+ENTERPRISE
+
+and suspend/revoke/reactivate licenses as needed.
+
+--------------------------------------------------
+
+SECURITY
+
+The customer cannot simply change their local files or API request and turn Free into Enterprise.
+
+The server is authoritative.
+
+--------------------------------------------------
+
+APPLICATION
+
+There is still ONE Violet desktop application.
+
+The license/account determines whether it operates as:
+
+Violet Free
+
+or
+
+Violet Plus
+
+Do not create separate applications unless technically unavoidable.
+
+==================================================
+GIT / DEPLOYMENT
+==================================================
+
+After implementation:
+
+1. Run all relevant tests.
+2. Run database migration checks.
+3. Verify the application builds.
+4. Verify the desktop application builds.
+5. Verify Free registration.
+6. Verify automatic Free license creation.
+7. Verify license validation.
+8. Verify plan enforcement.
+9. Verify paid-plan upgrade logic.
+10. Verify Super Admin controls.
+11. Verify existing customer migration.
+12. Verify local/server functionality.
+
+Then show me exactly what files were changed and why.
+
+Do NOT create a Git tag.
+
+Do NOT create a GitHub release.
+
+I will handle the release/tag separately after the implementation is verified.
+
+If GitHub pushing is available through the authorized Replit integration, commit and push the completed changes to the existing repository's main branch.
+
+Repository:
+
+https://github.com/VioletMasters/Violet.git
+
+Do not force-push unless explicitly instructed.
+
+If GitHub authentication is unavailable, do not put credentials or tokens into the project. Tell me exactly what authentication issue occurred.
+
+==================================================
+IMPORTANT
+==================================================
+
+This is a production POS licensing system.
+
+Prioritize:
+
+- security
+- data integrity
+- backward compatibility
+- server-side authorization
+- reliable license validation
+- clear separation between account, license, subscription, plan, and entitlements
+- maintainability
+- scalability
+
+Do not implement a superficial UI-only solution.
+
+I need the actual account/license/plan architecture changed so that it is reliable for real customers.
+
+Before finishing, give me a clear summary of:
+
+1. Current architecture discovered.
+2. New architecture implemented.
+3. Database changes.
+4. License changes.
+5. Free registration flow.
+6. Paid upgrade flow.
+7. Plan enforcement.
+8. Super Admin controls.
+9. Existing customer migration.
+10. Security measures.
+11. Tests performed.
+12. Any remaining limitations or decisions I need to make.
