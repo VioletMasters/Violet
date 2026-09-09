@@ -1788,6 +1788,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Settings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update business settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
 
   # ─── Printers ───────────────────────────────────────────────────────────────
   /printers:
@@ -1932,23 +1949,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PrintJob"
-    patch:
-      operationId: updateSettings
-      tags: [settings]
-      summary: Update business settings
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SettingsUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Settings"
 
   # ─── Super Admin ────────────────────────────────────────────────────────────
   /admin/stats:
