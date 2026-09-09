@@ -7,6 +7,13 @@ import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Banknote, ClipboardCheck, TrendingDown, TrendingUp } from "lucide-react";
 
+function cashEventDisplayAmount(event: any): string {
+  const amount = Math.abs(Number(event.amount ?? 0));
+  if (event.type === "sale") return `+${formatCurrency(amount)}`;
+  if (["drop", "payout", "refund"].includes(event.type)) return `-${formatCurrency(amount)}`;
+  return `${Number(event.amount ?? 0) >= 0 ? "+" : "-"}${formatCurrency(amount)}`;
+}
+
 export default function ReportsCash() {
   const { startDate, endDate, storeId, registerId, cashierId } = useReportsContext();
 
@@ -47,7 +54,7 @@ export default function ReportsCash() {
               <div className="h-8 bg-muted rounded animate-pulse w-24" />
             ) : (
               <div className="text-2xl font-display font-bold text-foreground">
-                {formatCurrency(events.filter((e: any) => e.type === 'drop').reduce((sum: number, e: any) => sum + Number(e.amount), 0))}
+                {formatCurrency(events.filter((e: any) => e.type === 'drop').reduce((sum: number, e: any) => sum + Math.abs(Number(e.amount)), 0))}
               </div>
             )}
           </CardContent>
@@ -65,7 +72,7 @@ export default function ReportsCash() {
               <div className="h-8 bg-muted rounded animate-pulse w-24" />
             ) : (
               <div className="text-2xl font-display font-bold text-foreground">
-                {formatCurrency(events.filter((e: any) => e.type === 'payout').reduce((sum: number, e: any) => sum + Number(e.amount), 0))}
+                {formatCurrency(events.filter((e: any) => e.type === 'payout').reduce((sum: number, e: any) => sum + Math.abs(Number(e.amount)), 0))}
               </div>
             )}
           </CardContent>
@@ -103,8 +110,8 @@ export default function ReportsCash() {
                         {Number(e.count ?? 0)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-bold">
-                      <span className={e.type === 'drop' ? 'text-emerald-500' : 'text-destructive'}>
-                          {e.type === 'drop' ? '+' : '-'}{formatCurrency(e.amount)}
+                      <span className={e.type === 'sale' ? 'text-emerald-500' : 'text-destructive'}>
+                          {cashEventDisplayAmount(e)}
                       </span>
                     </td>
                   </tr>
