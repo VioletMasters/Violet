@@ -1,10 +1,10 @@
 import { Router, type Request } from "express";
 import {
-  auditEventsTable, cashEventsTable, db, registersTable, registerShiftsTable, storesTable,
+  auditEventsTable, cashEventsTable, db, registersTable, registerShiftsTable, salesTable, storesTable,
   usersTable,
 } from "@workspace/db";
 import { alias } from "drizzle-orm/pg-core";
-import { and, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { isManagerRole, requireAuth, requireManagerAccess } from "../middlewares/auth";
 import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
@@ -313,7 +313,16 @@ router.post("/register-shifts/:id/close", requireAuth, async (req, res): Promise
     }
     if (shift.status === "closed") return { kind: "closed" as const, shift };
     const [cash] = await tx.select({ total: sql<string>`COALESCE(SUM(${cashEventsTable.amount}::numeric), 0)` })
-      .from(cashEventsTable).where(and(eq(cashEventsTable.tenantId, req.tenantId!), eq(cashEventsTable.shiftId, id)));
+      .from(cashEventsTable)
+      .leftJoin(salesTable, and(
+        eq(cashEventsTable.saleId, salesTable.id),
+        eq(salesTable.tenantId, req.tenantId!),
+      ))
+      .where(and(
+        eq(cashEventsTable.tenantId, req.tenantId!),
+        eq(cashEventsTable.shiftId, id),
+        or(isNull(cashEventsTable.saleId), ne(salesTable.status, "voided")),
+      ));
     const expectedCash = Number(shift.openingCash) + Number(cash?.total ?? 0);
     const variance = closingCash - expectedCash;
     const [closed] = await tx.update(registerShiftsTable).set({

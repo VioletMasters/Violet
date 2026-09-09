@@ -1035,17 +1035,60 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     `) === "1",
     "Voided report fixture did not persist its voided item.",
   );
+  const voidedNonCashSale = await createCashRegressionSale(token, {
+    idempotencyKey: `voided-non-cash-report-${randomUUID()}`,
+    paymentMethod: "card",
+    voidedItems: [{
+      productId: shiftRegressionProductId,
+      quantity: 1,
+      unitPrice: 12.5,
+      reason: "Removed before checkout",
+    }],
+  });
+  assert(
+    voidedNonCashSale.response.status === 201,
+    `Voided non-cash report fixture sale failed: ${voidedNonCashSale.response.status} ${JSON.stringify(voidedNonCashSale.body)}`,
+  );
+  assert(
+    runSql(`
+      SELECT COUNT(*) FROM sale_items
+      WHERE sale_id = ${sqlString(voidedNonCashSale.body.id)}
+        AND product_id = ${sqlString(shiftRegressionProductId)}
+        AND quantity = 1
+        AND is_voided = true
+        AND void_reason = 'Removed before checkout';
+    `) === "1",
+    "Voided non-cash report fixture did not persist its voided item.",
+  );
   runSql(`
     UPDATE sales
     SET status = 'voided'
-    WHERE tenant_id = ${sqlString(tenantId)} AND id = ${sqlString(voidedSale.body.id)};
+    WHERE tenant_id = ${sqlString(tenantId)}
+      AND id IN (${sqlString(voidedSale.body.id)}, ${sqlString(voidedNonCashSale.body.id)});
     INSERT INTO sale_voids (
       tenant_id, sale_id, reason, voided_by, approved_by, snapshot
     ) VALUES (
       ${sqlString(tenantId)}, ${sqlString(voidedSale.body.id)}, 'Removed before checkout',
       ${sqlString(userId)}, ${sqlString(userId)}, '{}'::jsonb
+    ), (
+      ${sqlString(tenantId)}, ${sqlString(voidedNonCashSale.body.id)}, 'Removed before checkout',
+      ${sqlString(userId)}, ${sqlString(userId)}, '{}'::jsonb
     );
   `);
+
+  const closedVoidedFixtureShift = await request(`/api/register-shifts/${voidedSale.body.shiftId}/close`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ closingCash: 0 }),
+  });
+  assert(
+    closedVoidedFixtureShift.response.status === 200,
+    `Could not close the voided fixture shift: ${closedVoidedFixtureShift.response.status} ${JSON.stringify(closedVoidedFixtureShift.body)}`,
+  );
+  assert(
+    Number(closedVoidedFixtureShift.body?.expectedCash) === 0,
+    `Voided fixture shift counted voided cash: expected 0 after matching refunds, got ${closedVoidedFixtureShift.body?.expectedCash}`,
+  );
 
   const refundSaleIds = [validSale.body.id, nonCashSale.body.id, splitSale.body.id]
     .map((saleId) => sqlString(saleId))
@@ -1065,6 +1108,11 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     reportedRefundTotal === expectedRefundTotal,
     `Cash report must include only cash refund portions: expected ${expectedRefundTotal}, got ${reportedRefundTotal}`,
   );
+  const reportedSaleTotal = cashReport.body?.data?.find((row) => row.type === "sale")?.amount;
+  assert(
+    reportedSaleTotal === 6512.5,
+    `Cash report must exclude the voided cash sale: expected 6512.50 including the earlier register fixture, got ${reportedSaleTotal}`,
+  );
 
   const summary = await request("/api/reports/summary?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z", {
     headers: refundHeaders,
@@ -1079,6 +1127,7 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     summary.body?.totalRefunds === expectedFinancialRefundTotal,
     `Financial summary must retain all refund totals: expected ${expectedFinancialRefundTotal}, got ${summary.body?.totalRefunds}`,
   );
+  assert(summary.body?.transactions === 4, `Financial summary must exclude both voided sales, got ${summary.body?.transactions} transactions.`);
 
   const reportHeaders = {
     Authorization: `Bearer ${token}`,
@@ -1090,6 +1139,11 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     { sale: splitSale, status: "refunded", voidedItems: "" },
     {
       sale: voidedSale,
+      status: "voided",
+      voidedItems: "Register Shift Regression Product ×1 (Removed before checkout)",
+    },
+    {
+      sale: voidedNonCashSale,
       status: "voided",
       voidedItems: "Register Shift Regression Product ×1 (Removed before checkout)",
     },
@@ -1129,13 +1183,19 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
     assert(filtered.response.status === 200, `${status} export filter failed: ${filtered.response.status}`);
     const rows = parseCsvRows(filtered.body);
     assert(
-      rows.length === (status === "refunded" ? 3 : 1),
+      rows.length === (status === "refunded" ? 3 : 2),
       `${status} export filter returned ${rows.length} rows.`,
     );
     assert(
       rows.some((row) => row.receiptNumber === includedSale.body.receiptNumber),
       `${status} export filter omitted ${includedSale.body.receiptNumber}.`,
     );
+    if (status === "voided") {
+      assert(
+        rows.some((row) => row.receiptNumber === voidedNonCashSale.body.receiptNumber),
+        `Voided export filter omitted ${voidedNonCashSale.body.receiptNumber}.`,
+      );
+    }
     for (const excludedSale of excludedSales) {
       assert(
         !rows.some((row) => row.receiptNumber === excludedSale.body.receiptNumber),

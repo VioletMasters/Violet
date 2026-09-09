@@ -4,7 +4,7 @@ import {
   refundsTable, refundItemsTable, registersTable, saleItemsTable, salePaymentsTable, salesTable,
   storesTable, productsTable, usersTable, settingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
 import { FINANCIAL_DEFINITIONS, toCsv, toPdf, toXlsx } from "../lib/reporting";
 import { summarizeCashTender, type CashTenderSummary } from "../lib/cashTender";
@@ -316,7 +316,16 @@ router.get("/reports/cash", requireManagerAccess, async (req, res): Promise<void
   if (query.storeId) conditions.push(eq(cashEventsTable.storeId, query.storeId));
   if (query.registerId) conditions.push(eq(cashEventsTable.registerId, query.registerId));
   const rows = await db.select({ type: cashEventsTable.type, amount: sql<string>`SUM(${cashEventsTable.amount}::numeric)`, count: sql<number>`COUNT(*)` })
-    .from(cashEventsTable).where(and(...conditions)).groupBy(cashEventsTable.type);
+    .from(cashEventsTable)
+    .leftJoin(salesTable, and(
+      eq(cashEventsTable.saleId, salesTable.id),
+      eq(salesTable.tenantId, req.tenantId!),
+    ))
+    .where(and(
+      ...conditions,
+      or(isNull(cashEventsTable.saleId), ne(salesTable.status, "voided")),
+    ))
+    .groupBy(cashEventsTable.type);
   res.json({ data: rows.map((r) => ({ ...r, amount: money(r.amount), count: Number(r.count) })) });
 });
 
