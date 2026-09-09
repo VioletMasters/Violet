@@ -235,6 +235,12 @@ export default function POSPage() {
   const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
   const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError;
+  const parsedCashTendered = Number.parseFloat(cashTendered);
+  const cashPaymentInvalid = paymentMethod === "cash" && (
+    !cashTendered
+    || !Number.isFinite(parsedCashTendered)
+    || parsedCashTendered < total
+  );
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -486,7 +492,7 @@ export default function POSPage() {
 
             {paymentMethod === "cash" && (
               <div className="space-y-3 p-4 bg-secondary rounded-lg mb-6 border border-border/50">
-                <label className="text-sm font-medium">Cash Tendered</label>
+                <label className="text-sm font-medium">Cash Received</label>
                 <Input 
                   type="number" 
                   step="0.01" 
@@ -495,11 +501,18 @@ export default function POSPage() {
                   value={cashTendered}
                   onChange={(e) => setCashTendered(e.target.value)}
                   autoFocus
+                  required
                 />
-                {cashTendered && parseFloat(cashTendered) >= total && (
+                {!cashTendered && (
+                  <p className="text-xs text-muted-foreground">Enter the amount the customer handed over.</p>
+                )}
+                {cashTendered && parsedCashTendered < total && (
+                  <p className="text-xs text-destructive">Cash received must cover the total due.</p>
+                )}
+                {cashTendered && parsedCashTendered >= total && (
                   <div className="flex justify-between text-sm pt-2 text-green-500 font-medium">
                     <span>Change Due:</span>
-                    <span>{formatCurrency(parseFloat(cashTendered) - total)}</span>
+                    <span>{formatCurrency(parsedCashTendered - total)}</span>
                   </div>
                 )}
               </div>
@@ -518,7 +531,7 @@ export default function POSPage() {
             <Button 
               className="w-full sm:w-auto"
               onClick={handleCheckout}
-              disabled={checkoutUnavailable || createSale.isPending || (paymentMethod === "cash" && !!cashTendered && parseFloat(cashTendered) < total)}
+              disabled={checkoutUnavailable || createSale.isPending || cashPaymentInvalid}
             >
               {createSale.isPending ? "Processing..." : "Complete Sale"}
             </Button>
