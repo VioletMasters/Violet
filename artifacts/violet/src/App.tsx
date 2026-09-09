@@ -32,6 +32,14 @@ function DefaultAppRoute() {
   return <Redirect to={user?.role === "super_admin" ? "/admin" : "/pos"} />;
 }
 
+function CashReportsRoute() {
+  return (
+    <ReportsLayout>
+      <ReportsCash />
+    </ReportsLayout>
+  );
+}
+
 function RootRoute() {
   const { token, tenant, user } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
@@ -60,11 +68,7 @@ function AppRoutes() {
         <Route path="/customers" component={Customers} />
         <Route path="/employees" component={Employees} />
         <Route path="/suppliers" component={Suppliers} />
-        <Route path="/reports/cash">
-          <ReportsLayout>
-            <ReportsCash />
-          </ReportsLayout>
-        </Route>
+        <Route path="/reports/cash" component={CashReportsRoute} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
         <Route path="/advanced" component={Advanced} />
