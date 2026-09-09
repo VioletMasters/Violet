@@ -3100,6 +3100,11 @@ components:
           type: number
         imageUrl:
           type: ["string", "null"]
+        printDestination:
+          type: string
+          default: customer_receipt
+        warehouseLocation:
+          type: ["string", "null"]
 
     SalesTrendPoint:
       type: object
@@ -3294,6 +3299,11 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: string
+        printDestination:
+          type: string
+          default: customer_receipt
+        warehouseLocation:
+          type: string
 
     ProductImportInput:
       type: object
@@ -3325,6 +3335,10 @@ components:
               category:
                 type: string
               brand:
+                type: string
+              printDestination:
+                type: string
+              warehouseLocation:
                 type: string
 
     ProductImportResponse:
@@ -3377,6 +3391,10 @@ components:
         brandId:
           type: ["string", "null"]
         imageUrl:
+          type: string
+        printDestination:
+          type: string
+        warehouseLocation:
           type: string
         isActive:
           type: boolean

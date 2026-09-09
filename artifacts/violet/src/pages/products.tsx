@@ -41,6 +41,8 @@ const productSchema = z.object({
   minStock: z.coerce.number().int().min(0),
   categoryId: z.string().optional().or(z.literal("none")),
   brandId: z.string().optional().or(z.literal("none")),
+  printDestination: z.string().default("customer_receipt"),
+  warehouseLocation: z.string().optional().or(z.literal("")),
 });
 
 type ProductForm = z.infer<typeof productSchema>;
@@ -402,6 +404,7 @@ export default function ProductsPage() {
     setMarkupPercentage("");
     reset({
       name: "", sku: "", price: 0, costPrice: 0, stock: 0, minStock: 5, categoryId: "none", brandId: "none"
+      , printDestination: "customer_receipt", warehouseLocation: ""
     });
     setIsSheetOpen(true);
   };
@@ -448,6 +451,8 @@ export default function ProductsPage() {
       minStock: product.minStock || 0,
       categoryId: product.categoryId || "none",
       brandId: product.brandId || "none",
+      printDestination: product.printDestination || "customer_receipt",
+      warehouseLocation: product.warehouseLocation || "",
     });
     setIsSheetOpen(true);
   };
@@ -462,6 +467,7 @@ export default function ProductsPage() {
       costPrice: data.costPrice === "" ? undefined : Number(data.costPrice),
       categoryId: data.categoryId === "none" ? null : data.categoryId,
       brandId: data.brandId === "none" ? null : data.brandId,
+      warehouseLocation: data.warehouseLocation || null,
     };
 
     if (editingProduct) {
@@ -743,6 +749,26 @@ export default function ProductsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <Label>Print destination</Label>
+              <Select value={watch("printDestination")} onValueChange={(value) => setValue("printDestination", value, { shouldDirty: true })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="customer_receipt">Customer receipt</SelectItem>
+                  <SelectItem value="warehouse">Warehouse ticket</SelectItem>
+                  <SelectItem value="kitchen">Kitchen ticket</SelectItem>
+                  <SelectItem value="packing">Packing ticket</SelectItem>
+                  <SelectItem value="office">Office ticket</SelectItem>
+                  <SelectItem value="custom">Custom ticket</SelectItem>
+                  <SelectItem value="none">No automatic ticket</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Specific products override their category destination.</p>
+              {watch("printDestination") !== "customer_receipt" && watch("printDestination") !== "none" && (
+                <Input {...register("warehouseLocation")} placeholder="Pick location, e.g. Aisle 4 / Chiller" />
+              )}
             </div>
 
             <SheetFooter className="mt-8 pt-4 border-t">
