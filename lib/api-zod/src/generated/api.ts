@@ -2303,7 +2303,7 @@ export const listPrintJobsQueryLimitDefault = 50;
 export const ListPrintJobsQueryParams = zod.object({
   "status": zod.coerce.string().optional(),
   "saleId": zod.coerce.string().optional(),
-  "limit": zod.coerce.number().int().default(listPrintJobsQueryLimitDefault)
+  "limit": zod.coerce.number().default(listPrintJobsQueryLimitDefault)
 })
 
 export const ListPrintJobsResponse = zod.object({
@@ -2318,7 +2318,7 @@ export const ListPrintJobsResponse = zod.object({
   "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
   "payload": zod.string(),
   "errorMessage": zod.string().nullish(),
-  "retryCount": zod.int(),
+  "retryCount": zod.number(),
   "createdAt": zod.string(),
   "printedAt": zod.string().nullish(),
   "updatedAt": zod.string()
@@ -2344,7 +2344,7 @@ export const RetryPrintJobResponse = zod.object({
   "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
   "payload": zod.string(),
   "errorMessage": zod.string().nullish(),
-  "retryCount": zod.int(),
+  "retryCount": zod.number(),
   "createdAt": zod.string(),
   "printedAt": zod.string().nullish(),
   "updatedAt": zod.string()
@@ -2374,7 +2374,7 @@ export const UpdatePrintJobStatusResponse = zod.object({
   "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
   "payload": zod.string(),
   "errorMessage": zod.string().nullish(),
-  "retryCount": zod.int(),
+  "retryCount": zod.number(),
   "createdAt": zod.string(),
   "printedAt": zod.string().nullish(),
   "updatedAt": zod.string()
