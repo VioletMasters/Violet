@@ -28,7 +28,7 @@ import {
   useListPosProducts,
   useOpenRegisterShift,
 } from "@workspace/api-client-react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package, Clock3, LogIn, LogOut } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ArrowLeftRight, Package, Clock3, LogIn, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -90,6 +90,8 @@ export default function POSPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<SaleInputPaymentMethod>("cash");
   const [cashTendered, setCashTendered] = useState<string>("");
+  const [cashPaymentAmount, setCashPaymentAmount] = useState<string>("");
+  const [cardPaymentAmount, setCardPaymentAmount] = useState<string>("");
   const [isScanning, setIsScanning] = useState(false);
   const [pendingCartRemoval, setPendingCartRemoval] = useState<PendingCartRemoval | null>(null);
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
@@ -156,18 +158,26 @@ export default function POSPage() {
   const createSale = useCreateSale({
     mutation: {
       onSuccess: (sale) => {
-        const tendered = paymentMethod === "cash"
-          ? Number(sale.cashTendered ?? cashTendered)
+        const hasCashPayment = paymentMethod === "cash" || paymentMethod === "mixed";
+        const cashAppliedAmount = paymentMethod === "mixed"
+          ? Number.parseFloat(cashPaymentAmount)
+          : total;
+        const tendered = hasCashPayment
+          ? Number(sale.cashTendered ?? sale.cashReceived ?? cashTendered)
+          : undefined;
+        const change = tendered != null && Number.isFinite(tendered) && Number.isFinite(cashAppliedAmount)
+          ? Math.max(0, tendered - cashAppliedAmount)
           : 0;
-        const change = Number.isFinite(tendered) ? Math.max(0, tendered - total) : 0;
         toast.success("Sale completed successfully!");
         setCart([]);
         setVoidedCartItems([]);
         setPaymentModalOpen(false);
         setCashTendered("");
+        setCashPaymentAmount("");
+        setCardPaymentAmount("");
         setSearch("");
         setPaymentCompletion({
-          tendered: paymentMethod === "cash" ? tendered : undefined,
+          tendered: hasCashPayment && tendered != null && Number.isFinite(tendered) ? tendered : undefined,
           change,
           receiptNumber: sale.receiptNumber,
         });
@@ -310,14 +320,38 @@ export default function POSPage() {
   const total = subtotal + tax;
   const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError || isLoadingShift || !currentShift;
   const parsedCashTendered = Number.parseFloat(cashTendered);
+  const parsedCashPaymentAmount = Number.parseFloat(cashPaymentAmount);
+  const parsedCardPaymentAmount = Number.parseFloat(cardPaymentAmount);
+  const splitPaymentsTotal = (Number.isFinite(parsedCashPaymentAmount) ? parsedCashPaymentAmount : 0)
+    + (Number.isFinite(parsedCardPaymentAmount) ? parsedCardPaymentAmount : 0);
+  const splitPaymentRemaining = total - splitPaymentsTotal;
   const cashPaymentInvalid = paymentMethod === "cash" && (
     !cashTendered
     || !Number.isFinite(parsedCashTendered)
     || parsedCashTendered < total
   );
+  const splitPaymentInvalid = paymentMethod === "mixed" && (
+    !cashPaymentAmount
+    || !cardPaymentAmount
+    || !Number.isFinite(parsedCashPaymentAmount)
+    || !Number.isFinite(parsedCardPaymentAmount)
+    || parsedCashPaymentAmount <= 0
+    || parsedCardPaymentAmount <= 0
+    || Math.abs(splitPaymentsTotal - total) > 0.005
+    || !cashTendered
+    || !Number.isFinite(parsedCashTendered)
+    || parsedCashTendered < parsedCashPaymentAmount
+  );
+  const paymentInvalid = cashPaymentInvalid || splitPaymentInvalid;
 
   const handleCheckout = () => {
     if (cart.length === 0 || !currentShift) return;
+    if (paymentInvalid) {
+      toast.error(paymentMethod === "mixed"
+        ? "Enter valid cash and card amounts that add up to the total."
+        : "Cash received must cover the total due.");
+      return;
+    }
     const idempotencyKey = checkoutAttemptKey.current ?? createCheckoutIdempotencyKey();
     checkoutAttemptKey.current = idempotencyKey;
     
@@ -336,6 +370,19 @@ export default function POSPage() {
           unitPrice: item.unitPrice,
           reason: item.reason,
         })),
+        payments: paymentMethod === "mixed"
+          ? [
+              {
+                method: "cash",
+                amount: parsedCashPaymentAmount,
+                tenderedAmount: parsedCashTendered,
+              },
+              {
+                method: "card",
+                amount: parsedCardPaymentAmount,
+              },
+            ]
+          : undefined,
         cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined,
         storeId: currentShift.storeId,
         registerId: currentShift.registerId,
@@ -656,11 +703,11 @@ export default function POSPage() {
               <div className="text-5xl font-display font-bold text-primary">{formatCurrency(total)}</div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-3 mb-6">
               <Button 
                 type="button"
                 variant={paymentMethod === "cash" ? "default" : "outline"} 
-                className="h-16 flex flex-col gap-1 items-center justify-center"
+                className="h-16 flex flex-col gap-1 items-center justify-center px-2"
                 onClick={() => setPaymentMethod("cash")}
               >
                 <Banknote className="w-6 h-6" />
@@ -669,11 +716,20 @@ export default function POSPage() {
               <Button 
                 type="button"
                 variant={paymentMethod === "card" ? "default" : "outline"} 
-                className="h-16 flex flex-col gap-1 items-center justify-center"
+                className="h-16 flex flex-col gap-1 items-center justify-center px-2"
                 onClick={() => setPaymentMethod("card")}
               >
                 <CreditCard className="w-6 h-6" />
                 <span>Card</span>
+              </Button>
+              <Button
+                type="button"
+                variant={paymentMethod === "mixed" ? "default" : "outline"}
+                className="h-16 flex flex-col gap-1 items-center justify-center px-2"
+                onClick={() => setPaymentMethod("mixed")}
+              >
+                <ArrowLeftRight className="w-6 h-6" />
+                <span>Split</span>
               </Button>
             </div>
 
@@ -704,6 +760,85 @@ export default function POSPage() {
                 )}
               </div>
             )}
+
+            {paymentMethod === "mixed" && (
+              <div className="space-y-4 p-4 bg-secondary rounded-lg mb-6 border border-border/50">
+                <div>
+                  <p className="text-sm font-medium">Split between cash and card</p>
+                  <p className="text-xs text-muted-foreground">Enter how much of the total each tender covers.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label htmlFor="split-cash-amount" className="text-sm font-medium">Cash portion</label>
+                    <Input
+                      id="split-cash-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="h-12 text-lg font-mono bg-background"
+                      placeholder="0.00"
+                      value={cashPaymentAmount}
+                      onChange={(event) => setCashPaymentAmount(event.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="split-card-amount" className="text-sm font-medium">Card portion</label>
+                    <Input
+                      id="split-card-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="h-12 text-lg font-mono bg-background"
+                      placeholder="0.00"
+                      value={cardPaymentAmount}
+                      onChange={(event) => setCardPaymentAmount(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between border-t border-border/60 pt-3 text-sm">
+                  <span className="text-muted-foreground">Amount applied</span>
+                  <span className={Math.abs(splitPaymentRemaining) <= 0.005 ? "font-semibold text-green-500" : "font-semibold"}>
+                    {formatCurrency(splitPaymentsTotal)}
+                  </span>
+                </div>
+                {(!cashPaymentAmount || !cardPaymentAmount) && (
+                  <p className="text-xs text-muted-foreground">Enter an amount for both cash and card.</p>
+                )}
+                {cashPaymentAmount && cardPaymentAmount && Math.abs(splitPaymentRemaining) > 0.005 && (
+                  <p className="text-xs text-destructive">
+                    {splitPaymentRemaining > 0
+                      ? `Add ${formatCurrency(splitPaymentRemaining)} to complete the split.`
+                      : `Reduce the split by ${formatCurrency(Math.abs(splitPaymentRemaining))}.`}
+                  </p>
+                )}
+                <div className="space-y-3 border-t border-border/60 pt-3">
+                  <label htmlFor="split-cash-tendered" className="text-sm font-medium">Cash received</label>
+                  <Input
+                    id="split-cash-tendered"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="h-12 text-lg font-mono bg-background"
+                    placeholder={Number.isFinite(parsedCashPaymentAmount) ? parsedCashPaymentAmount.toString() : "0.00"}
+                    value={cashTendered}
+                    onChange={(event) => setCashTendered(event.target.value)}
+                  />
+                  {!cashTendered && (
+                    <p className="text-xs text-muted-foreground">Enter the cash handed over for the cash portion.</p>
+                  )}
+                  {cashTendered && Number.isFinite(parsedCashPaymentAmount) && parsedCashTendered < parsedCashPaymentAmount && (
+                    <p className="text-xs text-destructive">Cash received must cover the cash portion.</p>
+                  )}
+                  {cashTendered && Number.isFinite(parsedCashPaymentAmount) && parsedCashTendered >= parsedCashPaymentAmount && (
+                    <div className="flex justify-between text-sm text-green-500 font-medium">
+                      <span>Change Due:</span>
+                      <span>{formatCurrency(parsedCashTendered - parsedCashPaymentAmount)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
@@ -718,7 +853,7 @@ export default function POSPage() {
             <Button 
               className="w-full sm:w-auto"
               onClick={handleCheckout}
-              disabled={checkoutUnavailable || createSale.isPending || cashPaymentInvalid}
+              disabled={checkoutUnavailable || createSale.isPending || paymentInvalid}
             >
               {createSale.isPending ? "Processing..." : "Complete Sale"}
             </Button>
