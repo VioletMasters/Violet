@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
   useCreateBrand,
@@ -263,6 +263,8 @@ export default function ProductsPage() {
   const [importRows, setImportRows] = useState<ProductImportRow[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
+  const [priceMode, setPriceMode] = useState<"manual" | "markup">("manual");
+  const [markupPercentage, setMarkupPercentage] = useState("");
   const importFileRef = useRef<HTMLInputElement>(null);
   
   const queryClient = useQueryClient();
@@ -292,6 +294,24 @@ export default function ProductsPage() {
       minStock: 5,
     }
   });
+  const watchedCostPrice = watch("costPrice");
+
+  const markupValue = Number(markupPercentage);
+  const markupError =
+    priceMode === "markup" && (
+      markupPercentage === "" ||
+      !Number.isFinite(markupValue) ||
+      markupValue < 0 ||
+      markupValue > 100
+    );
+
+  useEffect(() => {
+    if (priceMode !== "markup" || editingProduct || markupError) return;
+    const costPrice = Number(watchedCostPrice);
+    if (!Number.isFinite(costPrice) || costPrice < 0) return;
+    const calculatedPrice = Math.round(costPrice * (1 + markupValue / 100) * 100) / 100;
+    setValue("price", calculatedPrice, { shouldDirty: true, shouldValidate: true });
+  }, [editingProduct, markupError, markupValue, priceMode, setValue, watchedCostPrice]);
 
   const refreshCatalog = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["/api/products"] }),
@@ -380,6 +400,8 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
+    setPriceMode("manual");
+    setMarkupPercentage("");
     reset({
       name: "", sku: "", price: 0, costPrice: 0, stock: 0, minStock: 5, categoryId: "none", brandId: "none"
     });
@@ -417,6 +439,8 @@ export default function ProductsPage() {
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
+    setPriceMode("manual");
+    setMarkupPercentage("");
     reset({
       name: product.name,
       sku: product.sku,
@@ -431,6 +455,10 @@ export default function ProductsPage() {
   };
 
   const onSubmit = (data: ProductForm) => {
+    if (!editingProduct && markupError) {
+      toast.error("Enter a markup percentage from 0% to 100%.");
+      return;
+    }
     const payload = {
       ...data,
       costPrice: data.costPrice === "" ? undefined : Number(data.costPrice),
@@ -610,8 +638,13 @@ export default function ProductsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Retail Price ($)</Label>
-                <Input type="number" step="0.01" {...register("price")} />
+                <Label>{priceMode === "markup" && !editingProduct ? "Calculated Retail Price ($)" : "Retail Price ($)"}</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  readOnly={priceMode === "markup" && !editingProduct}
+                  {...register("price")}
+                />
                 {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
               </div>
               <div className="space-y-2">
@@ -619,6 +652,59 @@ export default function ProductsPage() {
                 <Input type="number" step="0.01" {...register("costPrice")} />
               </div>
             </div>
+
+            {!editingProduct && (
+              <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                <div className="space-y-2">
+                  <Label>Retail price method</Label>
+                  <Select
+                    value={priceMode}
+                    onValueChange={(value) => {
+                      const nextMode = value as "manual" | "markup";
+                      setPriceMode(nextMode);
+                      if (nextMode === "markup") {
+                        const costPrice = Number(watchedCostPrice);
+                        setValue("price", Number.isFinite(costPrice) ? costPrice : 0, { shouldValidate: true });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Enter retail price manually</SelectItem>
+                      <SelectItem value="markup">Calculate from cost and markup</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {priceMode === "markup" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="markup-percentage">Markup percentage</Label>
+                    <div className="relative">
+                      <Input
+                        id="markup-percentage"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={markupPercentage}
+                        onChange={(event) => setMarkupPercentage(event.target.value)}
+                        placeholder="e.g. 25"
+                        className="pr-8"
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                    </div>
+                    {markupError ? (
+                      <p className="text-xs text-destructive">Enter a markup between 0% and 100%.</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Retail price = cost × (1 + markup). The price above updates automatically.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
