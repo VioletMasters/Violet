@@ -51,6 +51,20 @@ function scopeRank(printer: typeof printersTable.$inferSelect, storeId: string |
     + (printer.isDefault ? 1 : 0);
 }
 
+export function selectPrinterForSale(
+  candidates: Array<typeof printersTable.$inferSelect>,
+  storeId: string | null,
+  registerId: string | null,
+) {
+  return candidates
+    .filter((printer) => printer.isActive === 1)
+    .filter((printer) => !printer.storeId || printer.storeId === storeId)
+    .filter((printer) => !printer.registerId || printer.registerId === registerId)
+    .sort((a, b) => {
+      const rankDifference = scopeRank(b, storeId, registerId) - scopeRank(a, storeId, registerId);
+      return rankDifference || a.createdAt.getTime() - b.createdAt.getTime();
+    })[0] ?? null;
+}
 async function resolvePrinter(
   tx: Transaction,
   tenantId: string,
@@ -76,13 +90,22 @@ async function resolvePrinter(
   const candidates = await tx.select().from(printersTable)
     .where(and(...scopeConditions))
     .orderBy(asc(printersTable.createdAt));
-  return candidates.sort((a, b) => scopeRank(b, storeId, registerId) - scopeRank(a, storeId, registerId))[0] ?? null;
+  return selectPrinterForSale(candidates, storeId, registerId);
 }
 
 function documentTypeForRole(role: string) {
   return role === "customer_receipt" ? "customer_receipt" : `${role}_ticket`;
 }
 
+export function resolvePrintDestination(
+  productDestination: string,
+  categoryId: string | null,
+  categoryDestinations: Map<string, string>,
+) {
+  return productDestination === "customer_receipt"
+    ? categoryDestinations.get(categoryId ?? "") ?? "customer_receipt"
+    : productDestination;
+}
 function buildJob(
   sale: CreatedSale,
   printer: typeof printersTable.$inferSelect | null,
@@ -104,13 +127,13 @@ function buildJob(
   };
 }
 
-export async function createSalePrintJobs(
-  tx: Transaction,
+export async function buildSalePrintJobPlan(
   sale: CreatedSale,
   lines: SaleLine[],
   categoryDestinations: Map<string, string>,
+  printerForRole: (role: string) => Promise<typeof printersTable.$inferSelect | null>,
 ) {
-  const receiptPrinter = await resolvePrinter(tx, sale.tenantId, "customer_receipt", sale.storeId, sale.registerId);
+  const receiptPrinter = await printerForRole("customer_receipt");
   const receiptPayload = {
     kind: "customer_receipt",
     receiptNumber: sale.receiptNumber,
@@ -132,25 +155,17 @@ export async function createSalePrintJobs(
 
   const routedLines = new Map<string, SaleLine[]>();
   for (const line of lines) {
-    const destination = line.product.printDestination === "customer_receipt"
-      ? categoryDestinations.get(line.product.categoryId ?? "") ?? "customer_receipt"
-      : line.product.printDestination;
+    const destination = resolvePrintDestination(
+      line.product.printDestination,
+      line.product.categoryId,
+      categoryDestinations,
+    );
     if (destination === "customer_receipt" || destination === "none") continue;
     routedLines.set(destination, [...(routedLines.get(destination) ?? []), line]);
   }
 
-  if (routedLines.has("warehouse")) {
-    await tx.insert(warehouseTicketsTable).values({
-      tenantId: sale.tenantId,
-      saleId: sale.id,
-      storeId: sale.storeId,
-      registerId: sale.registerId,
-      status: "pending",
-    }).onConflictDoNothing();
-  }
-
   for (const [role, roleLines] of routedLines) {
-    const printer = await resolvePrinter(tx, sale.tenantId, role, sale.storeId, sale.registerId);
+    const printer = await printerForRole(role);
     jobs.push(buildJob(sale, printer, documentTypeForRole(role), {
       kind: `${role}_ticket`,
       receiptNumber: sale.receiptNumber,
@@ -166,7 +181,32 @@ export async function createSalePrintJobs(
     }, `sale:${sale.id}:${role}`));
   }
 
-  return tx.insert(printJobsTable).values(jobs).onConflictDoNothing().returning();
+  return { jobs, hasWarehouseLines: routedLines.has("warehouse") };
+}
+export async function createSalePrintJobs(
+  tx: Transaction,
+  sale: CreatedSale,
+  lines: SaleLine[],
+  categoryDestinations: Map<string, string>,
+) {
+  const plan = await buildSalePrintJobPlan(
+    sale,
+    lines,
+    categoryDestinations,
+    (role) => resolvePrinter(tx, sale.tenantId, role, sale.storeId, sale.registerId),
+  );
+
+  if (plan.hasWarehouseLines) {
+    await tx.insert(warehouseTicketsTable).values({
+      tenantId: sale.tenantId,
+      saleId: sale.id,
+      storeId: sale.storeId,
+      registerId: sale.registerId,
+      status: "pending",
+    }).onConflictDoNothing();
+  }
+
+  return tx.insert(printJobsTable).values(plan.jobs).onConflictDoNothing().returning();
 }
 
 export async function getSalePrintJobs(tenantId: string, saleId: string) {
