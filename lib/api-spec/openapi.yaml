@@ -3581,6 +3581,11 @@ components:
           description: Internal-only voided lines. Customer-facing receipts must use items only.
           items:
             $ref: "#/components/schemas/SaleItem"
+        printJobs:
+          type: array
+          description: Independent receipt and operational ticket jobs created after the sale commits.
+          items:
+            $ref: "#/components/schemas/PrintJob"
         tenantId:
           type: string
         createdAt:
