@@ -74,11 +74,26 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
     paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
   }
 
-  const result = await Promise.all(sales.map(async (sale) => {
-    const items = await db.select().from(saleItemsTable).where(and(
-      eq(saleItemsTable.saleId, sale.id),
+  const items = sales.length === 0 ? [] : await db.select({
+    item: saleItemsTable,
+  }).from(saleItemsTable)
+    .innerJoin(salesTable, and(
+      eq(saleItemsTable.saleId, salesTable.id),
+      eq(salesTable.tenantId, tenantId),
+    ))
+    .where(and(
+      inArray(saleItemsTable.saleId, sales.map((sale) => sale.id)),
       eq(saleItemsTable.isVoided, false),
     ));
+  const itemsBySale = new Map<string, typeof items>();
+  for (const item of items) {
+    const saleItems = itemsBySale.get(item.item.saleId) ?? [];
+    saleItems.push(item);
+    itemsBySale.set(item.item.saleId, saleItems);
+  }
+
+  const result = sales.map((sale) => {
+    const saleItems = itemsBySale.get(sale.id) ?? [];
     const cashTender = summarizeCashTender(paymentsBySale.get(sale.id) ?? [], {
       paymentMethod: sale.paymentMethod,
       totalAmount: sale.totalAmount,
@@ -99,18 +114,18 @@ router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Pr
       status: sale.status,
       cashierId: sale.cashierId,
       cashierName: "",
-      items: items.map(i => ({
-        productId: i.productId,
-        productName: i.productName,
-        quantity: i.quantity,
-        unitPrice: parseFloat(i.unitPrice),
-        discount: parseFloat(i.discount),
-        totalPrice: parseFloat(i.totalPrice),
+      items: saleItems.map(({ item }) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: parseFloat(item.unitPrice),
+        discount: parseFloat(item.discount),
+        totalPrice: parseFloat(item.totalPrice),
       })),
       tenantId: sale.tenantId,
       createdAt: sale.createdAt.toISOString(),
     };
-  }));
+  });
 
   res.json(result);
 });
