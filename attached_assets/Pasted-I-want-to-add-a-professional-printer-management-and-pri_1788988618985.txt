@@ -1,0 +1,1193 @@
+I want to add a professional printer management and print-routing system to Violet Enterprise.
+
+IMPORTANT:
+Violet is already built. Do NOT rebuild the POS from scratch.
+
+Inspect the existing POS, checkout, receipt, product, inventory, settings, user/employee, branch, and desktop printing architecture first.
+
+Implement this as an integrated Violet feature while preserving all existing functionality.
+
+==================================================
+1. PRINTER MANAGEMENT
+==================================================
+
+Add a new section:
+
+Settings
+→ Printers
+
+The printer settings page should allow the business owner/admin to configure printers used by Violet.
+
+The system should detect printers available to the operating system where technically possible.
+
+For Windows desktop installations, detect installed Windows printers.
+
+Display:
+
+Printer Name
+Printer Type
+Status
+Default
+Test Print
+Actions
+
+Example:
+
+---------------------------------------------
+PRINTERS
+---------------------------------------------
+
+Customer Receipt Printer
+
+Printer:
+Epson TM-T20III
+
+Status:
+Connected
+
+[ Test Print ]
+
+---------------------------------------------
+
+Warehouse Printer
+
+Printer:
+HP LaserJet Pro
+
+Status:
+Connected
+
+[ Test Print ]
+
+==================================================
+2. PRINTER TYPES
+==================================================
+
+At minimum support these printer roles:
+
+CUSTOMER_RECEIPT
+WAREHOUSE
+KITCHEN
+PACKING
+OFFICE
+CUSTOM
+
+The architecture should allow additional printer roles to be added later.
+
+Do not hard-code the system so that only two printers can ever exist.
+
+==================================================
+3. CUSTOMER RECEIPT PRINTER
+==================================================
+
+Allow the administrator to select which printer receives customer receipts.
+
+Example:
+
+Settings
+→ Printers
+→ Customer Receipt Printer
+
+[ Epson TM-T20III ▼ ]
+
+[ Test Print ]
+
+When a sale is completed, the normal customer receipt should print to this configured printer.
+
+If no printer is configured, provide a clear error/message and allow the cashier to manually retry printing.
+
+Do not silently lose the receipt.
+
+==================================================
+4. WAREHOUSE PRINTER
+==================================================
+
+Add a separate printer configuration:
+
+Warehouse Printer
+
+Example:
+
+Warehouse Printer:
+[ HP LaserJet Pro ▼ ]
+
+Enable automatic warehouse printing:
+[ ON ]
+
+Test Print:
+[ Test Warehouse Ticket ]
+
+The warehouse printer should NOT necessarily print a duplicate of the customer receipt.
+
+It should print a dedicated:
+
+WAREHOUSE PICK TICKET
+
+==================================================
+5. SIMULTANEOUS PRINTING
+==================================================
+
+Violet must support printing multiple documents when a sale is completed.
+
+Example:
+
+Customer purchases:
+
+1 × King Size Bed
+2 × Pillows
+1 × Mattress
+
+The system completes the transaction.
+
+Violet should be able to automatically produce:
+
+Customer Receipt
++
+Warehouse Pick Ticket
+
+The customer receipt goes to:
+
+Customer Receipt Printer
+
+The warehouse ticket goes to:
+
+Warehouse Printer
+
+These should be independent print jobs.
+
+The cashier should NOT have to manually click Print twice.
+
+The printing should happen automatically after successful completion of the sale when automatic warehouse printing is enabled.
+
+==================================================
+6. PRODUCT PRINT DESTINATION
+==================================================
+
+Add a product-level print destination.
+
+For each product, allow the administrator to configure:
+
+Print Destination
+
+Options:
+
+Customer Receipt
+Warehouse
+Kitchen
+Packing
+Office
+Custom
+None
+
+However, CUSTOMER_RECEIPT should normally remain the default destination for normal POS products.
+
+Example:
+
+Product:
+
+King Size Bed
+
+Print Destination:
+Warehouse
+
+When this product is sold, the warehouse ticket should include it.
+
+Example:
+
+Product:
+
+Soft Drink
+
+Print Destination:
+None / Customer Receipt only
+
+It should not create an unnecessary warehouse ticket.
+
+==================================================
+7. CATEGORY-LEVEL PRINT DESTINATION
+==================================================
+
+If practical within the existing product/category architecture, also support category-level routing.
+
+Example:
+
+Category:
+Furniture
+
+Default print destination:
+Warehouse
+
+Products in Furniture automatically route to the warehouse unless the individual product overrides the category setting.
+
+Priority should be:
+
+PRODUCT override
+↓
+CATEGORY default
+↓
+GLOBAL default
+
+Document this behavior clearly.
+
+==================================================
+8. WAREHOUSE TICKET CONTENT
+==================================================
+
+The warehouse ticket should be designed specifically for employees retrieving merchandise.
+
+Do NOT simply print the customer's receipt again.
+
+Include useful information such as:
+
+VIOLET ENTERPRISE
+WAREHOUSE PICK TICKET
+
+Order Number
+Date
+Time
+Branch
+Cashier
+Customer Name if available
+Customer Order/Reference Number if available
+
+Then:
+
+-----------------------------------
+QTY    PRODUCT
+-----------------------------------
+
+Product name
+SKU
+Barcode if useful
+Product variation
+Size
+Color
+Model
+Warehouse location
+Aisle
+Rack
+Shelf
+Bin
+
+Any relevant product notes
+
+Example:
+
+1
+King Size Bed
+
+SKU:
+BED-KING-001
+
+Warehouse:
+Main Warehouse
+
+Aisle:
+4
+
+Rack:
+B
+
+Bin:
+12
+
+-----------------------------------
+
+Then:
+
+STATUS:
+TO BE FULFILLED
+
+The warehouse ticket should be clearly visually different from the customer receipt.
+
+==================================================
+9. ORDER NUMBER
+==================================================
+
+The warehouse ticket must reference the exact POS transaction/order.
+
+Example:
+
+ORDER #:
+VIO-20260909-001847
+
+The same order number must appear on:
+
+Customer Receipt
+Warehouse Ticket
+POS transaction
+Sales record
+Order record
+
+This allows employees to match the warehouse ticket to the customer's transaction.
+
+==================================================
+10. MULTIPLE PRODUCTS
+==================================================
+
+If one transaction contains multiple products with different print destinations, route them correctly.
+
+Example:
+
+SALE:
+
+1 × King Size Bed
+1 × Mattress
+2 × Pillows
+1 × Bottle Water
+
+Routing:
+
+Warehouse:
+King Size Bed
+Mattress
+
+Customer receipt:
+Everything
+
+The warehouse printer should print only the products that require warehouse fulfillment.
+
+Do NOT print the entire sale as a warehouse ticket if only some products require warehouse fulfillment.
+
+==================================================
+11. MULTIPLE WAREHOUSE LOCATIONS
+==================================================
+
+Design the system so that it can eventually support multiple warehouse locations.
+
+For example:
+
+Warehouse A
+Warehouse B
+
+A product can have:
+
+Warehouse:
+Main Warehouse
+
+or:
+
+Warehouse:
+Warehouse B
+
+If a future sale contains products from multiple warehouse locations, the system should be capable of generating separate fulfillment tickets for each warehouse.
+
+Do not necessarily expose the entire multi-warehouse interface if the existing inventory system does not support it yet, but design the print-routing architecture so this can be added later.
+
+==================================================
+12. MULTIPLE PRINTERS
+==================================================
+
+Support multiple printers.
+
+Example:
+
+Customer Receipt:
+Epson TM-T20III
+
+Warehouse:
+HP LaserJet Pro
+
+Kitchen:
+Epson Kitchen Printer
+
+Packing:
+Zebra Label Printer
+
+Office:
+HP Office Printer
+
+Do not assume every printer is the same type.
+
+==================================================
+13. PRINTER CONNECTION TYPES
+==================================================
+
+Inspect the current Violet desktop architecture and implement printer support appropriate to the platform.
+
+Support, where technically possible:
+
+Windows installed printers
+USB printers
+Network printers
+Shared printers
+
+Do not make the web browser responsible for directly accessing arbitrary local printers if the desktop application can handle printing more reliably.
+
+Since Violet is intended to run as a desktop POS application, printer communication should use the appropriate desktop/native printing mechanism.
+
+If the current application uses Electron, use the existing Electron/native printing architecture.
+
+If it uses Tauri, use the appropriate Tauri/native printing architecture.
+
+Do NOT introduce a second desktop framework.
+
+First determine what Violet currently uses.
+
+==================================================
+14. PRINT TESTING
+==================================================
+
+Every configured printer must have:
+
+[ Test Print ]
+
+The system should print a clearly identifiable test page.
+
+Example:
+
+================================
+VIOLET ENTERPRISE
+PRINTER TEST
+================================
+
+Printer:
+Warehouse Printer
+
+Configured Device:
+HP LaserJet Pro
+
+Test:
+SUCCESS
+
+Date:
+09/09/2026
+
+================================
+
+If printing fails, display a useful error.
+
+Do not simply say:
+
+"Print failed."
+
+Provide useful diagnostic information where possible.
+
+==================================================
+15. PRINTER OFFLINE / FAILURE
+==================================================
+
+The POS must handle printer failures gracefully.
+
+Example:
+
+Sale completed successfully.
+
+Customer receipt printer:
+SUCCESS
+
+Warehouse printer:
+FAILED
+
+The sale itself must NOT be rolled back simply because the warehouse printer failed.
+
+Instead show:
+
+"Sale completed, but the warehouse ticket could not be printed."
+
+Provide:
+
+[ Retry Warehouse Print ]
+
+The transaction must remain recorded.
+
+Do not duplicate the sale merely because a print job failed.
+
+==================================================
+16. PRINT JOB QUEUE
+==================================================
+
+Implement a print job system where appropriate.
+
+Each print job should have:
+
+Job ID
+Order ID
+Document type
+Printer
+Status
+Created time
+Printed time
+Error message if failed
+Retry count
+
+Statuses:
+
+QUEUED
+PRINTING
+PRINTED
+FAILED
+CANCELLED
+
+This is especially important for a professional POS.
+
+If a printer temporarily disconnects, the system should be able to retry the print job.
+
+==================================================
+17. PRINT HISTORY
+==================================================
+
+Add a print history view if practical.
+
+Example:
+
+Settings
+→ Printers
+→ Print Jobs
+
+Display:
+
+Order
+Document
+Printer
+Status
+Date
+Time
+Attempts
+
+Example:
+
+VIO-001847
+Customer Receipt
+Epson TM-T20III
+PRINTED
+
+VIO-001847
+Warehouse Ticket
+HP LaserJet
+FAILED
+[ Retry ]
+
+==================================================
+18. CASHIER CHECKOUT
+==================================================
+
+The cashier workflow should remain fast.
+
+At checkout:
+
+Customer completes payment.
+
+Violet records the sale.
+
+Then:
+
+Customer receipt print job
++
+Warehouse print job
+
+are created.
+
+The cashier should not have to configure printers during checkout.
+
+The printer routing should happen automatically.
+
+==================================================
+19. MANUAL REPRINT
+==================================================
+
+Authorized users should be able to reprint:
+
+Customer receipt
+Warehouse ticket
+Other fulfillment documents
+
+From the transaction/order history.
+
+Example:
+
+Transaction:
+
+VIO-001847
+
+Actions:
+
+[ Print Customer Receipt ]
+[ Print Warehouse Ticket ]
+
+Permission should be controlled.
+
+Cashiers may have permission to reprint customer receipts.
+
+Warehouse tickets may require additional permission depending on existing employee roles.
+
+==================================================
+20. DUPLICATE PRINT PROTECTION
+==================================================
+
+Prevent accidental duplicate warehouse tickets.
+
+If a warehouse ticket has already successfully printed, show:
+
+Warehouse Ticket:
+PRINTED
+
+and provide:
+
+[ Reprint ]
+
+Do not automatically print it again merely because the transaction page was reopened.
+
+However, legitimate reprints must remain possible.
+
+==================================================
+21. CUSTOMER RECEIPT + WAREHOUSE TICKET
+==================================================
+
+The final checkout behavior should be:
+
+Example:
+
+Customer buys a bed.
+
+Cashier:
+
+1. Adds bed to cart.
+2. Takes payment.
+3. Completes sale.
+
+Violet automatically:
+
+1. Saves transaction.
+2. Prints customer receipt to Customer Receipt Printer.
+3. Creates warehouse fulfillment ticket.
+4. Prints warehouse ticket to Warehouse Printer.
+5. Records both print jobs.
+
+Customer receives:
+
+CUSTOMER RECEIPT
+
+Warehouse employee receives:
+
+WAREHOUSE PICK TICKET
+
+The warehouse employee can then retrieve the bed.
+
+==================================================
+22. PICK / FULFILLMENT STATUS
+==================================================
+
+If the current Violet architecture supports order/fulfillment status, integrate with it.
+
+A warehouse employee should eventually be able to mark:
+
+PENDING
+PICKING
+READY
+FULFILLED
+
+For example:
+
+Order:
+VIO-001847
+
+Warehouse:
+Main Warehouse
+
+Status:
+PENDING
+
+Employee retrieves bed.
+
+Status:
+READY
+
+Then:
+
+FULFILLED
+
+If this functionality does not currently exist, design the database/API so it can be added cleanly.
+
+Do not create unnecessary duplicate order systems.
+
+==================================================
+23. DELIVERY / PICKUP
+==================================================
+
+If Violet already supports customer delivery or pickup, integrate warehouse tickets with those workflows.
+
+For example:
+
+Customer Pickup:
+
+WAREHOUSE PICK TICKET
+
+Order:
+VIO-001847
+
+Customer:
+John Smith
+
+Pickup:
+CUSTOMER PICKUP
+
+Status:
+READY FOR PICKUP
+
+For delivery:
+
+DELIVERY ORDER
+
+Customer
+Address
+Phone
+Order
+Items
+
+Only include information that the current Violet permissions and privacy architecture allow.
+
+==================================================
+24. BRANCH-SPECIFIC PRINTERS
+==================================================
+
+Because Violet supports multiple branches, printers must be associated with the correct branch.
+
+Example:
+
+Kingston Branch:
+
+Receipt Printer:
+Epson A
+
+Warehouse Printer:
+HP A
+
+Montego Bay Branch:
+
+Receipt Printer:
+Epson B
+
+Warehouse Printer:
+HP B
+
+When a cashier logs into a branch, Violet should use that branch's configured printers.
+
+Do not accidentally send Kingston orders to the Montego Bay warehouse printer.
+
+==================================================
+25. REGISTER-SPECIFIC PRINTERS
+==================================================
+
+If Violet supports multiple registers within a branch, allow printer configuration at the register level where appropriate.
+
+Example:
+
+Kingston Branch
+
+Register 1:
+Receipt Printer A
+
+Register 2:
+Receipt Printer B
+
+Warehouse Printer:
+Warehouse Printer A
+
+Use the most specific applicable configuration:
+
+REGISTER
+↓
+BRANCH
+↓
+GLOBAL
+
+Document this priority.
+
+==================================================
+26. ADMIN SETTINGS
+==================================================
+
+Create a clean interface:
+
+Settings
+→ Printers
+
+Sections:
+
+1. Customer Receipt
+2. Warehouse / Fulfillment
+3. Other Printers
+4. Print Jobs
+5. Print Settings
+
+Include:
+
+Default receipt printer
+Default warehouse printer
+Automatic warehouse printing ON/OFF
+Print duplicate receipt options if supported
+Print job retry settings
+Test printer buttons
+
+==================================================
+27. RECEIPT SETTINGS
+==================================================
+
+Preserve existing receipt customization.
+
+Allow existing Violet receipt settings to continue working.
+
+Do not break:
+
+Business name
+Address
+Phone
+Tax information
+Logo
+Receipt footer
+Receipt header
+Currency
+Transaction number
+Cashier
+Date/time
+
+==================================================
+28. WAREHOUSE TEMPLATE SETTINGS
+==================================================
+
+Allow administrators to customize the warehouse ticket where practical.
+
+Possible settings:
+
+Business logo
+Warehouse name
+Ticket title
+Show SKU
+Show barcode
+Show warehouse location
+Show employee notes
+Show customer name
+Show customer order number
+Show cashier
+Show branch
+Footer
+
+Provide sensible defaults.
+
+==================================================
+29. BARCODE / LABEL SUPPORT
+==================================================
+
+Design the printer architecture so barcode/label printers can be supported later.
+
+Do not require this for the initial implementation unless Violet already has barcode functionality.
+
+==================================================
+30. SECURITY
+==================================================
+
+Printer configuration must require appropriate permissions.
+
+Only authorized administrators/managers should be able to:
+
+- Add/remove printers
+- Change default printers
+- Change print routing
+- Change warehouse printing settings
+
+Cashiers should not be able to redirect warehouse tickets to arbitrary printers unless explicitly authorized.
+
+==================================================
+31. SERVER / DESKTOP ARCHITECTURE
+==================================================
+
+Inspect Violet's current local/server architecture.
+
+Determine where printer configuration belongs.
+
+Important:
+
+A printer is physically attached or accessible from a particular computer.
+
+Therefore:
+
+The central Violet server should store the logical printer configuration and print-routing rules, but the actual desktop/register machine must resolve the physical printer available to that machine.
+
+Do NOT assume that a printer installed on Register 1 is automatically available on Register 2.
+
+The architecture must support:
+
+Server
+↓
+Register 1
+↓
+Receipt Printer 1
+
+Server
+↓
+Register 2
+↓
+Receipt Printer 2
+
+and:
+
+Server
+↓
+Warehouse workstation
+↓
+Warehouse Printer
+
+For remote server deployments, do not assume the remote server can directly access a printer physically located at the cashier's site.
+
+Use the existing Violet client/server architecture to route print jobs to the appropriate client/workstation.
+
+==================================================
+32. REMOTE SERVER
+==================================================
+
+Violet may be deployed where the server is physically located at another location.
+
+Therefore printer routing must not depend on:
+
+localhost
+server-side USB printers
+or the server machine physically owning the printer.
+
+A cashier workstation should be able to print to its locally available printer.
+
+A warehouse workstation should be able to print to its warehouse printer.
+
+The central system should coordinate the jobs.
+
+==================================================
+33. OFFLINE OPERATION
+==================================================
+
+If Violet supports local/offline operation, do not break it.
+
+Printer jobs created while temporarily offline should be handled according to the existing offline architecture.
+
+Do not lose completed sales because a printer or network is temporarily unavailable.
+
+==================================================
+34. DATABASE
+==================================================
+
+Inspect the existing database before adding tables.
+
+Do not create duplicate concepts if equivalent structures already exist.
+
+If necessary, create structures for:
+
+printers
+printer_assignments
+print_routes
+print_jobs
+print_job_items
+warehouse_tickets
+
+Use appropriate foreign keys to:
+
+accounts
+branches
+registers
+users
+orders
+sales
+products
+
+The exact schema should follow the existing Violet architecture.
+
+==================================================
+35. PRODUCT ROUTING
+==================================================
+
+A product should be able to specify whether it needs fulfillment printing.
+
+For example:
+
+Product:
+King Size Bed
+
+Warehouse Required:
+YES
+
+Warehouse:
+Main Warehouse
+
+Product:
+Bottle of Water
+
+Warehouse Required:
+NO
+
+This should integrate with existing product/inventory fields where possible.
+
+Do not force the administrator to manually configure hundreds of products if the category/default routing can handle them.
+
+==================================================
+36. REPORTING
+==================================================
+
+Warehouse fulfillment should remain connected to the original sale.
+
+Reports should eventually be able to show:
+
+Orders requiring fulfillment
+Pending fulfillment
+Completed fulfillment
+Failed print jobs
+Reprinted warehouse tickets
+
+Do not create disconnected warehouse transactions.
+
+==================================================
+37. TESTING
+==================================================
+
+Create comprehensive tests.
+
+Test at minimum:
+
+1. Configure receipt printer.
+2. Test receipt printer.
+3. Configure warehouse printer.
+4. Test warehouse printer.
+5. Complete normal sale.
+6. Verify customer receipt prints.
+7. Verify warehouse ticket prints.
+8. Verify both print jobs are created.
+9. Verify print jobs reference the same order.
+10. Sell a product that does not require warehouse fulfillment.
+11. Verify no warehouse ticket is generated.
+12. Sell a product that requires warehouse fulfillment.
+13. Verify warehouse ticket contains only relevant items.
+14. Sell multiple products with different destinations.
+15. Verify correct routing.
+16. Simulate printer failure.
+17. Verify sale remains completed.
+18. Verify failed print job is recorded.
+19. Retry failed print.
+20. Verify successful retry.
+21. Verify duplicate protection.
+22. Verify authorized reprint.
+23. Verify branch-specific printers.
+24. Verify register-specific printers.
+25. Verify cashier permissions.
+26. Verify manager/admin permissions.
+27. Verify local server printing.
+28. Verify LAN client printing.
+29. Verify remote-server architecture where applicable.
+30. Verify existing receipt printing remains functional.
+
+==================================================
+38. IMPORTANT IMPLEMENTATION RULE
+==================================================
+
+Do NOT fake printer functionality by merely showing a browser print dialog.
+
+This is a POS system.
+
+Use the actual desktop application's printing capabilities where appropriate so Violet can print directly to configured printers.
+
+Determine whether the current desktop application is Electron or Tauri before implementing this.
+
+Use the existing desktop framework.
+
+Do NOT introduce another desktop framework.
+
+==================================================
+39. FINAL USER EXPERIENCE
+==================================================
+
+The final system should make this possible:
+
+OWNER SETUP:
+
+Settings
+→ Printers
+
+Customer Receipt Printer:
+[Epson TM-T20III]
+
+Warehouse Printer:
+[HP LaserJet Pro]
+
+Automatic Warehouse Printing:
+[ON]
+
+--------------------------------------------------
+
+CASHIER:
+
+Customer buys:
+
+1 × King Size Bed
+
+Cashier completes payment.
+
+Violet automatically prints:
+
+CUSTOMER RECEIPT
+→ Epson TM-T20III
+
+WAREHOUSE PICK TICKET
+→ HP LaserJet Pro
+
+--------------------------------------------------
+
+WAREHOUSE:
+
+Employee receives:
+
+VIOLET ENTERPRISE
+WAREHOUSE PICK TICKET
+
+ORDER # VIO-001847
+
+1 × KING SIZE BED
+SKU: BED-KING-001
+LOCATION: AISLE 4 / RACK B / BIN 12
+
+STATUS:
+TO BE FULFILLED
+
+Employee retrieves the bed.
+
+==================================================
+IMPLEMENTATION REQUIREMENT
+==================================================
+
+First inspect the existing Violet architecture.
+
+Tell me:
+
+1. How printing currently works.
+2. Whether the desktop application is Electron or Tauri.
+3. How checkout currently works.
+4. How products are stored.
+5. How branches/registers are stored.
+6. How the local/server architecture works.
+7. Where printer configuration should live.
+8. What database changes are required.
+
+Then implement the feature completely.
+
+Do not provide only a mockup or UI.
+
+I need working printer detection/configuration, print routing, print jobs, warehouse tickets, and integration with the existing checkout system.
+
+Do not break existing functionality.
+
+After implementation, run all relevant tests and verify the complete workflow from:
+
+Product
+→ Checkout
+→ Sale
+→ Customer Receipt
+→ Warehouse Ticket
+→ Print Job
+→ Printer
+
+Then provide a summary of:
+
+- files changed
+- database changes
+- APIs added/modified
+- desktop printing changes
+- printer configuration
+- print-routing logic
+- warehouse ticket logic
+- tests performed
+- any limitations
