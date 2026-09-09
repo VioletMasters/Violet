@@ -18,7 +18,7 @@ export const FREE_CUSTOMER_LIMIT = 500;
 
 export type EntitlementResource = "users" | "registers" | "branches" | "products" | "customers";
 
-export interface EntitlementSnapshot {
+export interface EntitlementSnapshot extends Record<string, unknown> {
   tier: string;
   customerLabel: "Violet Free" | "Violet Plus";
   maxUsers: number;
