@@ -30,6 +30,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import type { Product } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { calculateRetailPrice, isValidMarkupPercentage } from "@/lib/product-pricing";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -299,17 +300,14 @@ export default function ProductsPage() {
   const markupValue = Number(markupPercentage);
   const markupError =
     priceMode === "markup" && (
-      markupPercentage === "" ||
-      !Number.isFinite(markupValue) ||
-      markupValue < 0 ||
-      markupValue > 100
+      !isValidMarkupPercentage(markupPercentage)
     );
 
   useEffect(() => {
     if (priceMode !== "markup" || editingProduct || markupError) return;
     const costPrice = Number(watchedCostPrice);
-    if (!Number.isFinite(costPrice) || costPrice < 0) return;
-    const calculatedPrice = Math.round(costPrice * (1 + markupValue / 100) * 100) / 100;
+    const calculatedPrice = calculateRetailPrice(costPrice, markupValue);
+    if (calculatedPrice === null) return;
     setValue("price", calculatedPrice, { shouldDirty: true, shouldValidate: true });
   }, [editingProduct, markupError, markupValue, priceMode, setValue, watchedCostPrice]);
 
