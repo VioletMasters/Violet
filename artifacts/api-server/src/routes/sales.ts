@@ -433,6 +433,20 @@ router.post("/sales/:id/refund", requireManagerAccess, async (req, res): Promise
       tenantId, saleId: sale.id, amount: sale.totalAmount, taxAmount: sale.taxAmount,
       method: sale.paymentMethod, reason, createdBy: req.user!.id, approvedBy: req.user!.id,
     }).returning();
+    const cashPayments = await tx.select({
+      method: salePaymentsTable.method,
+      amount: salePaymentsTable.amount,
+      tenderedAmount: salePaymentsTable.tenderedAmount,
+    }).from(salePaymentsTable).where(and(
+      eq(salePaymentsTable.tenantId, tenantId),
+      eq(salePaymentsTable.saleId, sale.id),
+      eq(salePaymentsTable.method, "cash"),
+    ));
+    const cashTender = summarizeCashTender(cashPayments, {
+      paymentMethod: sale.paymentMethod,
+      totalAmount: sale.totalAmount,
+      cashTendered: sale.cashTendered,
+    });
     const items = await tx.select().from(saleItemsTable).where(and(
       eq(saleItemsTable.saleId, sale.id),
       eq(saleItemsTable.isVoided, false),
@@ -443,10 +457,10 @@ router.post("/sales/:id/refund", requireManagerAccess, async (req, res): Promise
       costAmount: item.unitCostSnapshot == null ? null : String(Number(item.unitCostSnapshot) * item.quantity),
       restocked: false,
     })));
-    if (sale.paymentMethod === "cash" && sale.storeId && sale.registerId && sale.shiftId) {
+    if (cashTender && sale.storeId && sale.registerId && sale.shiftId) {
       await tx.insert(cashEventsTable).values({
         tenantId, storeId: sale.storeId, registerId: sale.registerId, shiftId: sale.shiftId,
-        saleId: sale.id, type: "refund", amount: String(-Number(sale.totalAmount)),
+        saleId: sale.id, type: "refund", amount: String(-cashTender.amount),
         reason, createdBy: req.user!.id, approvedBy: req.user!.id,
       });
     }

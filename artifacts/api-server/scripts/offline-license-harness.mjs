@@ -773,6 +773,70 @@ async function verifyCashTenderedRegression(token, managerAccessToken) {
   const splitExportRow = report.body.split("\r\n").find((row) => row.includes(splitSale.body.receiptNumber));
   assert(splitExportRow?.includes(",2000,0"), `Cash report did not expose the split cash component: ${splitExportRow ?? "missing row"}`);
   assert(!splitExportRow?.includes(",4500,0"), "Cash report treated the full split sale total as cash received.");
+
+  const refundHeaders = {
+    Authorization: `Bearer ${token}`,
+    "x-violet-manager-access": managerAccessToken,
+  };
+  const refundCases = [
+    { label: "cash", sale: validSale, expectedCashAdjustment: "-4500.00" },
+    { label: "card", sale: nonCashSale, expectedCashAdjustment: "0.00" },
+    { label: "split", sale: splitSale, expectedCashAdjustment: "-2000.00" },
+  ];
+  for (const refundCase of refundCases) {
+    const refunded = await request(`/api/sales/${refundCase.sale.body.id}/refund`, {
+      method: "POST",
+      headers: refundHeaders,
+      body: JSON.stringify({ reason: `Refund ${refundCase.label} tender regression` }),
+    });
+    assert(
+      refunded.response.status === 200,
+      `${refundCase.label} refund failed: ${refunded.response.status} ${JSON.stringify(refunded.body)}`,
+    );
+    const cashAdjustment = runSql(`
+      SELECT COALESCE(SUM(amount::numeric), 0) FROM cash_events
+        WHERE tenant_id = ${sqlString(tenantId)}
+          AND sale_id = ${sqlString(refundCase.sale.body.id)}
+          AND type = 'refund';
+    `);
+    assert(
+      Number(cashAdjustment) === Number(refundCase.expectedCashAdjustment),
+      `${refundCase.label} refund cash adjustment must be ${refundCase.expectedCashAdjustment}, got ${cashAdjustment}`,
+    );
+  }
+
+  const refundSaleIds = [validSale.body.id, nonCashSale.body.id, splitSale.body.id]
+    .map((saleId) => sqlString(saleId))
+    .join(", ");
+  const cashReport = await request("/api/reports/cash?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z", {
+    headers: refundHeaders,
+  });
+  assert(cashReport.response.status === 200, `Cash report after refunds failed: ${cashReport.response.status} ${JSON.stringify(cashReport.body)}`);
+  const reportedRefundTotal = cashReport.body?.data?.find((row) => row.type === "refund")?.amount;
+  const expectedRefundTotal = Number(runSql(`
+    SELECT COALESCE(SUM(amount::numeric), 0) FROM cash_events
+      WHERE tenant_id = ${sqlString(tenantId)}
+        AND sale_id IN (${refundSaleIds})
+        AND type = 'refund';
+  `));
+  assert(
+    reportedRefundTotal === expectedRefundTotal,
+    `Cash report must include only cash refund portions: expected ${expectedRefundTotal}, got ${reportedRefundTotal}`,
+  );
+
+  const summary = await request("/api/reports/summary?startDate=2000-01-01T00%3A00%3A00.000Z&endDate=2100-01-01T00%3A00%3A00.000Z", {
+    headers: refundHeaders,
+  });
+  assert(summary.response.status === 200, `Financial summary after refunds failed: ${summary.response.status} ${JSON.stringify(summary.body)}`);
+  const expectedFinancialRefundTotal = Number(runSql(`
+    SELECT COALESCE(SUM(amount::numeric - tax_amount::numeric), 0) FROM refunds
+      WHERE tenant_id = ${sqlString(tenantId)}
+        AND sale_id IN (${refundSaleIds});
+  `));
+  assert(
+    summary.body?.totalRefunds === expectedFinancialRefundTotal,
+    `Financial summary must retain all refund totals: expected ${expectedFinancialRefundTotal}, got ${summary.body?.totalRefunds}`,
+  );
 }
 
 async function verifyRecoveredSale(token, managerAccessToken, idempotencyKey, expectedSaleId) {
