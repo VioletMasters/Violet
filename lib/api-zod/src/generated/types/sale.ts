@@ -25,6 +25,16 @@ export interface Sale {
      * @nullable
      */
   cashTendered?: number | null;
+  /**
+     * Total cash received across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  cashReceived?: number | null;
+  /**
+     * Change due across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  changeDue?: number | null;
   paymentMethod: SalePaymentMethod;
   status: SaleStatus;
   cashierId?: string;

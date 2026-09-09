@@ -3135,6 +3135,12 @@ components:
         cashTendered:
           type: ["number", "null"]
           description: Amount of cash the customer handed over. Change is the difference from totalAmount.
+        cashReceived:
+          type: ["number", "null"]
+          description: Total cash received across cash tenders; null when the sale has no cash tender.
+        changeDue:
+          type: ["number", "null"]
+          description: Change due across cash tenders; null when the sale has no cash tender.
         paymentMethod:
           type: string
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
@@ -4113,6 +4119,12 @@ components:
         tenantId: { type: string }
         tenantName: { type: ["string", "null"] }
         totalAmount: { type: number }
+        cashReceived:
+          type: ["number", "null"]
+          description: Total cash received across cash tenders; null when the sale has no cash tender.
+        changeDue:
+          type: ["number", "null"]
+          description: Change due across cash tenders; null when the sale has no cash tender.
         currency: { type: string }
         paymentMethod: { type: string }
         status: { type: string }

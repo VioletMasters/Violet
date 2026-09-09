@@ -7,6 +7,7 @@ import {
 import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
 import { FINANCIAL_DEFINITIONS, toCsv, toPdf, toXlsx } from "../lib/reporting";
+import { summarizeCashTender, type CashTenderSummary } from "../lib/cashTender";
 
 const router = Router();
 type Query = Record<string, string | undefined>;
@@ -31,13 +32,24 @@ function validDates(query: Query): string | null {
 
 const money = (value: unknown) => Number(Number(value ?? 0).toFixed(2));
 
-type CashTenderTotals = { amount: number; received: number };
+type CashTenderSale = {
+  id: string;
+  paymentMethod: string;
+  totalAmount?: string | number;
+  total?: string | number;
+  cashTendered?: string | number | null;
+};
 
-async function cashTenderTotalsBySale(saleIds: string[], tenantId: string): Promise<Map<string, CashTenderTotals>> {
-  const totals = new Map<string, CashTenderTotals>();
+async function cashTenderTotalsBySale(
+  sales: CashTenderSale[],
+  tenantId: string,
+): Promise<Map<string, CashTenderSummary>> {
+  const totals = new Map<string, CashTenderSummary>();
+  const saleIds = sales.map((sale) => sale.id);
   if (saleIds.length === 0) return totals;
   const payments = await db.select({
     saleId: salePaymentsTable.saleId,
+    method: salePaymentsTable.method,
     amount: salePaymentsTable.amount,
     tenderedAmount: salePaymentsTable.tenderedAmount,
   }).from(salePaymentsTable).where(and(
@@ -45,13 +57,22 @@ async function cashTenderTotalsBySale(saleIds: string[], tenantId: string): Prom
     inArray(salePaymentsTable.saleId, saleIds),
     eq(salePaymentsTable.method, "cash"),
   ));
+  const paymentsBySale = new Map<string, typeof payments>();
   for (const payment of payments) {
-    const amount = Number(payment.amount);
-    const received = payment.tenderedAmount == null ? amount : Number(payment.tenderedAmount);
-    const current = totals.get(payment.saleId) ?? { amount: 0, received: 0 };
-    current.amount += amount;
-    current.received += received;
-    totals.set(payment.saleId, current);
+    paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
+  }
+  for (const [saleId, salePayments] of paymentsBySale) {
+    const summary = summarizeCashTender(salePayments);
+    if (summary) totals.set(saleId, summary);
+  }
+  for (const sale of sales) {
+    if (totals.has(sale.id)) continue;
+    const summary = summarizeCashTender([], {
+      paymentMethod: sale.paymentMethod,
+      totalAmount: sale.totalAmount ?? sale.total!,
+      cashTendered: sale.cashTendered,
+    });
+    if (summary) totals.set(sale.id, summary);
   }
   return totals;
 }
@@ -130,7 +151,7 @@ router.get("/reports/transactions", requireManagerAccess, async (req, res): Prom
     db.select().from(salesTable).where(and(...conditions)).orderBy(order).limit(limit).offset((page - 1) * limit),
     db.select({ total: sql<number>`COUNT(*)` }).from(salesTable).where(and(...conditions)),
   ]);
-  const cashTotalsBySale = await cashTenderTotalsBySale(rows.map((row) => row.id), req.tenantId!);
+  const cashTotalsBySale = await cashTenderTotalsBySale(rows, req.tenantId!);
   const voidedItemsBySale = new Map<string, unknown[]>();
   if (settings?.showVoidedItems && rows.length > 0) {
     const voidedItems = await db.select().from(saleItemsTable).where(and(
@@ -157,7 +178,7 @@ router.get("/reports/transactions", requireManagerAccess, async (req, res): Prom
       return {
         ...row,
         cashReceived: cashTotals ? money(cashTotals.received) : null,
-        changeDue: cashTotals ? money(Math.max(0, cashTotals.received - cashTotals.amount)) : null,
+        changeDue: cashTotals?.changeDue ?? null,
         ...(settings?.showVoidedItems ? { voidedItems: voidedItemsBySale.get(row.id) ?? [] } : {}),
       };
     }),
@@ -359,7 +380,7 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
     const splitSaleIds = new Set(splitPaymentRows.map((payment) => payment.saleId));
     rows = allRows.filter((row) => row.paymentMethod === query.paymentMethod || splitSaleIds.has(row.id));
   }
-  const cashTotalsBySale = await cashTenderTotalsBySale(rows.map((row) => row.id), req.tenantId!);
+  const cashTotalsBySale = await cashTenderTotalsBySale(rows, req.tenantId!);
   const voidedItemsBySale = new Map<string, string[]>();
   if (reportSettings?.showVoidedItems && rows.length > 0) {
     const voidedItems = await db.select().from(saleItemsTable).where(and(
@@ -376,9 +397,7 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
     ...r,
     createdAt: r.createdAt.toISOString(),
     cashReceived: cashTotalsBySale.has(r.id) ? money(cashTotalsBySale.get(r.id)!.received) : null,
-    changeDue: cashTotalsBySale.has(r.id)
-      ? money(Math.max(0, cashTotalsBySale.get(r.id)!.received - cashTotalsBySale.get(r.id)!.amount))
-      : null,
+    changeDue: cashTotalsBySale.get(r.id)?.changeDue ?? null,
     ...(reportSettings?.showVoidedItems
       ? { voidedItems: (voidedItemsBySale.get(r.id) ?? []).join("; ") }
       : {}),

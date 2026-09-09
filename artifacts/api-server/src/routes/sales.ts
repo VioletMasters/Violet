@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
+import { summarizeCashTender } from "../lib/cashTender";
 
 const router = Router();
 
@@ -24,6 +25,11 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: 
     db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, sale.id)),
     db.select().from(salePaymentsTable).where(and(eq(salePaymentsTable.saleId, sale.id), eq(salePaymentsTable.tenantId, sale.tenantId))),
   ]);
+  const cashTender = summarizeCashTender(payments, {
+    paymentMethod: sale.paymentMethod,
+    totalAmount: sale.totalAmount,
+    cashTendered: sale.cashTendered,
+  });
   const showVoidedItems = options.includeVoidedItems
     ? Boolean((await db.select({ showVoidedItems: settingsTable.showVoidedItems }).from(settingsTable)
       .where(eq(settingsTable.tenantId, sale.tenantId)).limit(1))[0]?.showVoidedItems)
@@ -51,6 +57,8 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: 
     discountAmount: parseFloat(sale.discountAmount),
     totalAmount: parseFloat(sale.totalAmount),
     cashTendered: sale.cashTendered == null ? null : Number(sale.cashTendered),
+    cashReceived: cashTender?.received ?? null,
+    changeDue: cashTender?.changeDue ?? null,
     paymentMethod: sale.paymentMethod,
     status: sale.status,
     cashierId: sale.cashierId,

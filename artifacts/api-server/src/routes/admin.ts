@@ -4,10 +4,11 @@ import {
   db, tenantsTable, usersTable, plansTable,
   subscriptionsTable, subscriptionEventsTable, productsTable, customersTable, sessionsTable,
   storesTable, registersTable,
-  salesTable, releasesTable, releaseAssetsTable, platformAuditLogsTable, settingsTable,
+  salesTable, salePaymentsTable, releasesTable, releaseAssetsTable, platformAuditLogsTable, settingsTable,
 } from "@workspace/db";
 import { eq, ilike, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
 import { requireSession, requireSuperAdmin } from "../middlewares/auth";
+import { summarizeCashTender } from "../lib/cashTender";
 import { getWhopClient } from "../lib/whopClient";
 import { deleteTenantAccount } from "../lib/abandonedPaidSignups";
 import fs from "node:fs";
@@ -1024,7 +1025,8 @@ router.get("/admin/sales", requireSuperAdmin, async (req, res): Promise<void> =>
     db.select({
       id: salesTable.id, receiptNumber: salesTable.receiptNumber, tenantId: salesTable.tenantId,
       tenantName: tenantsTable.name, paymentMethod: salesTable.paymentMethod, status: salesTable.status,
-      totalAmount: salesTable.totalAmount, createdAt: salesTable.createdAt, cashierName: usersTable.firstName,
+      totalAmount: salesTable.totalAmount, cashTendered: salesTable.cashTendered,
+      createdAt: salesTable.createdAt, cashierName: usersTable.firstName,
       currency: settingsTable.currency,
     }).from(salesTable).leftJoin(tenantsTable, eq(salesTable.tenantId, tenantsTable.id))
       .leftJoin(usersTable, eq(salesTable.cashierId, usersTable.id))
@@ -1033,14 +1035,36 @@ router.get("/admin/sales", requireSuperAdmin, async (req, res): Promise<void> =>
     db.select({ total: sql<number>`COUNT(*)` }).from(salesTable).leftJoin(tenantsTable, eq(salesTable.tenantId, tenantsTable.id)).where(where),
     db.select({ revenue: sql<number>`COALESCE(SUM(${salesTable.totalAmount}::numeric) FILTER (WHERE ${salesTable.status} = 'completed'), 0)` }).from(salesTable).leftJoin(tenantsTable, eq(salesTable.tenantId, tenantsTable.id)).where(where),
   ]);
-  const data = rows.map(row => ({
-    ...row, totalAmount: parseFloat(row.totalAmount), currency: row.currency ?? "JMD", createdAt: row.createdAt.toISOString(),
+  const cashPayments = rows.length === 0 ? [] : await db.select({
+    saleId: salePaymentsTable.saleId,
+    method: salePaymentsTable.method,
+    amount: salePaymentsTable.amount,
+    tenderedAmount: salePaymentsTable.tenderedAmount,
+  }).from(salePaymentsTable).where(inArray(salePaymentsTable.saleId, rows.map((row) => row.id)));
+  const paymentsBySale = new Map<string, typeof cashPayments>();
+  for (const payment of cashPayments) {
+    paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
+  }
+  const data = rows.map(row => {
+    const cashTender = summarizeCashTender(paymentsBySale.get(row.id) ?? [], {
+      paymentMethod: row.paymentMethod,
+      totalAmount: row.totalAmount,
+      cashTendered: row.cashTendered,
+    });
+    return {
+    ...row,
+    totalAmount: parseFloat(row.totalAmount),
+    cashReceived: cashTender?.received ?? null,
+    changeDue: cashTender?.changeDue ?? null,
+    currency: row.currency ?? "JMD", createdAt: row.createdAt.toISOString(),
     cashierName: [row.cashierName].filter(Boolean).join(" ") || "—",
-  }));
+    };
+  });
   if (format === "csv") {
     const csvEscape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const lines = ["Receipt,Tenant,Amount,Payment method,Status,Cashier,Created at", ...data.map(row => [
-      row.receiptNumber, row.tenantName, row.totalAmount, row.paymentMethod, row.status, row.cashierName, row.createdAt,
+    const lines = ["Receipt,Tenant,Amount,Payment method,Cash received,Change due,Status,Cashier,Created at", ...data.map(row => [
+      row.receiptNumber, row.tenantName, row.totalAmount, row.paymentMethod, row.cashReceived, row.changeDue,
+      row.status, row.cashierName, row.createdAt,
     ].map(csvEscape).join(","))];
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="violet-platform-sales.csv"');

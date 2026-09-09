@@ -100,13 +100,13 @@ export default function ReportsSales() {
                       {formatCurrency(tx.taxAmount || 0)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                      {tx.paymentMethod === "cash" && tx.cashTendered != null
-                        ? formatCurrency(tx.cashTendered)
+                      {tx.cashReceived != null
+                        ? formatCurrency(tx.cashReceived)
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                      {tx.paymentMethod === "cash" && tx.cashTendered != null
-                        ? formatCurrency(Math.max(0, Number(tx.cashTendered) - Number(tx.totalAmount)))
+                      {tx.changeDue != null
+                        ? formatCurrency(tx.changeDue)
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-bold">
