@@ -45,6 +45,7 @@ type VoidedCartItem = {
 };
 
 type PaymentCompletion = {
+  tendered?: number;
   change: number;
   receiptNumber?: string;
 };
@@ -81,7 +82,9 @@ export default function POSPage() {
   const createSale = useCreateSale({
     mutation: {
       onSuccess: (sale) => {
-        const tendered = paymentMethod === "cash" ? Number.parseFloat(cashTendered) : 0;
+        const tendered = paymentMethod === "cash"
+          ? Number(sale.cashTendered ?? cashTendered)
+          : 0;
         const change = Number.isFinite(tendered) ? Math.max(0, tendered - total) : 0;
         toast.success("Sale completed successfully!");
         setCart([]);
@@ -89,7 +92,11 @@ export default function POSPage() {
         setPaymentModalOpen(false);
         setCashTendered("");
         setSearch("");
-        setPaymentCompletion({ change, receiptNumber: sale.receiptNumber });
+        setPaymentCompletion({
+          tendered: paymentMethod === "cash" ? tendered : undefined,
+          change,
+          receiptNumber: sale.receiptNumber,
+        });
         checkoutAttemptKey.current = null;
       },
       onError: (err) => {

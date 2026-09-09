@@ -220,9 +220,12 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     ? undefined
     : Number(cashTendered);
 
-  if (paymentMethod === "cash" && parsedCashTendered !== undefined
-    && (!Number.isFinite(parsedCashTendered) || parsedCashTendered < totalAmount)) {
-    res.status(400).json({ error: "Cash tendered must cover the total amount due" });
+  if (paymentMethod === "cash" && (
+    parsedCashTendered === undefined
+    || !Number.isFinite(parsedCashTendered)
+    || parsedCashTendered < totalAmount
+  )) {
+    res.status(400).json({ error: "Cash tendered is required and must cover the total amount due" });
     return;
   }
 
@@ -282,7 +285,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       totalAmount: String(totalAmount),
       paymentMethod: tenderInputs && tenderInputs.length > 1 ? "mixed" : paymentMethod,
       status: "completed",
-      cashTendered: parsedCashTendered !== undefined ? String(parsedCashTendered) : undefined,
+      cashTendered: paymentMethod === "cash" && parsedCashTendered !== undefined ? String(parsedCashTendered) : undefined,
       note,
       idempotencyKey,
     }).returning();
@@ -336,7 +339,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
 
     const normalizedPayments = tenderInputs ?? [{
       method: paymentMethod, amount: totalAmount,
-      tenderedAmount: parsedCashTendered, reference: undefined,
+      tenderedAmount: paymentMethod === "cash" ? parsedCashTendered : undefined, reference: undefined,
     }];
     for (const payment of normalizedPayments) {
       const amount = Number(payment.amount);
