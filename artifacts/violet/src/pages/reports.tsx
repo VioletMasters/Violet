@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  exportClosedRegisterShifts,
   exportReportingTransactions,
   getGetAuditReportQueryKey,
   getGetCashReportQueryKey,
@@ -206,6 +207,7 @@ export default function ReportsPage() {
   const [paymentMethod, setPaymentMethod] = useState("all");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [isExportingSettlements, setIsExportingSettlements] = useState(false);
 
   const range = useMemo(() => {
     const end = datePreset === "custom" ? new Date(`${customEnd}T23:59:59`) : new Date();
@@ -278,6 +280,23 @@ export default function ReportsPage() {
       URL.revokeObjectURL(url);
     } catch {
       // The report remains visible; browser error boundaries handle network failures.
+    }
+  };
+
+  const handleSettlementExport = async () => {
+    setIsExportingSettlements(true);
+    try {
+      const blob = await exportClosedRegisterShifts(settlementParams, { responseType: "blob" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `violet-closed-settlements-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // The settlement table remains visible; browser error boundaries handle network failures.
+    } finally {
+      setIsExportingSettlements(false);
     }
   };
 
@@ -420,7 +439,15 @@ export default function ReportsPage() {
           <SectionHeader title="Cash management" description="Register events and cash movement for accountability at close" />
           <Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Amount", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: money(row.amount) }))} emptyTitle="No cash events" /></CardContent></Card>
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Closed cashier-day settlements</CardTitle><CardDescription>Opening float, expected cash, physical count, variance, and settlement owner for each closeout.</CardDescription></CardHeader>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Closed cashier-day settlements</CardTitle>
+                <CardDescription>Opening float, expected cash, physical count, variance, and settlement owner for each closeout.</CardDescription>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleSettlementExport} disabled={isExportingSettlements}>
+                <Download className="mr-1.5 h-3.5 w-3.5" />{isExportingSettlements ? "Exporting..." : "Export CSV"}
+              </Button>
+            </CardHeader>
             <CardContent>
               <ReportTable
                 columns={[

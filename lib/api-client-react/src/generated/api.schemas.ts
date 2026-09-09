@@ -1643,6 +1643,14 @@ export const ListRegisterShiftsStatus = {
   closed: 'closed',
 } as const;
 
+export type ExportClosedRegisterShiftsParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+};
+
 export type ListPurchaseOrdersParams = {
 storeId?: string;
 supplierId?: string;

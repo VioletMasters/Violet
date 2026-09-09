@@ -48,6 +48,7 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ErrorResponse,
+  ExportClosedRegisterShiftsParams,
   ExportReportingTransactionsParams,
   GetCashReportParams,
   GetEmployeeReportParams,
@@ -4830,6 +4831,90 @@ export function useListRegisterShifts<TData = Awaited<ReturnType<typeof listRegi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListRegisterShiftsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportClosedRegisterShiftsUrl = (params: ExportClosedRegisterShiftsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/register-shifts/export?${stringifiedParams}` : `/api/register-shifts/export`
+}
+
+/**
+ * @summary Export filtered closed register shifts as CSV
+ */
+export const exportClosedRegisterShifts = async (params: ExportClosedRegisterShiftsParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportClosedRegisterShiftsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportClosedRegisterShiftsQueryKey = (params?: ExportClosedRegisterShiftsParams,) => {
+    return [
+    `/api/register-shifts/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportClosedRegisterShiftsQueryOptions = <TData = Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError = ErrorType<unknown>>(params: ExportClosedRegisterShiftsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportClosedRegisterShiftsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportClosedRegisterShifts>>> = ({ signal }) => exportClosedRegisterShifts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportClosedRegisterShiftsQueryResult = NonNullable<Awaited<ReturnType<typeof exportClosedRegisterShifts>>>
+export type ExportClosedRegisterShiftsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Export filtered closed register shifts as CSV
+ */
+
+export function useExportClosedRegisterShifts<TData = Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError = ErrorType<unknown>>(
+ params: ExportClosedRegisterShiftsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportClosedRegisterShiftsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

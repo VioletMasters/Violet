@@ -1361,6 +1361,24 @@ paths:
           description: Shift list
           content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
 
+  /register-shifts/export:
+    get:
+      operationId: exportClosedRegisterShifts
+      tags: [operations]
+      summary: Export filtered closed register shifts as CSV
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+        - $ref: "#/components/parameters/ReportRegisterId"
+        - $ref: "#/components/parameters/ReportCashierId"
+      responses:
+        "200":
+          description: CSV settlement export
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+
   /register-shifts/current:
     get:
       operationId: getCurrentRegisterShift

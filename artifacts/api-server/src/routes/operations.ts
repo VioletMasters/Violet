@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import {
   auditEventsTable, cashEventsTable, db, registersTable, registerShiftsTable, storesTable,
   usersTable,
@@ -15,10 +15,79 @@ function canConfigureStoresAndRegisters(role: string): boolean {
 const router = Router();
 const cashierUsers = alias(usersTable, "register_shift_cashiers");
 const settlingUsers = alias(usersTable, "register_shift_settlers");
+type RegisterShiftStatus = "open" | "closed";
 
 function amount(value: unknown, allowZero = true): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= (allowZero ? 0 : Number.EPSILON) ? parsed : null;
+}
+
+function registerShiftFilters(
+  query: Request["query"],
+  tenantId: string,
+  forcedStatus?: RegisterShiftStatus,
+): { conditions: SQL[]; error?: string } {
+  const conditions: SQL[] = [eq(registerShiftsTable.tenantId, tenantId)];
+  if (typeof query.storeId === "string") conditions.push(eq(registerShiftsTable.storeId, query.storeId));
+  if (typeof query.registerId === "string") conditions.push(eq(registerShiftsTable.registerId, query.registerId));
+  if (typeof query.cashierId === "string") conditions.push(eq(registerShiftsTable.cashierId, query.cashierId));
+  if (forcedStatus) {
+    conditions.push(eq(registerShiftsTable.status, forcedStatus));
+  } else if (typeof query.status === "string") {
+    conditions.push(eq(registerShiftsTable.status, query.status));
+  }
+  if (typeof query.startDate === "string") {
+    const startDate = new Date(query.startDate);
+    if (Number.isNaN(startDate.getTime())) return { conditions, error: "Invalid startDate" };
+    conditions.push(gte(registerShiftsTable.closedAt, startDate));
+  }
+  if (typeof query.endDate === "string") {
+    const endDate = new Date(query.endDate);
+    if (Number.isNaN(endDate.getTime())) return { conditions, error: "Invalid endDate" };
+    conditions.push(lte(registerShiftsTable.closedAt, endDate));
+  }
+  return { conditions };
+}
+
+function registerShiftRows(conditions: SQL[], tenantId: string) {
+  return db.select({
+    id: registerShiftsTable.id,
+    tenantId: registerShiftsTable.tenantId,
+    storeId: registerShiftsTable.storeId,
+    storeName: storesTable.name,
+    registerId: registerShiftsTable.registerId,
+    registerName: registersTable.name,
+    cashierId: registerShiftsTable.cashierId,
+    cashierName: sql<string>`concat(${cashierUsers.firstName}, ' ', ${cashierUsers.lastName})`,
+    openedBy: registerShiftsTable.openedBy,
+    closedBy: registerShiftsTable.closedBy,
+    settledByName: sql<string>`concat(${settlingUsers.firstName}, ' ', ${settlingUsers.lastName})`,
+    status: registerShiftsTable.status,
+    openingCash: registerShiftsTable.openingCash,
+    expectedCash: registerShiftsTable.expectedCash,
+    closingCash: registerShiftsTable.closingCash,
+    variance: registerShiftsTable.variance,
+    openedAt: registerShiftsTable.openedAt,
+    closedAt: registerShiftsTable.closedAt,
+  }).from(registerShiftsTable)
+    .leftJoin(storesTable, and(
+      eq(storesTable.id, registerShiftsTable.storeId),
+      eq(storesTable.tenantId, tenantId),
+    ))
+    .leftJoin(registersTable, and(
+      eq(registersTable.id, registerShiftsTable.registerId),
+      eq(registersTable.tenantId, tenantId),
+    ))
+    .leftJoin(cashierUsers, and(
+      eq(cashierUsers.id, registerShiftsTable.cashierId),
+      eq(cashierUsers.tenantId, tenantId),
+    ))
+    .leftJoin(settlingUsers, and(
+      eq(settlingUsers.id, registerShiftsTable.closedBy),
+      eq(settlingUsers.tenantId, tenantId),
+    ))
+    .where(and(...conditions))
+    .orderBy(desc(registerShiftsTable.closedAt), desc(registerShiftsTable.openedAt)).limit(500);
 }
 
 router.get("/stores", requireManagerAccess, async (req, res): Promise<void> => {
@@ -112,60 +181,41 @@ router.post("/registers", requireManagerAccess, async (req, res): Promise<void> 
 });
 
 router.get("/register-shifts", requireManagerAccess, async (req, res): Promise<void> => {
-  const conditions: SQL[] = [eq(registerShiftsTable.tenantId, req.tenantId!)];
-  if (typeof req.query.storeId === "string") conditions.push(eq(registerShiftsTable.storeId, req.query.storeId));
-  if (typeof req.query.registerId === "string") conditions.push(eq(registerShiftsTable.registerId, req.query.registerId));
-  if (typeof req.query.cashierId === "string") conditions.push(eq(registerShiftsTable.cashierId, req.query.cashierId));
-  if (typeof req.query.status === "string") conditions.push(eq(registerShiftsTable.status, req.query.status));
-  if (typeof req.query.startDate === "string") {
-    const startDate = new Date(req.query.startDate);
-    if (Number.isNaN(startDate.getTime())) { res.status(400).json({ error: "Invalid startDate" }); return; }
-    conditions.push(gte(registerShiftsTable.closedAt, startDate));
-  }
-  if (typeof req.query.endDate === "string") {
-    const endDate = new Date(req.query.endDate);
-    if (Number.isNaN(endDate.getTime())) { res.status(400).json({ error: "Invalid endDate" }); return; }
-    conditions.push(lte(registerShiftsTable.closedAt, endDate));
-  }
-  const rows = await db.select({
-    id: registerShiftsTable.id,
-    tenantId: registerShiftsTable.tenantId,
-    storeId: registerShiftsTable.storeId,
-    storeName: storesTable.name,
-    registerId: registerShiftsTable.registerId,
-    registerName: registersTable.name,
-    cashierId: registerShiftsTable.cashierId,
-    cashierName: sql<string>`concat(${cashierUsers.firstName}, ' ', ${cashierUsers.lastName})`,
-    openedBy: registerShiftsTable.openedBy,
-    closedBy: registerShiftsTable.closedBy,
-    settledByName: sql<string>`concat(${settlingUsers.firstName}, ' ', ${settlingUsers.lastName})`,
-    status: registerShiftsTable.status,
-    openingCash: registerShiftsTable.openingCash,
-    expectedCash: registerShiftsTable.expectedCash,
-    closingCash: registerShiftsTable.closingCash,
-    variance: registerShiftsTable.variance,
-    openedAt: registerShiftsTable.openedAt,
-    closedAt: registerShiftsTable.closedAt,
-  }).from(registerShiftsTable)
-    .leftJoin(storesTable, and(
-      eq(storesTable.id, registerShiftsTable.storeId),
-      eq(storesTable.tenantId, req.tenantId!),
-    ))
-    .leftJoin(registersTable, and(
-      eq(registersTable.id, registerShiftsTable.registerId),
-      eq(registersTable.tenantId, req.tenantId!),
-    ))
-    .leftJoin(cashierUsers, and(
-      eq(cashierUsers.id, registerShiftsTable.cashierId),
-      eq(cashierUsers.tenantId, req.tenantId!),
-    ))
-    .leftJoin(settlingUsers, and(
-      eq(settlingUsers.id, registerShiftsTable.closedBy),
-      eq(settlingUsers.tenantId, req.tenantId!),
-    ))
-    .where(and(...conditions))
-    .orderBy(desc(registerShiftsTable.closedAt), desc(registerShiftsTable.openedAt)).limit(500);
+  const { conditions, error } = registerShiftFilters(req.query, req.tenantId!);
+  if (error) { res.status(400).json({ error }); return; }
+  const rows = await registerShiftRows(conditions, req.tenantId!);
   res.json({ data: rows });
+});
+
+router.get("/register-shifts/export", requireManagerAccess, async (req, res): Promise<void> => {
+  if (typeof req.query.startDate !== "string" || typeof req.query.endDate !== "string") {
+    res.status(400).json({ error: "startDate and endDate are required" }); return;
+  }
+  const { conditions, error } = registerShiftFilters(req.query, req.tenantId!, "closed");
+  if (error) { res.status(400).json({ error }); return; }
+  const rows = await registerShiftRows(conditions, req.tenantId!);
+  const csvEscape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const display = (value: unknown, fallback: string) => {
+    const text = String(value ?? "").trim();
+    return text || fallback;
+  };
+  const lines = [
+    ["Store", "Register", "Cashier", "Close time", "Opening float", "Expected cash", "Counted cash", "Variance", "Settled by"],
+    ...rows.map((row) => [
+      display(row.storeName, row.storeId),
+      display(row.registerName, row.registerId),
+      display(row.cashierName, row.cashierId),
+      row.closedAt?.toISOString() ?? "",
+      row.openingCash,
+      row.expectedCash,
+      row.closingCash,
+      row.variance,
+      display(row.settledByName, row.closedBy ?? "Unknown"),
+    ]),
+  ].map((row) => row.map(csvEscape).join(","));
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="violet-closed-settlements.csv"');
+  res.send(lines.join("\n"));
 });
 
 router.get("/register-shifts/current", requireAuth, async (req, res): Promise<void> => {

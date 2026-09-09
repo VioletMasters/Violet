@@ -47,6 +47,7 @@ export * from './employeeLoginStatus';
 export * from './employeeUpdate';
 export * from './entitlementUsage';
 export * from './errorResponse';
+export * from './exportClosedRegisterShiftsParams';
 export * from './exportReportingTransactionsFormat';
 export * from './exportReportingTransactionsParams';
 export * from './getCashReportParams';
