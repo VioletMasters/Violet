@@ -1,13 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {
-  getListRegistersQueryKey,
-  getListStoresQueryKey,
-  useCreateRegister,
-  useCreateStore,
   useGetSettings,
-  useListRegisters,
-  useListStores,
   useUnlockManagerAccess,
   useUpdateSettings,
 } from "@workspace/api-client-react";
@@ -36,7 +30,6 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQueryClient } from "@tanstack/react-query";
 
 const settingsSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
@@ -66,41 +59,11 @@ const managementLinks = [
 
 export default function SettingsPage() {
   const { user, isManagerAccessActive, setManagerAccess } = useAuth();
-  const canConfigureStoresAndRegisters = user?.role === "owner" || user?.role === "administrator" || user?.role === "super_admin";
-  const queryClient = useQueryClient();
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
   const [managerPassword, setManagerPassword] = useState("");
-  const [selectedStoreId, setSelectedStoreId] = useState("");
-  const [storeCode, setStoreCode] = useState("");
-  const [storeName, setStoreName] = useState("");
-  const [registerCode, setRegisterCode] = useState("");
-  const [registerName, setRegisterName] = useState("");
   const { data: settings, isLoading } = useGetSettings({
     query: { queryKey: ["/api/settings"], enabled: isManagerAccessActive },
   });
-  const { data: storesResponse } = useListStores({
-    query: {
-      queryKey: getListStoresQueryKey(),
-      enabled: isManagerAccessActive,
-    },
-  });
-  const stores = ((storesResponse as { data?: Array<{ id: string; code: string; name: string }> } | undefined)?.data ?? []);
-  const { data: registersResponse } = useListRegisters(
-    selectedStoreId ? { storeId: selectedStoreId } : undefined,
-    {
-      query: {
-        queryKey: getListRegistersQueryKey(selectedStoreId ? { storeId: selectedStoreId } : undefined),
-        enabled: isManagerAccessActive && Boolean(selectedStoreId),
-      },
-    },
-  );
-  const registers = ((registersResponse as { data?: Array<{ id: string; code: string; name: string; storeId: string }> } | undefined)?.data ?? []);
-
-  useEffect(() => {
-    if (!selectedStoreId && stores.length > 0) {
-      setSelectedStoreId(stores[0].id);
-    }
-  }, [selectedStoreId, stores]);
 
   const unlockMutation = useUnlockManagerAccess({
     mutation: {
@@ -148,48 +111,8 @@ export default function SettingsPage() {
     }
   });
 
-  const createStoreMutation = useCreateStore({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListStoresQueryKey() });
-        setStoreCode("");
-        setStoreName("");
-        toast.success("Store created.");
-      },
-      onError: (error) => toast.error(error.message || "Could not create the store."),
-    },
-  });
-
-  const createRegisterMutation = useCreateRegister({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListRegistersQueryKey(selectedStoreId ? { storeId: selectedStoreId } : undefined) });
-        setRegisterCode("");
-        setRegisterName("");
-        toast.success("Register created and ready for cashier shifts.");
-      },
-      onError: (error) => toast.error(error.message || "Could not create the register."),
-    },
-  });
-
   const onSubmit = (data: SettingsForm) => {
     updateMutation.mutate({ data });
-  };
-
-  const createStore = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!storeCode.trim() || !storeName.trim()) return;
-    createStoreMutation.mutate({
-      data: { code: storeCode.trim(), name: storeName.trim() },
-    });
-  };
-
-  const createRegister = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selectedStoreId || !registerCode.trim() || !registerName.trim()) return;
-    createRegisterMutation.mutate({
-      data: { storeId: selectedStoreId, code: registerCode.trim(), name: registerName.trim() },
-    });
   };
 
   const unlockManagement = (event: React.FormEvent<HTMLFormElement>) => {
