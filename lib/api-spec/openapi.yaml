@@ -3213,6 +3213,12 @@ components:
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
         cashTendered:
           type: number
+        storeId:
+          type: string
+        registerId:
+          type: string
+        shiftId:
+          type: string
         note:
           type: string
 
