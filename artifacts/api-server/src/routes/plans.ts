@@ -11,6 +11,7 @@ import {
 import { desc, eq, inArray } from "drizzle-orm";
 import { isManagerRole, requireSession } from "../middlewares/auth";
 import { refreshWhopMembershipIfStale } from "../lib/subscriptionSync";
+import { getTenantEntitlementState } from "../lib/entitlements";
 
 const router = Router();
 
@@ -67,12 +68,23 @@ router.get("/subscription", requireSession, async (req, res): Promise<void> => {
     }
   }
 
-  const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, sub.planId)).limit(1);
+  const entitlementState = await getTenantEntitlementState(tenantId);
+  const plan = entitlementState?.plan
+    ?? (await db.select().from(plansTable).where(eq(plansTable.id, sub.planId)).limit(1))[0]
+    ?? null;
 
   // Usage
   const users = await db.select().from(usersTable).where(eq(usersTable.tenantId, tenantId));
   const products = await db.select().from(productsTable).where(eq(productsTable.tenantId, tenantId));
   const customers = await db.select().from(customersTable).where(eq(customersTable.tenantId, tenantId));
+  const usage = entitlementState?.usage ?? {
+    users: users.length,
+    products: products.length,
+    customers: customers.length,
+    branches: 0,
+    registers: 0,
+  };
+  const license = entitlementState?.license ?? null;
 
   res.json({
     id: sub.id,
@@ -107,11 +119,17 @@ router.get("/subscription", requireSession, async (req, res): Promise<void> => {
     paymentStatus: sub.paymentStatus ?? null,
     checkoutPending: Boolean(sub.pendingWhopCheckoutConfigurationId),
     lastWhopSyncAt: sub.lastWhopSyncAt?.toISOString() ?? null,
-    usage: {
-      users: users.length,
-      products: products.length,
-      customers: customers.length,
-    },
+     usage,
+     license: license ? {
+       id: license.id,
+       keyLast4: license.licenseKeyLast4,
+       status: license.status,
+       version: license.version,
+       activatedAt: license.activatedAt?.toISOString() ?? null,
+       expiresAt: license.expiresAt?.toISOString() ?? null,
+       lastValidatedAt: license.lastValidatedAt?.toISOString() ?? null,
+       entitlements: entitlementState?.entitlements ?? null,
+     } : null,
   });
 });
 
