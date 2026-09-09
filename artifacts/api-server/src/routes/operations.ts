@@ -112,7 +112,11 @@ router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: "registerId and a non-negative openingCash are required" }); return;
   }
   const [register] = await db.select().from(registersTable)
-    .where(and(eq(registersTable.id, registerId), eq(registersTable.tenantId, req.tenantId!))).limit(1);
+    .where(and(
+      eq(registersTable.id, registerId),
+      eq(registersTable.tenantId, req.tenantId!),
+      eq(registersTable.isActive, true),
+    )).limit(1);
   if (!register) { res.status(404).json({ error: "Register not found" }); return; }
   if (!isManagerRole(req.user!.role) && typeof cashierId === "string" && cashierId !== req.user!.id) {
     res.status(403).json({ error: "Cashiers can only open their own shift" }); return;
@@ -122,10 +126,19 @@ router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void
     : req.user!.id;
   const [cashier] = await db.select({ id: usersTable.id }).from(usersTable).where(and(
     eq(usersTable.id, assignedCashier), eq(usersTable.tenantId, req.tenantId!),
+    eq(usersTable.isActive, "true"),
   )).limit(1);
   if (!cashier) { res.status(400).json({ error: "Cashier is unavailable for this tenant" }); return; }
   const result = await db.transaction(async (tx) => {
+    // Lock the cashier first so two requests cannot open two drawers for one cashier.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${assignedCashier}))`);
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${registerId}))`);
+    const [availableRegister] = await tx.select({ storeId: registersTable.storeId }).from(registersTable).where(and(
+      eq(registersTable.id, registerId),
+      eq(registersTable.tenantId, req.tenantId!),
+      eq(registersTable.isActive, true),
+    )).limit(1);
+    if (!availableRegister) return { kind: "missing_register" as const };
     const [existing] = await tx.select().from(registerShiftsTable).where(and(
       eq(registerShiftsTable.tenantId, req.tenantId!), eq(registerShiftsTable.registerId, registerId),
       eq(registerShiftsTable.status, "open"),
@@ -134,12 +147,18 @@ router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void
       if (existing.cashierId !== assignedCashier) return { kind: "occupied" as const, shift: existing };
       return { kind: "existing" as const, shift: existing };
     }
+    const [cashierShift] = await tx.select({ id: registerShiftsTable.id }).from(registerShiftsTable).where(and(
+      eq(registerShiftsTable.tenantId, req.tenantId!),
+      eq(registerShiftsTable.cashierId, assignedCashier),
+      eq(registerShiftsTable.status, "open"),
+    )).limit(1);
+    if (cashierShift) return { kind: "cashier_occupied" as const };
     const [created] = await tx.insert(registerShiftsTable).values({
-      tenantId: req.tenantId!, storeId: register.storeId, registerId,
+      tenantId: req.tenantId!, storeId: availableRegister.storeId, registerId,
       cashierId: assignedCashier, openedBy: req.user!.id, openingCash: String(openingCash),
     }).returning();
     await tx.insert(auditEventsTable).values({
-      tenantId: req.tenantId!, actorId: req.user!.id, storeId: register.storeId,
+      tenantId: req.tenantId!, actorId: req.user!.id, storeId: availableRegister.storeId,
       action: "shift.opened", entityType: "register_shift", entityId: created.id,
       after: { registerId, cashierId: assignedCashier, openingCash },
     });
@@ -147,6 +166,14 @@ router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void
   });
   if (result.kind === "occupied") {
     res.status(409).json({ error: "This register already has an active cashier day" });
+    return;
+  }
+  if (result.kind === "cashier_occupied") {
+    res.status(409).json({ error: "This cashier already has an active cashier day" });
+    return;
+  }
+  if (result.kind === "missing_register") {
+    res.status(404).json({ error: "Register not found" });
     return;
   }
   res.status(result.kind === "existing" ? 200 : 201).json(result.shift);

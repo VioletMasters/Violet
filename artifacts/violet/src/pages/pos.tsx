@@ -73,6 +73,7 @@ type RegisterOption = {
   name: string;
   code: string;
   storeId: string;
+  isActive?: boolean;
 };
 
 function createCheckoutIdempotencyKey(): string {
@@ -111,7 +112,8 @@ export default function POSPage() {
   const { data: currentShiftResponse, isLoading: isLoadingShift } = useGetCurrentRegisterShift();
   const { data: registersResponse } = useListRegisters();
   const currentShift = (currentShiftResponse as { shift?: RegisterShift | null } | undefined)?.shift ?? null;
-  const registers = ((registersResponse as { data?: RegisterOption[] } | undefined)?.data ?? []);
+  const registers = ((registersResponse as { data?: RegisterOption[] } | undefined)?.data ?? [])
+    .filter((register) => register.isActive !== false);
   const products = productsData?.data || [];
 
   React.useEffect(() => {
@@ -138,7 +140,12 @@ export default function POSPage() {
         queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
         setClosingCash("");
         setSettlementDialogOpen(false);
-        toast.success(`Settlement complete. Variance: ${formatCurrency(Number((shift as RegisterShift).variance ?? 0))}`);
+        const settledShift = shift as RegisterShift;
+        toast.success(
+          `Settlement complete. Expected ${formatCurrency(Number(settledShift.expectedCash ?? 0))}; ` +
+          `counted ${formatCurrency(Number(settledShift.closingCash ?? 0))}; ` +
+          `variance ${formatCurrency(Number(settledShift.variance ?? 0))}.`,
+        );
       },
       onError: (error) => toast.error(error.message || "Could not settle the cashier day."),
     },

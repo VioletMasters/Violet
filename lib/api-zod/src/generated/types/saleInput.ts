@@ -24,6 +24,7 @@ export interface SaleInput {
   cashTendered?: number;
   storeId?: string;
   registerId?: string;
-  shiftId?: string;
+  /** The authenticated cashier's active register shift. Sales cannot be completed without it. */
+  shiftId: string;
   note?: string;
 }

@@ -993,7 +993,7 @@ export const CreateSaleBody = zod.object({
   "cashTendered": zod.number().optional(),
   "storeId": zod.string().optional(),
   "registerId": zod.string().optional(),
-  "shiftId": zod.string().optional(),
+  "shiftId": zod.string().describe('The authenticated cashier\'s active register shift. Sales cannot be completed without it.'),
   "note": zod.string().optional()
 })
 

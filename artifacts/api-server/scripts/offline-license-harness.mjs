@@ -15,10 +15,17 @@ const password = "offline-license-harness-password";
 const email = `offline-license-harness-${randomUUID()}@example.test`;
 const tenantId = randomUUID();
 const userId = randomUUID();
+const secondUserId = randomUUID();
+const storeId = randomUUID();
+const registerId = randomUUID();
 const productId = randomUUID();
 const cashRegressionProductId = randomUUID();
+const shiftRegressionProductId = randomUUID();
 const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString("hex");
 const passwordHash = hashPassword(password);
+const secondEmail = `offline-license-cashier-${randomUUID()}@example.test`;
+const secondPassword = "offline-license-cashier-password";
+const secondPasswordHash = hashPassword(secondPassword);
 
 let apiProcess;
 let saleLockProcess;
@@ -343,6 +350,16 @@ function seedDatabase(freePlanId, paidPlanId) {
       ${sqlString(userId)}, ${sqlString(tenantId)}, ${sqlString(email)},
       ${sqlString(passwordHash)}, 'Offline', 'Harness', 'owner'
     );
+    INSERT INTO users (
+      id, tenant_id, email, password_hash, first_name, last_name, role
+    ) VALUES (
+      ${sqlString(secondUserId)}, ${sqlString(tenantId)}, ${sqlString(secondEmail)},
+      ${sqlString(secondPasswordHash)}, 'Second', 'Cashier', 'cashier'
+    );
+    INSERT INTO stores (id, tenant_id, code, name)
+    VALUES (${sqlString(storeId)}, ${sqlString(tenantId)}, 'MAIN', 'Main Store');
+    INSERT INTO registers (id, tenant_id, store_id, code, name)
+    VALUES (${sqlString(registerId)}, ${sqlString(tenantId)}, ${sqlString(storeId)}, 'REG-1', 'Register 1');
     INSERT INTO subscriptions (
       tenant_id, plan_id, status, payment_status,
       current_period_start, current_period_end
@@ -358,6 +375,9 @@ function seedDatabase(freePlanId, paidPlanId) {
     ), (
       ${sqlString(cashRegressionProductId)}, ${sqlString(tenantId)}, 'Cash Tendered Regression Product',
       ${sqlString(`CASH-${cashRegressionProductId.slice(0, 8)}`)}, '4500.00', '1000.00', 10, 1, true
+    ), (
+      ${sqlString(shiftRegressionProductId)}, ${sqlString(tenantId)}, 'Register Shift Regression Product',
+      ${sqlString(`SHIFT-${shiftRegressionProductId.slice(0, 8)}`)}, '12.50', '5.00', 10, 1, true
     );
   `);
 }
@@ -422,7 +442,22 @@ async function verifyLocalSubscription(token, expectedPlanId, expectedPlanTier, 
   assert(body?.plan?.name === expectedPlanName, `Expected local subscription name ${expectedPlanName}, got ${body?.plan?.name}`);
 }
 
+async function ensureActiveShift(token) {
+  const opened = await request("/api/register-shifts/open", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ registerId, openingCash: 0 }),
+  });
+  assert(
+    opened.response.status === 200 || opened.response.status === 201,
+    `Could not open the harness cashier day: ${opened.response.status} ${JSON.stringify(opened.body)}`,
+  );
+  assert(typeof opened.body?.id === "string", "Opening the harness cashier day did not return a shift id.");
+  return opened.body.id;
+}
+
 async function createSale(token, idempotencyKey) {
+  const shiftId = await ensureActiveShift(token);
   return request("/api/sales", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
@@ -430,6 +465,7 @@ async function createSale(token, idempotencyKey) {
       idempotencyKey,
       paymentMethod: "cash",
       cashTendered: 20,
+      shiftId,
       items: [{ productId, quantity: 1 }],
     }),
   });
@@ -440,10 +476,12 @@ async function createCashRegressionSale(token, {
   paymentMethod,
   cashTendered,
 }) {
+  const shiftId = await ensureActiveShift(token);
   const body = {
     idempotencyKey,
     paymentMethod,
     items: [{ productId: cashRegressionProductId, quantity: 1 }],
+    shiftId,
     ...(cashTendered === undefined ? {} : { cashTendered }),
   };
   return request("/api/sales", {
@@ -451,6 +489,79 @@ async function createCashRegressionSale(token, {
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
+}
+
+async function verifyRegisterShiftLifecycle(token, expectedPlanId, expectedPlanName) {
+  const saleBody = (idempotencyKey, shiftId) => ({
+    idempotencyKey,
+    paymentMethod: "cash",
+    cashTendered: 20,
+    ...(shiftId ? { shiftId } : {}),
+    items: [{ productId: shiftRegressionProductId, quantity: 1 }],
+  });
+
+  const saleBeforeShift = await request("/api/sales", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(saleBody(`shift-before-${randomUUID()}`)),
+  });
+  assert(saleBeforeShift.response.status === 409, `Sale before cashier day should be rejected: ${saleBeforeShift.response.status}`);
+
+  const opened = await request("/api/register-shifts/open", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ registerId, openingCash: 100 }),
+  });
+  assert(opened.response.status === 201, `Opening cashier day failed: ${opened.response.status} ${JSON.stringify(opened.body)}`);
+  const shiftId = opened.body?.id;
+  assert(typeof shiftId === "string", "Opening cashier day did not return a shift id.");
+
+  const secondLogin = await request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: secondEmail, password: secondPassword }),
+  });
+  assert(secondLogin.response.status === 200, `Second cashier sign-in failed: ${secondLogin.response.status} ${JSON.stringify(secondLogin.body)}`);
+  assert(secondLogin.body?.tenant?.planId === expectedPlanId, "Second cashier did not inherit the active plan.");
+  assert(secondLogin.body?.tenant?.planName === expectedPlanName, "Second cashier did not inherit the active plan name.");
+
+  const occupied = await request("/api/register-shifts/open", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secondLogin.body.token}` },
+    body: JSON.stringify({ registerId, openingCash: 50 }),
+  });
+  assert(occupied.response.status === 409, `Occupied register takeover should be rejected: ${occupied.response.status}`);
+
+  const sale = await request("/api/sales", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(saleBody(`shift-sale-${randomUUID()}`, shiftId)),
+  });
+  assert(sale.response.status === 201, `Sale on active shift failed: ${sale.response.status} ${JSON.stringify(sale.body)}`);
+  assert(sale.body?.shiftId === shiftId, "Sale was not linked to the active register shift.");
+
+  const closed = await request(`/api/register-shifts/${shiftId}/close`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ closingCash: 112.5 }),
+  });
+  assert(closed.response.status === 200, `Closing cashier day failed: ${closed.response.status} ${JSON.stringify(closed.body)}`);
+  assert(closed.body?.status === "closed", "Closed cashier day did not report a closed status.");
+  assert(Number(closed.body?.expectedCash) === 112.5, `Expected cash was ${closed.body?.expectedCash}, not 112.50.`);
+  assert(Number(closed.body?.closingCash) === 112.5, `Closing cash was ${closed.body?.closingCash}, not 112.50.`);
+  assert(Number(closed.body?.variance) === 0, `Expected zero variance, got ${closed.body?.variance}.`);
+
+  const reopened = await request("/api/register-shifts/open", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secondLogin.body.token}` },
+    body: JSON.stringify({ registerId, openingCash: 50 }),
+  });
+  assert(reopened.response.status === 201, `Register did not become available after settlement: ${reopened.response.status}`);
+  const secondClosed = await request(`/api/register-shifts/${reopened.body.id}/close`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secondLogin.body.token}` },
+    body: JSON.stringify({ closingCash: 50 }),
+  });
+  assert(secondClosed.response.status === 200, `Second cashier cleanup settlement failed: ${secondClosed.response.status}`);
 }
 
 async function verifyCashTenderedRegression(token, managerAccessToken) {
@@ -737,6 +848,10 @@ async function main() {
     assert(managerUnlock.response.status === 200, `Manager unlock failed: ${managerUnlock.response.status} ${JSON.stringify(managerUnlock.body)}`);
     const managerAccessToken = managerUnlock.body?.accessToken;
     assert(typeof managerAccessToken === "string" && managerAccessToken.length > 20, "Manager unlock did not return an access token.");
+
+    markBoundary("cashier day register lifecycle");
+    await verifyRegisterShiftLifecycle(upgraded.token, paidPlan.id, paidPlan.name);
+    console.log("PASS cashier day blocks pre-shift sales, settles expected cash, and releases the register");
 
     markBoundary("cash tendered and change regression");
     await verifyCashTenderedRegression(upgraded.token, managerAccessToken);

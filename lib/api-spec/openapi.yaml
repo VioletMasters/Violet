@@ -3190,7 +3190,7 @@ components:
 
     SaleInput:
       type: object
-      required: [items, paymentMethod, idempotencyKey]
+      required: [items, paymentMethod, idempotencyKey, shiftId]
       properties:
         idempotencyKey:
           type: string
@@ -3219,6 +3219,7 @@ components:
           type: string
         shiftId:
           type: string
+          description: The authenticated cashier's active register shift. Sales cannot be completed without it.
         note:
           type: string
 
