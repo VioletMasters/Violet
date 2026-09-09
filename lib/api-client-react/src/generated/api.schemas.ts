@@ -582,6 +582,11 @@ export interface Sale {
   taxAmount?: number;
   discountAmount?: number;
   totalAmount: number;
+  /**
+     * Amount of cash the customer handed over. Change is the difference from totalAmount.
+     * @nullable
+     */
+  cashTendered?: number | null;
   paymentMethod: SalePaymentMethod;
   status: SaleStatus;
   cashierId?: string;

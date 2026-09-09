@@ -53,6 +53,8 @@ export default function ReportsSales() {
                 <th className="px-4 py-3 font-medium text-right">Subtotal</th>
                 <th className="px-4 py-3 font-medium text-right">Discount</th>
                 <th className="px-4 py-3 font-medium text-right">Tax</th>
+                <th className="px-4 py-3 font-medium text-right">Cash received</th>
+                <th className="px-4 py-3 font-medium text-right">Change</th>
                 <th className="px-4 py-3 font-medium text-right text-foreground">Total</th>
               </tr>
             </thead>
@@ -97,6 +99,16 @@ export default function ReportsSales() {
                     <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                       {formatCurrency(tx.taxAmount || 0)}
                     </td>
+                    <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+                      {tx.paymentMethod === "cash" && tx.cashTendered != null
+                        ? formatCurrency(tx.cashTendered)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+                      {tx.paymentMethod === "cash" && tx.cashTendered != null
+                        ? formatCurrency(Math.max(0, Number(tx.cashTendered) - Number(tx.totalAmount)))
+                        : "—"}
+                    </td>
                     <td className="px-4 py-3 text-right font-mono font-bold">
                       {formatCurrency(tx.totalAmount)}
                     </td>
@@ -104,7 +116,7 @@ export default function ReportsSales() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
                       <FileText className="h-8 w-8 mb-2 opacity-30" />
                       <p>No transactions found for this period.</p>
