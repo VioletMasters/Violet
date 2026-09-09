@@ -16,3 +16,4 @@
 - [Tauri bundled origin](tauri-bundled-origin.md) — Tauri 2 bundled pages use http://tauri.localhost; native setup guards must allow that origin.
 - [Windows Actions Docker engine](windows-actions-docker-engine.md) — packaged Store Host smoke tests need Docker Desktop in Linux-container mode before Compose.
 - [Report export format contract](report-export-format-contract.md) — preserve trailing cash reconciliation fields when serializing every report format.
+- [Wouter nested routes](wouter-nested-routes.md) — use `/*` for the app catch-all so multi-segment paths reach nested routes.
