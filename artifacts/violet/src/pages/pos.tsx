@@ -560,6 +560,12 @@ export default function POSPage() {
                 : "The sale was recorded successfully."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {paymentCompletion?.tendered != null && (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+              <span className="text-muted-foreground">Cash received</span>
+              <span className="font-semibold">{formatCurrency(paymentCompletion.tendered)}</span>
+            </div>
+          )}
           <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-6 py-7 text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Change
