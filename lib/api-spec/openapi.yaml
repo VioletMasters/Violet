@@ -40,6 +40,8 @@ tags:
     description: Purchase orders and receiving
   - name: settings
     description: Settings
+  - name: printers
+    description: Printer configuration and print jobs
   - name: admin
     description: Super admin
 
@@ -1786,6 +1788,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Settings"
+
+  # ─── Printers ───────────────────────────────────────────────────────────────
+  /printers:
+    get:
+      operationId: listPrinters
+      tags: [printers]
+      summary: List configured printers
+      responses:
+        "200":
+          description: Printers and supported options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintersResponse"
+    post:
+      operationId: createPrinter
+      tags: [printers]
+      summary: Configure a printer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrinterInput"
+      responses:
+        "201":
+          description: Printer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Printer"
+
+  /printers/{id}:
+    patch:
+      operationId: updatePrinter
+      tags: [printers]
+      summary: Update a configured printer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrinterUpdate"
+      responses:
+        "200":
+          description: Printer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Printer"
+    delete:
+      operationId: deletePrinter
+      tags: [printers]
+      summary: Remove a configured printer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /print-jobs:
+    get:
+      operationId: listPrintJobs
+      tags: [printers]
+      summary: List print history and queued jobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: saleId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Print jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintJobsResponse"
+
+  /print-jobs/{id}/retry:
+    post:
+      operationId: retryPrintJob
+      tags: [printers]
+      summary: Queue a failed print job again
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintJob"
+
+  /print-jobs/{id}/status:
+    post:
+      operationId: updatePrintJobStatus
+      tags: [printers]
+      summary: Report a native print attempt result
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintJobStatusInput"
+      responses:
+        "200":
+          description: Job status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintJob"
     patch:
       operationId: updateSettings
       tags: [settings]
@@ -2844,6 +2990,9 @@ components:
           type: ["string", "null"]
         color:
           type: ["string", "null"]
+        printDestination:
+          type: string
+          default: customer_receipt
         tenantId:
           type: string
         productCount:
@@ -2862,6 +3011,8 @@ components:
           type: string
         color:
           type: string
+        printDestination:
+          type: string
 
     CategoryUpdate:
       type: object
@@ -2872,6 +3023,8 @@ components:
         description:
           type: string
         color:
+          type: string
+        printDestination:
           type: string
 
     # ── Brand ──────────────────────────────────────────────────────────────────
@@ -2943,6 +3096,11 @@ components:
         brandName:
           type: ["string", "null"]
         imageUrl:
+          type: ["string", "null"]
+        printDestination:
+          type: string
+          default: customer_receipt
+        warehouseLocation:
           type: ["string", "null"]
         tenantId:
           type: string
