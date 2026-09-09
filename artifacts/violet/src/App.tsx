@@ -33,11 +33,7 @@ function DefaultAppRoute() {
 }
 
 function CashReportsRoute() {
-  return (
-    <ReportsLayout>
-      <ReportsCash />
-    </ReportsLayout>
-  );
+  return <div data-testid="cash-route-probe">Cash route loaded</div>;
 }
 
 function RootRoute() {
