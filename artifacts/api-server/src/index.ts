@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startAbandonedPaidSignupCleanup } from "./lib/abandonedPaidSignups";
 import { bootstrapHostedSuperAdmin } from "./lib/hostedSuperAdminBootstrap";
+import { backfillTenantLicenses } from "./lib/entitlements";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,9 @@ const server = app.listen(port, () => {
   void bootstrapHostedSuperAdmin().catch((err) => {
     logger.error({ err }, "Hosted super-admin bootstrap failed");
   });
+  void backfillTenantLicenses()
+    .then((result) => logger.info(result, "Tenant license backfill completed"))
+    .catch((err) => logger.error({ err }, "Tenant license backfill failed"));
 });
 
 server.on("error", (err) => {

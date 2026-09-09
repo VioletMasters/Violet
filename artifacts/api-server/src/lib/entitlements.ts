@@ -150,6 +150,28 @@ export async function ensureTenantLicense(tenantId: string, executor: DbExecutor
   return created ?? null;
 }
 
+export async function backfillTenantLicenses() {
+  const tenants = await db.select({ id: tenantsTable.id }).from(tenantsTable);
+  let processed = 0;
+  let skipped = 0;
+
+  for (const tenant of tenants) {
+    const result = await db.transaction(async (tx) => {
+      // A deployment may start multiple API instances at once. Serialize
+      // provisioning per tenant so a legacy customer gets exactly one key.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${tenant.id}, 0))`,
+      );
+      const license = await ensureTenantLicense(tenant.id, tx);
+      return license ? "processed" : "skipped";
+    });
+    if (result === "processed") processed += 1;
+    else skipped += 1;
+  }
+
+  return { total: tenants.length, processed, skipped };
+}
+
 export async function getTenantEntitlementState(tenantId: string) {
   const resolved = await resolveTenantPlan(tenantId);
   if (!resolved?.plan) return null;
