@@ -13,4 +13,7 @@ export interface TopProduct {
   totalRevenue: number;
   /** @nullable */
   imageUrl?: string | null;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
 }

@@ -17,4 +17,6 @@ export type ProductImportInputRowsItem = {
   minStock?: number;
   category?: string;
   brand?: string;
+  printDestination?: string;
+  warehouseLocation?: string;
 };

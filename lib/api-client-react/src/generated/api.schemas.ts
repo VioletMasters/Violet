@@ -497,6 +497,9 @@ export interface TopProduct {
   totalRevenue: number;
   /** @nullable */
   imageUrl?: string | null;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
 }
 
 export interface SalesTrendPoint {
@@ -616,6 +619,8 @@ export interface ProductInput {
   /** @nullable */
   brandId?: string | null;
   imageUrl?: string;
+  printDestination?: string;
+  warehouseLocation?: string;
 }
 
 export type ProductImportInputRowsItem = {
@@ -629,6 +634,8 @@ export type ProductImportInputRowsItem = {
   minStock?: number;
   category?: string;
   brand?: string;
+  printDestination?: string;
+  warehouseLocation?: string;
 };
 
 export interface ProductImportInput {
@@ -666,6 +673,8 @@ export interface ProductUpdate {
   /** @nullable */
   brandId?: string | null;
   imageUrl?: string;
+  printDestination?: string;
+  warehouseLocation?: string;
   isActive?: boolean;
 }
 

@@ -389,12 +389,16 @@ export const GetRecentSalesResponse = zod.array(GetRecentSalesResponseItem)
 /**
  * @summary Get top selling products
  */
+export const getTopProductsResponsePrintDestinationDefault = `customer_receipt`;
+
 export const GetTopProductsResponseItem = zod.object({
   "productId": zod.string(),
   "name": zod.string(),
   "totalSold": zod.number(),
   "totalRevenue": zod.number(),
-  "imageUrl": zod.string().nullish()
+  "imageUrl": zod.string().nullish(),
+  "printDestination": zod.string().default(getTopProductsResponsePrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish()
 })
 export const GetTopProductsResponse = zod.array(GetTopProductsResponseItem)
 
@@ -491,6 +495,7 @@ export const createProductBodyCostPriceMin = 0;
 
 export const createProductBodyStockDefault = 0;
 export const createProductBodyMinStockDefault = 5;
+export const createProductBodyPrintDestinationDefault = `customer_receipt`;
 
 export const CreateProductBody = zod.object({
   "name": zod.string().min(1),
@@ -503,7 +508,9 @@ export const CreateProductBody = zod.object({
   "minStock": zod.number().default(createProductBodyMinStockDefault),
   "categoryId": zod.string().nullish(),
   "brandId": zod.string().nullish(),
-  "imageUrl": zod.string().optional()
+  "imageUrl": zod.string().optional(),
+  "printDestination": zod.string().default(createProductBodyPrintDestinationDefault),
+  "warehouseLocation": zod.string().optional()
 })
 
 export const createProductResponsePrintDestinationDefault = `customer_receipt`;
@@ -549,7 +556,9 @@ export const ImportProductsBody = zod.object({
   "stock": zod.number().optional(),
   "minStock": zod.number().optional(),
   "category": zod.string().optional(),
-  "brand": zod.string().optional()
+  "brand": zod.string().optional(),
+  "printDestination": zod.string().optional(),
+  "warehouseLocation": zod.string().optional()
 })).max(importProductsBodyRowsMax)
 })
 
@@ -623,6 +632,8 @@ export const UpdateProductBody = zod.object({
   "categoryId": zod.string().nullish(),
   "brandId": zod.string().nullish(),
   "imageUrl": zod.string().optional(),
+  "printDestination": zod.string().optional(),
+  "warehouseLocation": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
 
