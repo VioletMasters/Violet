@@ -1630,7 +1630,10 @@ export const CreateRegisterResponse = zod.record(zod.string(), zod.unknown())
 export const ListRegisterShiftsQueryParams = zod.object({
   "storeId": zod.coerce.string().optional(),
   "registerId": zod.coerce.string().optional(),
-  "status": zod.enum(['open', 'closed']).optional()
+  "cashierId": zod.coerce.string().optional(),
+  "status": zod.enum(['open', 'closed']).optional(),
+  "startDate": zod.coerce.string().optional(),
+  "endDate": zod.coerce.string().optional()
 })
 
 export const ListRegisterShiftsResponse = zod.record(zod.string(), zod.unknown())

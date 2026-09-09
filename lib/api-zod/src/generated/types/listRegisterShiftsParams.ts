@@ -10,5 +10,8 @@ import type { ListRegisterShiftsStatus } from './listRegisterShiftsStatus';
 export type ListRegisterShiftsParams = {
 storeId?: string;
 registerId?: string;
+cashierId?: string;
 status?: ListRegisterShiftsStatus;
+startDate?: string;
+endDate?: string;
 };

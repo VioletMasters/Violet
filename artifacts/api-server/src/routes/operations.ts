@@ -3,7 +3,8 @@ import {
   auditEventsTable, cashEventsTable, db, registersTable, registerShiftsTable, storesTable,
   usersTable,
 } from "@workspace/db";
-import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { and, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { isManagerRole, requireAuth, requireManagerAccess } from "../middlewares/auth";
 import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
@@ -12,6 +13,8 @@ function canConfigureStoresAndRegisters(role: string): boolean {
 }
 
 const router = Router();
+const cashierUsers = alias(usersTable, "register_shift_cashiers");
+const settlingUsers = alias(usersTable, "register_shift_settlers");
 
 function amount(value: unknown, allowZero = true): number | null {
   const parsed = Number(value);
@@ -112,9 +115,56 @@ router.get("/register-shifts", requireManagerAccess, async (req, res): Promise<v
   const conditions: SQL[] = [eq(registerShiftsTable.tenantId, req.tenantId!)];
   if (typeof req.query.storeId === "string") conditions.push(eq(registerShiftsTable.storeId, req.query.storeId));
   if (typeof req.query.registerId === "string") conditions.push(eq(registerShiftsTable.registerId, req.query.registerId));
+  if (typeof req.query.cashierId === "string") conditions.push(eq(registerShiftsTable.cashierId, req.query.cashierId));
   if (typeof req.query.status === "string") conditions.push(eq(registerShiftsTable.status, req.query.status));
-  const rows = await db.select().from(registerShiftsTable).where(and(...conditions))
-    .orderBy(desc(registerShiftsTable.openedAt)).limit(500);
+  if (typeof req.query.startDate === "string") {
+    const startDate = new Date(req.query.startDate);
+    if (Number.isNaN(startDate.getTime())) { res.status(400).json({ error: "Invalid startDate" }); return; }
+    conditions.push(gte(registerShiftsTable.closedAt, startDate));
+  }
+  if (typeof req.query.endDate === "string") {
+    const endDate = new Date(req.query.endDate);
+    if (Number.isNaN(endDate.getTime())) { res.status(400).json({ error: "Invalid endDate" }); return; }
+    conditions.push(lte(registerShiftsTable.closedAt, endDate));
+  }
+  const rows = await db.select({
+    id: registerShiftsTable.id,
+    tenantId: registerShiftsTable.tenantId,
+    storeId: registerShiftsTable.storeId,
+    storeName: storesTable.name,
+    registerId: registerShiftsTable.registerId,
+    registerName: registersTable.name,
+    cashierId: registerShiftsTable.cashierId,
+    cashierName: sql<string>`concat(${cashierUsers.firstName}, ' ', ${cashierUsers.lastName})`,
+    openedBy: registerShiftsTable.openedBy,
+    closedBy: registerShiftsTable.closedBy,
+    settledByName: sql<string>`concat(${settlingUsers.firstName}, ' ', ${settlingUsers.lastName})`,
+    status: registerShiftsTable.status,
+    openingCash: registerShiftsTable.openingCash,
+    expectedCash: registerShiftsTable.expectedCash,
+    closingCash: registerShiftsTable.closingCash,
+    variance: registerShiftsTable.variance,
+    openedAt: registerShiftsTable.openedAt,
+    closedAt: registerShiftsTable.closedAt,
+  }).from(registerShiftsTable)
+    .leftJoin(storesTable, and(
+      eq(storesTable.id, registerShiftsTable.storeId),
+      eq(storesTable.tenantId, req.tenantId!),
+    ))
+    .leftJoin(registersTable, and(
+      eq(registersTable.id, registerShiftsTable.registerId),
+      eq(registersTable.tenantId, req.tenantId!),
+    ))
+    .leftJoin(cashierUsers, and(
+      eq(cashierUsers.id, registerShiftsTable.cashierId),
+      eq(cashierUsers.tenantId, req.tenantId!),
+    ))
+    .leftJoin(settlingUsers, and(
+      eq(settlingUsers.id, registerShiftsTable.closedBy),
+      eq(settlingUsers.tenantId, req.tenantId!),
+    ))
+    .where(and(...conditions))
+    .orderBy(desc(registerShiftsTable.closedAt), desc(registerShiftsTable.openedAt)).limit(500);
   res.json({ data: rows });
 });
 

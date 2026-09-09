@@ -14,6 +14,7 @@ import {
   getGetSalesReportQueryKey,
   getGetStoreReportQueryKey,
   getListEmployeesQueryKey,
+  getListRegisterShiftsQueryKey,
   getListRegistersQueryKey,
   getListStoresQueryKey,
   useGetAuditReport,
@@ -31,6 +32,7 @@ import {
   useListStores,
   useListEmployees,
   useListRegisters,
+  useListRegisterShifts,
 } from "@workspace/api-client-react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { subDays, format } from "date-fns";
@@ -48,6 +50,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   ClipboardList,
+  ClipboardCheck,
   Download,
   FileBarChart,
   FileClock,
@@ -232,6 +235,17 @@ export default function ReportsPage() {
   const transactionsQuery = useGetReportTransactions(transactionParams, { query: { queryKey: getGetReportTransactionsQueryKey(transactionParams), enabled: enabled(["sales", "employees"]) } });
   const productsQuery = useGetProductReport(params, { query: { queryKey: getGetProductReportQueryKey(params), enabled: enabled(["products", "profit"]) } });
   const cashQuery = useGetCashReport(params, { query: { queryKey: getGetCashReportQueryKey(params), enabled: enabled("cash") } });
+  const settlementParams = {
+    status: "closed" as const,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    ...(storeId === "all" ? {} : { storeId }),
+    ...(registerId === "all" ? {} : { registerId }),
+    ...(cashierId === "all" ? {} : { cashierId }),
+  };
+  const settlementsQuery = useListRegisterShifts(settlementParams, {
+    query: { queryKey: getListRegisterShiftsQueryKey(settlementParams), enabled: enabled("cash") },
+  });
   const purchasingQuery = useGetPurchasingReport({ query: { queryKey: getGetPurchasingReportQueryKey(), enabled: enabled("purchasing") } });
   const storeQuery = useGetStoreReport(range, { query: { queryKey: getGetStoreReportQueryKey(range), enabled: enabled("stores") } });
   const auditQuery = useGetAuditReport({ query: { queryKey: getGetAuditReportQueryKey(), enabled: enabled("audit") } });
@@ -241,6 +255,7 @@ export default function ReportsPage() {
   const products = ((productsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const transactions = ((transactionsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const cashRows = ((cashQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
+  const settlementRows = ((settlementsQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const purchaseRows = ((purchasingQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const storeRows = ((storeQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
   const auditRows = ((auditQuery.data as AnyRecord | undefined)?.data ?? []) as AnyRecord[];
@@ -267,7 +282,7 @@ export default function ReportsPage() {
   };
 
   const retryActive = () => {
-    void Promise.all([summaryQuery.refetch(), inventoryQuery.refetch(), movementQuery.refetch(), employeeQuery.refetch(), transactionsQuery.refetch(), productsQuery.refetch(), cashQuery.refetch(), purchasingQuery.refetch(), storeQuery.refetch(), auditQuery.refetch()]);
+    void Promise.all([summaryQuery.refetch(), inventoryQuery.refetch(), movementQuery.refetch(), employeeQuery.refetch(), transactionsQuery.refetch(), productsQuery.refetch(), cashQuery.refetch(), settlementsQuery.refetch(), purchasingQuery.refetch(), storeQuery.refetch(), auditQuery.refetch()]);
   };
 
   return (
@@ -401,7 +416,38 @@ export default function ReportsPage() {
 
         <TabsContent value="profit" className="space-y-5"><SectionHeader title="Profit & margin" description="A transparent view of net sales, historical cost, and contribution" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MetricCard label="Net sales" value={money(summary.netSales)} icon={ArrowUpRight} tone="positive" /><MetricCard label="COGS" value={money(summary.cogs)} icon={Archive} /><MetricCard label="Gross profit" value={money(summary.grossProfit)} icon={CircleDollarSign} tone="positive" /><MetricCard label="Gross margin" value={`${Number(summary.grossMargin ?? 0).toFixed(1)}%`} icon={BarChart3} /></div><Card><CardHeader><CardTitle>Contribution by product</CardTitle><CardDescription>Use the export controls above for the filtered result.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "productName", label: "Product" }, { key: "units", label: "Units", align: "right" }, { key: "grossProfit", label: "Profit", align: "right" }]} rows={products.map((row) => ({ ...row, units: number(row.units), grossProfit: money(row.grossProfit) }))} /></CardContent></Card></TabsContent>
 
-        <TabsContent value="cash" className="space-y-5"><SectionHeader title="Cash management" description="Register events and cash movement for accountability at close" /><Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Amount", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: money(row.amount) }))} emptyTitle="No cash events" /></CardContent></Card></TabsContent>
+        <TabsContent value="cash" className="space-y-5">
+          <SectionHeader title="Cash management" description="Register events and cash movement for accountability at close" />
+          <Card><CardHeader><CardTitle>Cash events</CardTitle><CardDescription>Drops and payouts recorded against register shifts.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "type", label: "Event" }, { key: "count", label: "Events", align: "right" }, { key: "amount", label: "Amount", align: "right" }]} rows={cashRows.map((row) => ({ ...row, type: String(row.type).replace("_", " "), count: number(row.count), amount: money(row.amount) }))} emptyTitle="No cash events" /></CardContent></Card>
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Closed cashier-day settlements</CardTitle><CardDescription>Opening float, expected cash, physical count, variance, and settlement owner for each closeout.</CardDescription></CardHeader>
+            <CardContent>
+              <ReportTable
+                columns={[
+                  { key: "closedAt", label: "Closed" },
+                  { key: "storeRegister", label: "Store / register" },
+                  { key: "cashierName", label: "Cashier" },
+                  { key: "openingCash", label: "Opening float", align: "right" },
+                  { key: "expectedCash", label: "Expected", align: "right" },
+                  { key: "closingCash", label: "Counted", align: "right" },
+                  { key: "variance", label: "Variance", align: "right" },
+                  { key: "settledByName", label: "Settled by" },
+                ]}
+                rows={settlementRows.map((row) => ({
+                  ...row,
+                  closedAt: row.closedAt ? formatDateTime(row.closedAt) : "—",
+                  storeRegister: [row.storeName, row.registerName].filter(Boolean).join(" / ") || row.registerId,
+                  openingCash: money(row.openingCash),
+                  expectedCash: money(row.expectedCash),
+                  closingCash: money(row.closingCash),
+                  variance: `${Number(row.variance ?? 0) > 0 ? "+" : ""}${money(row.variance)}`,
+                  settledByName: row.settledByName || row.closedBy || "Unknown",
+                }))}
+                emptyTitle={settlementsQuery.isLoading ? "Loading settlements..." : "No closed cashier days"}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="employees" className="space-y-5"><SectionHeader title="Employee performance" description="Cashier attribution and transaction activity from recorded sales" /><Card><CardHeader><CardTitle>Cashier performance</CardTitle><CardDescription>Completed sales grouped by the employee who recorded them.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "employee", label: "Employee" }, { key: "role", label: "Role" }, { key: "transactions", label: "Transactions", align: "right" }, { key: "sales", label: "Sales", align: "right" }, { key: "discounts", label: "Discounts", align: "right" }]} rows={employeeRows.map((row) => ({ ...row, employee: `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || "Unknown employee", transactions: number(row.transactions), sales: money(row.sales), discounts: money(row.discounts), role: String(row.role ?? "").replace("_", " ") }))} emptyTitle="No employee activity" /></CardContent></Card></TabsContent>
 
@@ -412,7 +458,7 @@ export default function ReportsPage() {
         <TabsContent value="audit" className="space-y-5"><SectionHeader title="Audit history" description="Searchable, tenant-scoped management events for accountability" /><div className="flex max-w-md items-center gap-2"><Search className="h-4 w-4 text-muted-foreground" /><Input placeholder="Filter visible events..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><Card><CardHeader><CardTitle>Activity trail</CardTitle><CardDescription>Management actions include the actor, entity, and timestamp.</CardDescription></CardHeader><CardContent><ReportTable columns={[{ key: "action", label: "Action" }, { key: "entityType", label: "Entity" }, { key: "summary", label: "Summary" }, { key: "createdAt", label: "When" }]} rows={auditRows.filter((row) => !search || JSON.stringify(row).toLowerCase().includes(search.toLowerCase())).map((row) => ({ ...row, createdAt: row.createdAt ? formatDateTime(row.createdAt) : "—" }))} emptyTitle="No audit events" /></CardContent></Card></TabsContent>
       </Tabs>
       {definitionsQuery.data && <p className="text-xs text-muted-foreground">Reporting definitions are maintained centrally so gross sales, net sales, COGS, and margin stay consistent across every view.</p>}
-      {(summaryQuery.isError || inventoryQuery.isError || movementQuery.isError || employeeQuery.isError || transactionsQuery.isError || productsQuery.isError || cashQuery.isError || purchasingQuery.isError || storeQuery.isError || auditQuery.isError) && <ErrorState onRetry={retryActive} />}
+      {(summaryQuery.isError || inventoryQuery.isError || movementQuery.isError || employeeQuery.isError || transactionsQuery.isError || productsQuery.isError || cashQuery.isError || settlementsQuery.isError || purchasingQuery.isError || storeQuery.isError || auditQuery.isError) && <ErrorState onRetry={retryActive} />}
     </div>
   );
 }

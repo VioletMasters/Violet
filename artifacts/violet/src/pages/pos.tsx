@@ -17,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   getGetCurrentRegisterShiftQueryKey,
+  getListRegisterShiftsQueryKey,
   listPosProducts,
   useConfirmManagerPassword,
   useCloseRegisterShift,
@@ -138,6 +139,7 @@ export default function POSPage() {
     mutation: {
       onSuccess: (shift) => {
         queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListRegisterShiftsQueryKey() });
         setClosingCash("");
         setSettlementDialogOpen(false);
         const settledShift = shift as RegisterShift;

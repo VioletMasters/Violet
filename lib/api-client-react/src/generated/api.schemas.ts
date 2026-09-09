@@ -1584,7 +1584,10 @@ storeId?: string;
 export type ListRegisterShiftsParams = {
 storeId?: string;
 registerId?: string;
+cashierId?: string;
 status?: ListRegisterShiftsStatus;
+startDate?: string;
+endDate?: string;
 };
 
 export type ListRegisterShiftsStatus = typeof ListRegisterShiftsStatus[keyof typeof ListRegisterShiftsStatus];

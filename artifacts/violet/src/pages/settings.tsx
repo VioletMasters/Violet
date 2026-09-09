@@ -54,6 +54,7 @@ const managementLinks = [
   { href: "/employees", label: "Employees", description: "Manage your team and employee details.", icon: UserRoundCog },
   { href: "/suppliers", label: "Suppliers", description: "Maintain supplier contacts and purchasing partners.", icon: Truck },
   { href: "/reports", label: "Reports", description: "Review sales, inventory, and business reporting.", icon: BarChart3 },
+  { href: "/reports/cash", label: "Cashier settlements", description: "Review closed cashier days by store, register, and cashier.", icon: Banknote },
   { href: "/advanced", label: "Advanced", description: "Stores, registers, and operational controls.", icon: Settings2 },
   { href: "/subscription", label: "Subscription", description: "Review your Violet plan and billing.", icon: Settings2 },
 ];
@@ -194,7 +195,7 @@ export default function SettingsPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {managementLinks.map(({ href, label, description, icon: Icon }) => (
-            <Link key={href} href={href}>
+            <Link key={href} href={href} data-testid={`link-management-${label.toLowerCase().replace(/\s+/g, "-")}`}>
               <Card className="h-full transition-colors hover:border-primary/50 hover:bg-accent/30">
                 <CardHeader className="space-y-2 p-4">
                   <Icon className="h-5 w-5 text-primary" />
