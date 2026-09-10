@@ -1,14 +1,12 @@
 import { Router } from "express";
-import { db, salesTable, productsTable, customersTable, saleItemsTable } from "@workspace/db";
-import { eq, and, gte, sql, desc, lt } from "drizzle-orm";
+import { db, salesTable, productsTable, customersTable, saleItemsTable, salePaymentsTable, usersTable } from "@workspace/db";
+import { eq, and, gte, sql, desc, lt, inArray } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
+import { summarizeCashTender } from "../lib/cashTender";
 
 const router = Router();
 
-// GET /dashboard/stats
-router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const now = new Date();
+export async function getDashboardStats(tenantId: string, now = new Date()) {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -33,7 +31,7 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
   const inventoryRetailValue = products.reduce((sum, p) => sum + (parseFloat(p.price) * p.stock), 0);
   const inventoryMissingCostCount = products.filter((p) => p.stock > 0 && p.costPrice == null).length;
 
-  res.json({
+  return {
     todayRevenue: parseFloat(String(todaySales[0]?.revenue ?? 0)),
     weekRevenue: parseFloat(String(weekSales[0]?.revenue ?? 0)),
     monthRevenue: parseFloat(String(monthSales[0]?.revenue ?? 0)),
@@ -47,56 +45,117 @@ router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<v
     inventoryRetailValue,
     inventoryProjectedGrossProfit: inventoryMissingCostCount === 0 ? inventoryRetailValue - inventoryCostValue : null,
     inventoryMissingCostCount,
-  });
+  };
+}
+
+// GET /dashboard/stats
+router.get("/dashboard/stats", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getDashboardStats(req.tenantId!));
 });
 
-// GET /dashboard/recent-sales
-router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const sales = await db.select().from(salesTable)
+export async function getRecentSales(tenantId: string) {
+  const sales = await db.select({
+    sale: salesTable,
+    customerFirstName: customersTable.firstName,
+    customerLastName: customersTable.lastName,
+    cashierFirstName: usersTable.firstName,
+    cashierLastName: usersTable.lastName,
+  }).from(salesTable)
+    .leftJoin(customersTable, and(
+      eq(salesTable.customerId, customersTable.id),
+      eq(customersTable.tenantId, tenantId),
+    ))
+    .leftJoin(usersTable, and(
+      eq(salesTable.cashierId, usersTable.id),
+      eq(usersTable.tenantId, tenantId),
+    ))
     .where(eq(salesTable.tenantId, tenantId))
     .orderBy(desc(salesTable.createdAt))
     .limit(10);
 
-  const result = await Promise.all(sales.map(async (sale) => {
-    const items = await db.select().from(saleItemsTable).where(and(
-      eq(saleItemsTable.saleId, sale.id),
+  const payments = sales.length === 0 ? [] : await db.select({
+    saleId: salePaymentsTable.saleId,
+    method: salePaymentsTable.method,
+    amount: salePaymentsTable.amount,
+    tenderedAmount: salePaymentsTable.tenderedAmount,
+  }).from(salePaymentsTable).where(and(
+    eq(salePaymentsTable.tenantId, tenantId),
+    inArray(salePaymentsTable.saleId, sales.map(({ sale }) => sale.id)),
+    eq(salePaymentsTable.method, "cash"),
+  ));
+  const paymentsBySale = new Map<string, typeof payments>();
+  for (const payment of payments) {
+    paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
+  }
+
+  const items = sales.length === 0 ? [] : await db.select({
+    item: saleItemsTable,
+  }).from(saleItemsTable)
+    .innerJoin(salesTable, and(
+      eq(saleItemsTable.saleId, salesTable.id),
+      eq(salesTable.tenantId, tenantId),
+    ))
+    .where(and(
+      inArray(saleItemsTable.saleId, sales.map(({ sale }) => sale.id)),
       eq(saleItemsTable.isVoided, false),
     ));
+  const itemsBySale = new Map<string, typeof items>();
+  for (const item of items) {
+    const saleItems = itemsBySale.get(item.item.saleId) ?? [];
+    saleItems.push(item);
+    itemsBySale.set(item.item.saleId, saleItems);
+  }
+
+  const result = sales.map(({ sale, customerFirstName, customerLastName, cashierFirstName, cashierLastName }) => {
+    const saleItems = itemsBySale.get(sale.id) ?? [];
+    const cashTender = summarizeCashTender(paymentsBySale.get(sale.id) ?? [], {
+      paymentMethod: sale.paymentMethod,
+      totalAmount: sale.totalAmount,
+      cashTendered: sale.cashTendered,
+    });
     return {
       id: sale.id,
       receiptNumber: sale.receiptNumber,
       customerId: sale.customerId ?? null,
-      customerName: null,
+      customerName: customerFirstName && customerLastName
+        ? `${customerFirstName} ${customerLastName}`
+        : null,
       subtotal: parseFloat(sale.subtotal),
       taxAmount: parseFloat(sale.taxAmount),
       discountAmount: parseFloat(sale.discountAmount),
       totalAmount: parseFloat(sale.totalAmount),
+      cashReceived: cashTender?.received ?? null,
+      changeDue: cashTender?.changeDue ?? null,
       paymentMethod: sale.paymentMethod,
       status: sale.status,
       cashierId: sale.cashierId,
-      cashierName: "",
-      items: items.map(i => ({
-        productId: i.productId,
-        productName: i.productName,
-        quantity: i.quantity,
-        unitPrice: parseFloat(i.unitPrice),
-        discount: parseFloat(i.discount),
-        totalPrice: parseFloat(i.totalPrice),
+      cashierName: cashierFirstName && cashierLastName
+        ? `${cashierFirstName} ${cashierLastName}`
+        : "",
+      items: saleItems.map(({ item }) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: parseFloat(item.unitPrice),
+        discount: parseFloat(item.discount),
+        totalPrice: parseFloat(item.totalPrice),
       })),
       tenantId: sale.tenantId,
       createdAt: sale.createdAt.toISOString(),
     };
-  }));
+  });
 
-  res.json(result);
+  return result;
+}
+
+// GET /dashboard/recent-sales
+router.get("/dashboard/recent-sales", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getRecentSales(req.tenantId!));
 });
 
 // GET /dashboard/top-products
-router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
+export async function getTopProducts(tenantId: string, now = new Date()) {
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const topItems = await db.select({
     productId: saleItemsTable.productId,
     productName: saleItemsTable.productName,
@@ -110,20 +169,22 @@ router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Pr
     .orderBy(desc(sql`SUM(${saleItemsTable.quantity})`))
     .limit(5);
 
-  res.json(topItems.map(i => ({
+  return topItems.map(i => ({
     productId: i.productId,
     name: i.productName,
     totalSold: Number(i.totalSold),
     totalRevenue: parseFloat(String(i.totalRevenue)),
     imageUrl: null,
-  })));
+  }));
+}
+
+router.get("/dashboard/top-products", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getTopProducts(req.tenantId!));
 });
 
 // GET /dashboard/sales-trend
-router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Promise<void> => {
-  const tenantId = req.tenantId!;
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
+export async function getSalesTrend(tenantId: string, now = new Date()) {
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const trend = await db.select({
     date: sql<string>`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')::text`,
     revenue: sql<number>`COALESCE(SUM(${salesTable.totalAmount}::numeric), 0)`,
@@ -134,11 +195,15 @@ router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Pro
     .groupBy(sql`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')`)
     .orderBy(sql`DATE(${salesTable.createdAt} AT TIME ZONE 'UTC')`);
 
-  res.json(trend.map(t => ({
+  return trend.map(t => ({
     date: t.date,
     revenue: parseFloat(String(t.revenue)),
     count: Number(t.count),
-  })));
+  }));
+}
+
+router.get("/dashboard/sales-trend", requireManagerAccess, async (req, res): Promise<void> => {
+  res.json(await getSalesTrend(req.tenantId!));
 });
 
 export default router;
