@@ -178,6 +178,50 @@ async function setInput(page, selector, value) {
   if (!set) throw new Error(`Could not find packaged app input: ${selector}`);
 }
 
+async function runNativePrinterSmoke(page) {
+  const printers = await evaluate(
+    page,
+    `(async function () {
+      const invoke = window.__TAURI_INTERNALS__?.invoke;
+      if (typeof invoke !== "function") return { supported: false };
+      return { supported: true, printers: await invoke("list_native_printers") };
+    })()`,
+  );
+  if (!printers?.supported) {
+    throw new Error("The packaged desktop webview did not expose the native printer bridge.");
+  }
+  if (!Array.isArray(printers.printers)) {
+    throw new Error(`Native printer discovery returned an invalid response: ${JSON.stringify(printers)}`);
+  }
+  if (printers.printers.length === 0) {
+    console.log("Native printer discovery smoke passed; no OS printer is installed, so dispatch was skipped.");
+    return;
+  }
+
+  const requestedName = process.env.VIOLET_SMOKE_PRINTER_NAME;
+  const printerName = requestedName ?? printers.printers[0]?.name;
+  if (!printerName || !printers.printers.some((printer) => printer.name === printerName)) {
+    throw new Error(
+      `Requested native printer was not discovered: ${requestedName}. ` +
+      `Available printers: ${printers.printers.map((printer) => printer.name).join(", ")}`,
+    );
+  }
+  await evaluate(
+    page,
+    `(async function () {
+      const invoke = window.__TAURI_INTERNALS__?.invoke;
+      await invoke("print_native_document", {
+        request: {
+          printer_name: ${JSON.stringify(printerName)},
+          content: "Violet Enterprise native printer smoke test",
+        },
+      });
+      return true;
+    })()`,
+  );
+  console.log(`Native printer discovery and dispatch smoke passed: ${printerName}`);
+}
+
 function assertLocalLoginUrl(url) {
   const parsed = new URL(url);
   if (!["127.0.0.1", "localhost"].includes(parsed.hostname) || !parsed.pathname.endsWith("/login")) {
@@ -357,6 +401,7 @@ try {
   if (hostedRequests.length > 0) {
     throw new Error(`The packaged app made a hosted browser request: ${hostedRequests.join(", ")}`);
   }
+  await runNativePrinterSmoke(page);
   console.log(`Start locally smoke test passed: ${configPath}`);
 
   await page.call("Network.clearBrowserCookies").catch(() => undefined);
