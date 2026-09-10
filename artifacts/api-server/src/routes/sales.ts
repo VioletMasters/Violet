@@ -1,11 +1,14 @@
 import { Router } from "express";
 import {
   auditEventsTable, cashEventsTable, customersTable, db, inventoryMovementsTable,
-  refundsTable, refundItemsTable, registersTable, registerShiftsTable, saleDiscountsTable,
-  saleItemsTable, salePaymentsTable, salesTable, settingsTable, storesTable, productsTable,
+  refundsTable, refundItemsTable, registerShiftsTable, saleDiscountsTable,
+  saleItemsTable, salePaymentsTable, salesTable, settingsTable, productsTable, categoriesTable,
+  printJobsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
+import { summarizeCashTender } from "../lib/cashTender";
+import { createSalePrintJobs } from "../lib/printer-routing";
 
 const router = Router();
 
@@ -20,10 +23,16 @@ type SaleResponseOptions = {
 };
 
 async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: SaleResponseOptions = {}) {
-  const [items, payments] = await Promise.all([
+  const [items, payments, printJobs] = await Promise.all([
     db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, sale.id)),
     db.select().from(salePaymentsTable).where(and(eq(salePaymentsTable.saleId, sale.id), eq(salePaymentsTable.tenantId, sale.tenantId))),
+    db.select().from(printJobsTable).where(and(eq(printJobsTable.saleId, sale.id), eq(printJobsTable.tenantId, sale.tenantId))),
   ]);
+  const cashTender = summarizeCashTender(payments, {
+    paymentMethod: sale.paymentMethod,
+    totalAmount: sale.totalAmount,
+    cashTendered: sale.cashTendered,
+  });
   const showVoidedItems = options.includeVoidedItems
     ? Boolean((await db.select({ showVoidedItems: settingsTable.showVoidedItems }).from(settingsTable)
       .where(eq(settingsTable.tenantId, sale.tenantId)).limit(1))[0]?.showVoidedItems)
@@ -51,6 +60,8 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: 
     discountAmount: parseFloat(sale.discountAmount),
     totalAmount: parseFloat(sale.totalAmount),
     cashTendered: sale.cashTendered == null ? null : Number(sale.cashTendered),
+    cashReceived: cashTender?.received ?? null,
+    changeDue: cashTender?.changeDue ?? null,
     paymentMethod: sale.paymentMethod,
     status: sale.status,
     cashierId: sale.cashierId,
@@ -62,6 +73,22 @@ async function buildSaleResponse(sale: typeof salesTable.$inferSelect, options: 
       id: payment.id, method: payment.method, amount: Number(payment.amount),
       tenderedAmount: payment.tenderedAmount == null ? null : Number(payment.tenderedAmount),
       reference: payment.reference,
+    })),
+    printJobs: printJobs.map((job) => ({
+      id: job.id,
+      tenantId: job.tenantId,
+      saleId: job.saleId,
+      storeId: job.storeId,
+      registerId: job.registerId,
+      documentType: job.documentType,
+      status: job.status,
+      printerId: job.printerId,
+      payload: job.payload,
+      errorMessage: job.errorMessage,
+      retryCount: job.retryCount,
+      createdAt: job.createdAt.toISOString(),
+      printedAt: job.printedAt?.toISOString() ?? null,
+      updatedAt: job.updatedAt.toISOString(),
     })),
     items: items.filter((item) => !item.isVoided).map(toResponseItem),
     ...(showVoidedItems
@@ -99,7 +126,7 @@ router.get("/sales", requireManagerAccess, async (req, res): Promise<void> => {
 router.post("/sales", requireAuth, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const cashierId = req.user!.id;
-  const { customerId, items, voidedItems, paymentMethod, payments, cashTendered, note, storeId, registerId, shiftId } = req.body;
+  const { customerId, items, voidedItems, paymentMethod, payments, cashTendered, note, shiftId } = req.body;
   const idempotencyKey = typeof req.body?.idempotencyKey === "string"
     ? req.body.idempotencyKey.trim()
     : "";
@@ -118,7 +145,14 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const requestedShiftId = typeof shiftId === "string" ? shiftId.trim() : "";
+  if (!requestedShiftId) {
+    res.status(409).json({ error: "Start a cashier day before completing a sale" });
+    return;
+  }
+
   const paymentMethods = new Set(["cash", "card", "bank_transfer", "store_credit", "gift_card", "mixed"]);
+  const tenderMethods = new Set(["cash", "card", "bank_transfer", "store_credit", "gift_card"]);
   if (!paymentMethods.has(paymentMethod)) {
     res.status(400).json({ error: "Unsupported payment method" });
     return;
@@ -166,6 +200,14 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "One or more products are unavailable for this business" });
     return;
   }
+
+  const categoryIds = [...new Set(products.map((product) => product.categoryId).filter((id): id is string => Boolean(id)))];
+  const categories = categoryIds.length === 0
+    ? []
+    : await db.select({ id: categoriesTable.id, printDestination: categoriesTable.printDestination })
+      .from(categoriesTable)
+      .where(and(eq(categoriesTable.tenantId, tenantId), inArray(categoriesTable.id, categoryIds)));
+  const categoryDestinations = new Map(categories.map((category) => [category.id, category.printDestination]));
 
   if (customerId && !customer[0]) {
     res.status(400).json({ error: "Customer is unavailable for this business" });
@@ -229,31 +271,31 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const tenderInputs = Array.isArray(payments) ? payments as Array<{ method?: unknown; amount?: unknown; tenderedAmount?: unknown; reference?: unknown }> : null;
-  if (tenderInputs && (tenderInputs.length === 0 || tenderInputs.some((p) =>
-    typeof p.method !== "string" || !paymentMethods.has(p.method) || !Number.isFinite(Number(p.amount)) || Number(p.amount) <= 0
-  ) || Math.abs(tenderInputs.reduce((sum, p) => sum + Number(p.amount), 0) - totalAmount) > 0.005)) {
+  const tenderInputs = payments === undefined
+    ? null
+    : Array.isArray(payments)
+      ? payments as Array<{ method?: unknown; amount?: unknown; tenderedAmount?: unknown; reference?: unknown }>
+      : undefined;
+  const invalidTenderInputs = tenderInputs === undefined
+    || (tenderInputs !== null && (
+      tenderInputs.length === 0
+      || tenderInputs.some((p) => {
+        const amount = Number(p.amount);
+        const tenderedAmount = p.tenderedAmount == null ? undefined : Number(p.tenderedAmount);
+        return typeof p.method !== "string"
+          || !tenderMethods.has(p.method)
+          || !Number.isFinite(amount)
+          || amount <= 0
+          || (p.method === "cash" && tenderedAmount !== undefined
+            && (!Number.isFinite(tenderedAmount) || tenderedAmount < amount));
+      })
+      || Math.abs(tenderInputs.reduce((sum, p) => sum + Number(p.amount), 0) - totalAmount) > 0.005
+    ));
+  if (invalidTenderInputs || (tenderInputs && tenderInputs.length < 2)
+    || (tenderInputs && tenderInputs.length > 1 && paymentMethod !== "mixed")
+    || (paymentMethod === "mixed" && (!tenderInputs || tenderInputs.length < 2))) {
     res.status(400).json({ error: "Split tender payments must be valid and equal the sale total" });
     return;
-  }
-
-  // Attribution is optional for legacy/single-store clients, but supplied IDs must belong together in this tenant.
-  if (storeId || registerId || shiftId) {
-    if (typeof storeId !== "string" || typeof registerId !== "string") {
-      res.status(400).json({ error: "storeId and registerId are required together" });
-      return;
-    }
-    const [[store], [register], shifts] = await Promise.all([
-      db.select().from(storesTable).where(and(eq(storesTable.id, storeId), eq(storesTable.tenantId, tenantId))).limit(1),
-      db.select().from(registersTable).where(and(eq(registersTable.id, registerId), eq(registersTable.tenantId, tenantId), eq(registersTable.storeId, storeId))).limit(1),
-      typeof shiftId === "string"
-        ? db.select().from(registerShiftsTable).where(and(eq(registerShiftsTable.id, shiftId), eq(registerShiftsTable.tenantId, tenantId), eq(registerShiftsTable.registerId, registerId), eq(registerShiftsTable.status, "open"))).limit(1)
-        : Promise.resolve([]),
-    ]);
-    if (!store || !register || (shiftId && !shifts[0])) {
-      res.status(400).json({ error: "Invalid store, register, or shift attribution" });
-      return;
-    }
   }
 
   const saleResult = await db.transaction(async (tx) => {
@@ -264,21 +306,23 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
     )).limit(1);
     if (duplicate) return { sale: duplicate, existing: true };
 
-    if (typeof shiftId === "string") {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${shiftId}))`);
-      const [openShift] = await tx.select({ id: registerShiftsTable.id }).from(registerShiftsTable).where(and(
-        eq(registerShiftsTable.id, shiftId), eq(registerShiftsTable.tenantId, tenantId), eq(registerShiftsTable.status, "open"),
-      )).limit(1);
-      if (!openShift) throw new Error("Register shift is no longer open");
-    }
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${requestedShiftId}))`);
+    const [openShift] = await tx.select().from(registerShiftsTable).where(and(
+      eq(registerShiftsTable.id, requestedShiftId),
+      eq(registerShiftsTable.tenantId, tenantId),
+      eq(registerShiftsTable.cashierId, cashierId),
+      eq(registerShiftsTable.status, "open"),
+    )).limit(1);
+    if (!openShift) return { kind: "shift_unavailable" as const };
+
     const [created] = await tx.insert(salesTable).values({
       tenantId,
       receiptNumber: generateReceiptNumber(),
       customerId: typeof customerId === "string" && customerId ? customerId : undefined,
       cashierId,
-      storeId: typeof storeId === "string" ? storeId : undefined,
-      registerId: typeof registerId === "string" ? registerId : undefined,
-      shiftId: typeof shiftId === "string" ? shiftId : undefined,
+      storeId: openShift.storeId,
+      registerId: openShift.registerId,
+      shiftId: openShift.id,
       subtotal: String(subtotal),
       taxAmount: String(taxAmount),
       discountAmount: String(discountAmount),
@@ -309,7 +353,7 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       if (!stockUpdate.length) throw new Error(`Insufficient stock for product ${item.product.id}`);
       await tx.insert(inventoryMovementsTable).values({
         tenantId, productId: item.product.id, adjustment: -item.quantity, reason: "sale",
-        createdBy: cashierId, storeId: typeof storeId === "string" ? storeId : undefined,
+        createdBy: cashierId, storeId: openShift.storeId,
         saleId: created.id, referenceType: "sale", referenceId: created.id,
       });
       if (item.discount > 0) {
@@ -348,10 +392,13 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
         tenderedAmount: payment.tenderedAmount == null ? undefined : String(payment.tenderedAmount),
         reference: typeof payment.reference === "string" ? payment.reference : undefined,
       });
-      if (payment.method === "cash" && typeof storeId === "string" && typeof registerId === "string" && typeof shiftId === "string") {
+      if (payment.method === "cash") {
+        const tenderedAmount = payment.tenderedAmount == null ? amount : Number(payment.tenderedAmount);
+        const cashReceived = Number.isFinite(tenderedAmount) ? tenderedAmount : amount;
+        const cashRetained = Math.min(cashReceived, amount);
         await tx.insert(cashEventsTable).values({
-          tenantId, storeId, registerId, shiftId, saleId: created.id,
-          type: "sale", amount: String(amount), createdBy: cashierId,
+          tenantId, storeId: openShift.storeId, registerId: openShift.registerId, shiftId: openShift.id, saleId: created.id,
+          type: "sale", amount: String(cashRetained), createdBy: cashierId,
         });
       }
     }
@@ -363,13 +410,30 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       }).where(and(eq(customersTable.id, customer[0].id), eq(customersTable.tenantId, tenantId)));
     }
     await tx.insert(auditEventsTable).values({
-      tenantId, actorId: cashierId, storeId: typeof storeId === "string" ? storeId : undefined,
+      tenantId, actorId: cashierId, storeId: openShift.storeId,
       action: "sale.completed", entityType: "sale", entityId: created.id,
       after: { receiptNumber: created.receiptNumber, totalAmount, paymentMethod: created.paymentMethod },
     });
+    await createSalePrintJobs(tx, created, validLineItems.map((item) => ({
+      product: {
+        id: item.product.id,
+        name: item.product.name,
+        sku: item.product.sku,
+        categoryId: item.product.categoryId,
+        printDestination: item.product.printDestination,
+        warehouseLocation: item.product.warehouseLocation,
+      },
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+    })), categoryDestinations);
     return { sale: created, existing: false };
   });
 
+  if ("kind" in saleResult && saleResult.kind === "shift_unavailable") {
+    res.status(409).json({ error: "Cashier day is no longer active" });
+    return;
+  }
   const result = await buildSaleResponse(saleResult.sale);
   res.status(saleResult.existing ? 200 : 201).json(result);
 });
@@ -409,6 +473,20 @@ router.post("/sales/:id/refund", requireManagerAccess, async (req, res): Promise
       tenantId, saleId: sale.id, amount: sale.totalAmount, taxAmount: sale.taxAmount,
       method: sale.paymentMethod, reason, createdBy: req.user!.id, approvedBy: req.user!.id,
     }).returning();
+    const cashPayments = await tx.select({
+      method: salePaymentsTable.method,
+      amount: salePaymentsTable.amount,
+      tenderedAmount: salePaymentsTable.tenderedAmount,
+    }).from(salePaymentsTable).where(and(
+      eq(salePaymentsTable.tenantId, tenantId),
+      eq(salePaymentsTable.saleId, sale.id),
+      eq(salePaymentsTable.method, "cash"),
+    ));
+    const cashTender = summarizeCashTender(cashPayments, {
+      paymentMethod: sale.paymentMethod,
+      totalAmount: sale.totalAmount,
+      cashTendered: sale.cashTendered,
+    });
     const items = await tx.select().from(saleItemsTable).where(and(
       eq(saleItemsTable.saleId, sale.id),
       eq(saleItemsTable.isVoided, false),
@@ -419,10 +497,10 @@ router.post("/sales/:id/refund", requireManagerAccess, async (req, res): Promise
       costAmount: item.unitCostSnapshot == null ? null : String(Number(item.unitCostSnapshot) * item.quantity),
       restocked: false,
     })));
-    if (sale.paymentMethod === "cash" && sale.storeId && sale.registerId && sale.shiftId) {
+    if (cashTender && sale.storeId && sale.registerId && sale.shiftId) {
       await tx.insert(cashEventsTable).values({
         tenantId, storeId: sale.storeId, registerId: sale.registerId, shiftId: sale.shiftId,
-        saleId: sale.id, type: "refund", amount: String(-Number(sale.totalAmount)),
+        saleId: sale.id, type: "refund", amount: String(-cashTender.amount),
         reason, createdBy: req.user!.id, approvedBy: req.user!.id,
       });
     }
