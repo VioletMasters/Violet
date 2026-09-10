@@ -48,6 +48,7 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ErrorResponse,
+  ExportClosedRegisterShiftsParams,
   ExportReportingTransactionsParams,
   GetCashReportParams,
   GetEmployeeReportParams,
@@ -73,6 +74,7 @@ import type {
   ListCustomersParams,
   ListInventoryParams,
   ListPosProductsParams,
+  ListPrintJobsParams,
   ListProductsParams,
   ListPurchaseOrdersParams,
   ListRegisterShiftsParams,
@@ -93,6 +95,13 @@ import type {
   PlatformReleaseUpdate,
   PosProductsPage,
   PosTaxSettings,
+  PrintJob,
+  PrintJobStatusInput,
+  PrintJobsResponse,
+  Printer,
+  PrinterInput,
+  PrinterUpdate,
+  PrintersResponse,
   Product,
   ProductImportInput,
   ProductImportResponse,
@@ -4842,6 +4851,167 @@ export function useListRegisterShifts<TData = Awaited<ReturnType<typeof listRegi
 
 
 
+export const getExportClosedRegisterShiftsUrl = (params: ExportClosedRegisterShiftsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/register-shifts/export?${stringifiedParams}` : `/api/register-shifts/export`
+}
+
+/**
+ * @summary Export filtered closed register shifts as CSV
+ */
+export const exportClosedRegisterShifts = async (params: ExportClosedRegisterShiftsParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportClosedRegisterShiftsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportClosedRegisterShiftsQueryKey = (params?: ExportClosedRegisterShiftsParams,) => {
+    return [
+    `/api/register-shifts/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportClosedRegisterShiftsQueryOptions = <TData = Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError = ErrorType<unknown>>(params: ExportClosedRegisterShiftsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportClosedRegisterShiftsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportClosedRegisterShifts>>> = ({ signal }) => exportClosedRegisterShifts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportClosedRegisterShiftsQueryResult = NonNullable<Awaited<ReturnType<typeof exportClosedRegisterShifts>>>
+export type ExportClosedRegisterShiftsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Export filtered closed register shifts as CSV
+ */
+
+export function useExportClosedRegisterShifts<TData = Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError = ErrorType<unknown>>(
+ params: ExportClosedRegisterShiftsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportClosedRegisterShifts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportClosedRegisterShiftsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCurrentRegisterShiftUrl = () => {
+
+
+
+
+  return `/api/register-shifts/current`
+}
+
+/**
+ * @summary Get the authenticated cashier's open shift
+ */
+export const getCurrentRegisterShift = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReportData> => {
+
+  return customFetch<ReportData>(getGetCurrentRegisterShiftUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentRegisterShiftQueryKey = () => {
+    return [
+    `/api/register-shifts/current`
+    ] as const;
+    }
+
+
+export const getGetCurrentRegisterShiftQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentRegisterShiftQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentRegisterShift>>> = ({ signal }) => getCurrentRegisterShift({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentRegisterShiftQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentRegisterShift>>>
+export type GetCurrentRegisterShiftQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the authenticated cashier's open shift
+ */
+
+export function useGetCurrentRegisterShift<TData = Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentRegisterShift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentRegisterShiftQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getOpenRegisterShiftUrl = () => {
 
 
@@ -6804,6 +6974,524 @@ export const useUpdateSettings = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateSettingsMutationOptions(options));
+    }
+
+export const getListPrintersUrl = () => {
+
+
+
+
+  return `/api/printers`
+}
+
+/**
+ * @summary List configured printers
+ */
+export const listPrinters = async ( options?: Parameters<typeof customFetch>[1]): Promise<PrintersResponse> => {
+
+  return customFetch<PrintersResponse>(getListPrintersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPrintersQueryKey = () => {
+    return [
+    `/api/printers`
+    ] as const;
+    }
+
+
+export const getListPrintersQueryOptions = <TData = Awaited<ReturnType<typeof listPrinters>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrinters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPrintersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPrinters>>> = ({ signal }) => listPrinters({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPrinters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPrintersQueryResult = NonNullable<Awaited<ReturnType<typeof listPrinters>>>
+export type ListPrintersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List configured printers
+ */
+
+export function useListPrinters<TData = Awaited<ReturnType<typeof listPrinters>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrinters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPrintersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePrinterUrl = () => {
+
+
+
+
+  return `/api/printers`
+}
+
+/**
+ * @summary Configure a printer
+ */
+export const createPrinter = async (printerInput: PrinterInput, options?: Parameters<typeof customFetch>[1]): Promise<Printer> => {
+
+  return customFetch<Printer>(getCreatePrinterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(printerInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePrinterMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrinter>>, TError,{data: BodyType<PrinterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPrinter>>, TError,{data: BodyType<PrinterInput>}, TContext> => {
+
+const mutationKey = ['createPrinter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPrinter>>, {data: BodyType<PrinterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPrinter(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePrinterMutationResult = NonNullable<Awaited<ReturnType<typeof createPrinter>>>
+    export type CreatePrinterMutationBody = BodyType<PrinterInput>
+    export type CreatePrinterMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Configure a printer
+ */
+export const useCreatePrinter = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrinter>>, TError,{data: BodyType<PrinterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPrinter>>,
+        TError,
+        {data: BodyType<PrinterInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePrinterMutationOptions(options));
+    }
+
+export const getUpdatePrinterUrl = (id: string,) => {
+
+
+
+
+  return `/api/printers/${id}`
+}
+
+/**
+ * @summary Update a configured printer
+ */
+export const updatePrinter = async (id: string,
+    printerUpdate: PrinterUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Printer> => {
+
+  return customFetch<Printer>(getUpdatePrinterUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(printerUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdatePrinterMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePrinter>>, TError,{id: string;data: BodyType<PrinterUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePrinter>>, TError,{id: string;data: BodyType<PrinterUpdate>}, TContext> => {
+
+const mutationKey = ['updatePrinter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePrinter>>, {id: string;data: BodyType<PrinterUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePrinter(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePrinterMutationResult = NonNullable<Awaited<ReturnType<typeof updatePrinter>>>
+    export type UpdatePrinterMutationBody = BodyType<PrinterUpdate>
+    export type UpdatePrinterMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a configured printer
+ */
+export const useUpdatePrinter = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePrinter>>, TError,{id: string;data: BodyType<PrinterUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePrinter>>,
+        TError,
+        {id: string;data: BodyType<PrinterUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdatePrinterMutationOptions(options));
+    }
+
+export const getDeletePrinterUrl = (id: string,) => {
+
+
+
+
+  return `/api/printers/${id}`
+}
+
+/**
+ * @summary Remove a configured printer
+ */
+export const deletePrinter = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeletePrinterUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePrinterMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePrinter>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePrinter>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deletePrinter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePrinter>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePrinter(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePrinterMutationResult = NonNullable<Awaited<ReturnType<typeof deletePrinter>>>
+
+    export type DeletePrinterMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a configured printer
+ */
+export const useDeletePrinter = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePrinter>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePrinter>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeletePrinterMutationOptions(options));
+    }
+
+export const getListPrintJobsUrl = (params?: ListPrintJobsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/print-jobs?${stringifiedParams}` : `/api/print-jobs`
+}
+
+/**
+ * @summary List print history and queued jobs
+ */
+export const listPrintJobs = async (params?: ListPrintJobsParams, options?: Parameters<typeof customFetch>[1]): Promise<PrintJobsResponse> => {
+
+  return customFetch<PrintJobsResponse>(getListPrintJobsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPrintJobsQueryKey = (params?: ListPrintJobsParams,) => {
+    return [
+    `/api/print-jobs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPrintJobsQueryOptions = <TData = Awaited<ReturnType<typeof listPrintJobs>>, TError = ErrorType<unknown>>(params?: ListPrintJobsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrintJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPrintJobsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPrintJobs>>> = ({ signal }) => listPrintJobs(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPrintJobs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPrintJobsQueryResult = NonNullable<Awaited<ReturnType<typeof listPrintJobs>>>
+export type ListPrintJobsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List print history and queued jobs
+ */
+
+export function useListPrintJobs<TData = Awaited<ReturnType<typeof listPrintJobs>>, TError = ErrorType<unknown>>(
+ params?: ListPrintJobsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrintJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPrintJobsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRetryPrintJobUrl = (id: string,) => {
+
+
+
+
+  return `/api/print-jobs/${id}/retry`
+}
+
+/**
+ * @summary Queue a failed print job again
+ */
+export const retryPrintJob = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<PrintJob> => {
+
+  return customFetch<PrintJob>(getRetryPrintJobUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryPrintJobMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryPrintJob>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryPrintJob>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['retryPrintJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryPrintJob>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  retryPrintJob(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryPrintJobMutationResult = NonNullable<Awaited<ReturnType<typeof retryPrintJob>>>
+
+    export type RetryPrintJobMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Queue a failed print job again
+ */
+export const useRetryPrintJob = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryPrintJob>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryPrintJob>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getRetryPrintJobMutationOptions(options));
+    }
+
+export const getUpdatePrintJobStatusUrl = (id: string,) => {
+
+
+
+
+  return `/api/print-jobs/${id}/status`
+}
+
+/**
+ * @summary Report a native print attempt result
+ */
+export const updatePrintJobStatus = async (id: string,
+    printJobStatusInput: PrintJobStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<PrintJob> => {
+
+  return customFetch<PrintJob>(getUpdatePrintJobStatusUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(printJobStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePrintJobStatusMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePrintJobStatus>>, TError,{id: string;data: BodyType<PrintJobStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePrintJobStatus>>, TError,{id: string;data: BodyType<PrintJobStatusInput>}, TContext> => {
+
+const mutationKey = ['updatePrintJobStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePrintJobStatus>>, {id: string;data: BodyType<PrintJobStatusInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePrintJobStatus(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePrintJobStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updatePrintJobStatus>>>
+    export type UpdatePrintJobStatusMutationBody = BodyType<PrintJobStatusInput>
+    export type UpdatePrintJobStatusMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Report a native print attempt result
+ */
+export const useUpdatePrintJobStatus = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePrintJobStatus>>, TError,{id: string;data: BodyType<PrintJobStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePrintJobStatus>>,
+        TError,
+        {id: string;data: BodyType<PrintJobStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePrintJobStatusMutationOptions(options));
     }
 
 export const getGetAdminStatsUrl = () => {
