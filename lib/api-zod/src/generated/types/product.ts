@@ -29,6 +29,9 @@ export interface Product {
   brandName?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
   tenantId: string;
   isActive?: boolean;
   createdAt?: string;
