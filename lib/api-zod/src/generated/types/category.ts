@@ -13,6 +13,7 @@ export interface Category {
   description?: string | null;
   /** @nullable */
   color?: string | null;
+  printDestination?: string;
   tenantId: string;
   productCount?: number;
   createdAt?: string;
