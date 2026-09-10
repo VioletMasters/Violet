@@ -50,7 +50,7 @@ export function Sidebar() {
       <div
         className={cn(
           "h-16 flex items-center border-b border-sidebar-border",
-          isCollapsed ? "justify-between gap-1 px-1" : "justify-between px-6",
+          isCollapsed ? "justify-between px-1" : "justify-between px-6",
         )}
       >
         <Link
