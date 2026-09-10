@@ -4,11 +4,13 @@ import {
   db, tenantsTable, usersTable, plansTable,
   subscriptionsTable, subscriptionEventsTable, productsTable, customersTable, sessionsTable,
   storesTable, registersTable,
-  salesTable, releasesTable, releaseAssetsTable, platformAuditLogsTable, settingsTable,
+  salesTable, salePaymentsTable, releasesTable, releaseAssetsTable, platformAuditLogsTable, settingsTable,
 } from "@workspace/db";
 import { eq, ilike, and, sql, inArray, gte, lte, desc } from "drizzle-orm";
 import { requireSession, requireSuperAdmin } from "../middlewares/auth";
+import { summarizeCashTender } from "../lib/cashTender";
 import { getWhopClient } from "../lib/whopClient";
+import { ensureTenantLicense, getTenantEntitlementState } from "../lib/entitlements";
 import { deleteTenantAccount } from "../lib/abandonedPaidSignups";
 import fs from "node:fs";
 import path from "node:path";
@@ -436,6 +438,8 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
 
   // Subscription is authoritative for plan — fall back to tenant.planId for legacy rows
   const plan = await resolvePlan(subscription, tenant);
+  const entitlementState = await getTenantEntitlementState(tenant.id);
+  const license = entitlementState?.license ?? null;
   const eventPlanIds = Array.from(
     new Set(subscriptionEvents.flatMap((event) => [event.fromPlanId, event.toPlanId].filter(Boolean) as string[])),
   );
@@ -464,6 +468,15 @@ router.get("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<vo
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
     cancelRequestedAt: subscription?.cancelRequestedAt?.toISOString() ?? null,
     licenseStatus: tenant.licenseStatus,
+    licenseId: license?.id ?? null,
+    licenseKeyLast4: license?.licenseKeyLast4 ?? null,
+    licenseLifecycleStatus: license?.status ?? null,
+    licenseVersion: license?.version ?? null,
+    licenseActivatedAt: license?.activatedAt?.toISOString() ?? null,
+    licenseExpiresAt: license?.expiresAt?.toISOString() ?? null,
+    licenseLastValidatedAt: license?.lastValidatedAt?.toISOString() ?? null,
+    entitlements: entitlementState?.entitlements ?? null,
+    usage: entitlementState?.usage ?? null,
     whopMembershipId: subscription?.whopMembershipId ?? null,
     subscriptionHistory: subscriptionEvents.map((event) => ({
       id: event.id,
@@ -566,6 +579,7 @@ router.patch("/admin/tenants/:id", requireSuperAdmin, async (req, res): Promise<
         effectiveAt: now,
         actorId: req.user!.id,
       });
+      await ensureTenantLicense(id, tx);
     }
     return [updatedTenant];
   });
@@ -711,6 +725,7 @@ router.post("/admin/tenants/:id/subscription/cancel", requireSuperAdmin, async (
         effectiveAt: immediate ? now : subscription.currentPeriodEnd,
         actorId: req.user!.id,
       });
+      await ensureTenantLicense(id, tx);
     });
     await audit(req, immediate ? "subscription.cancelled" : "subscription.cancellation_requested", "subscription", subscription.id, `${immediate ? "Cancelled" : "Scheduled cancellation for"} ${tenant.name}`, { reason });
     res.json({
@@ -773,6 +788,7 @@ router.post("/admin/tenants/:id/subscription/reactivate", requireSuperAdmin, asy
         effectiveAt: now,
         actorId: req.user!.id,
       });
+      await ensureTenantLicense(id, tx);
     });
     await audit(req, "subscription.reactivated", "subscription", subscription.id, `Reactivated ${tenant.name} subscription`);
     res.json({ success: true, status: "active", message: "The subscription will continue renewing normally." });
@@ -1024,7 +1040,8 @@ router.get("/admin/sales", requireSuperAdmin, async (req, res): Promise<void> =>
     db.select({
       id: salesTable.id, receiptNumber: salesTable.receiptNumber, tenantId: salesTable.tenantId,
       tenantName: tenantsTable.name, paymentMethod: salesTable.paymentMethod, status: salesTable.status,
-      totalAmount: salesTable.totalAmount, createdAt: salesTable.createdAt, cashierName: usersTable.firstName,
+      totalAmount: salesTable.totalAmount, cashTendered: salesTable.cashTendered,
+      createdAt: salesTable.createdAt, cashierName: usersTable.firstName,
       currency: settingsTable.currency,
     }).from(salesTable).leftJoin(tenantsTable, eq(salesTable.tenantId, tenantsTable.id))
       .leftJoin(usersTable, eq(salesTable.cashierId, usersTable.id))
@@ -1033,14 +1050,36 @@ router.get("/admin/sales", requireSuperAdmin, async (req, res): Promise<void> =>
     db.select({ total: sql<number>`COUNT(*)` }).from(salesTable).leftJoin(tenantsTable, eq(salesTable.tenantId, tenantsTable.id)).where(where),
     db.select({ revenue: sql<number>`COALESCE(SUM(${salesTable.totalAmount}::numeric) FILTER (WHERE ${salesTable.status} = 'completed'), 0)` }).from(salesTable).leftJoin(tenantsTable, eq(salesTable.tenantId, tenantsTable.id)).where(where),
   ]);
-  const data = rows.map(row => ({
-    ...row, totalAmount: parseFloat(row.totalAmount), currency: row.currency ?? "JMD", createdAt: row.createdAt.toISOString(),
+  const cashPayments = rows.length === 0 ? [] : await db.select({
+    saleId: salePaymentsTable.saleId,
+    method: salePaymentsTable.method,
+    amount: salePaymentsTable.amount,
+    tenderedAmount: salePaymentsTable.tenderedAmount,
+  }).from(salePaymentsTable).where(inArray(salePaymentsTable.saleId, rows.map((row) => row.id)));
+  const paymentsBySale = new Map<string, typeof cashPayments>();
+  for (const payment of cashPayments) {
+    paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
+  }
+  const data = rows.map(row => {
+    const cashTender = summarizeCashTender(paymentsBySale.get(row.id) ?? [], {
+      paymentMethod: row.paymentMethod,
+      totalAmount: row.totalAmount,
+      cashTendered: row.cashTendered,
+    });
+    return {
+    ...row,
+    totalAmount: parseFloat(row.totalAmount),
+    cashReceived: cashTender?.received ?? null,
+    changeDue: cashTender?.changeDue ?? null,
+    currency: row.currency ?? "JMD", createdAt: row.createdAt.toISOString(),
     cashierName: [row.cashierName].filter(Boolean).join(" ") || "—",
-  }));
+    };
+  });
   if (format === "csv") {
     const csvEscape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const lines = ["Receipt,Tenant,Amount,Payment method,Status,Cashier,Created at", ...data.map(row => [
-      row.receiptNumber, row.tenantName, row.totalAmount, row.paymentMethod, row.status, row.cashierName, row.createdAt,
+    const lines = ["Receipt,Tenant,Amount,Payment method,Cash received,Change due,Status,Cashier,Created at", ...data.map(row => [
+      row.receiptNumber, row.tenantName, row.totalAmount, row.paymentMethod, row.cashReceived, row.changeDue,
+      row.status, row.cashierName, row.createdAt,
     ].map(csvEscape).join(","))];
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="violet-platform-sales.csv"');
