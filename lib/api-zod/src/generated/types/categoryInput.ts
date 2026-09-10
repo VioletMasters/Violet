@@ -11,4 +11,5 @@ export interface CategoryInput {
   name: string;
   description?: string;
   color?: string;
+  printDestination?: string;
 }
