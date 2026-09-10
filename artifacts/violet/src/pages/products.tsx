@@ -4,6 +4,7 @@ import {
   useCreateBrand,
   useCreateCategory,
   useCreateProduct,
+  useDeleteProduct,
   useDeleteBrand,
   useDeleteCategory,
   useListBrands,
@@ -21,6 +22,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Edit, Tags, Trash2, Upload, FileSpreadsheet, Download, CheckCircle2 } from "lucide-react";
@@ -259,6 +270,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productPendingDeletion, setProductPendingDeletion] = useState<Product | null>(null);
   const [editingCatalogItem, setEditingCatalogItem] = useState<(CatalogAttribute & { kind: "category" | "brand" }) | null>(null);
   const [catalogName, setCatalogName] = useState("");
   const [catalogPrintDestination, setCatalogPrintDestination] = useState("customer_receipt");
@@ -307,7 +319,7 @@ export default function ProductsPage() {
     );
 
   useEffect(() => {
-    if (priceMode !== "markup" || editingProduct || markupError) return;
+    if (priceMode !== "markup" || markupError) return;
     const costPrice = Number(watchedCostPrice);
     const calculatedPrice = calculateRetailPrice(costPrice, markupValue);
     if (calculatedPrice === null) return;
@@ -340,6 +352,17 @@ export default function ProductsPage() {
       },
       onError: (e) => toast.error(e.message || "Failed to update product")
     }
+  });
+
+  const deleteProductMutation = useDeleteProduct({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Product deleted");
+        setProductPendingDeletion(null);
+        refreshCatalog();
+      },
+      onError: (error) => toast.error(error.message || "Failed to delete product"),
+    },
   });
 
   const createCategoryMutation = useCreateCategory({
@@ -459,7 +482,7 @@ export default function ProductsPage() {
   };
 
   const onSubmit = (data: ProductForm) => {
-    if (!editingProduct && markupError) {
+    if (markupError) {
       toast.error("Enter a markup percentage from 0% to 100%.");
       return;
     }
@@ -614,10 +637,28 @@ export default function ProductsPage() {
                       {product.stock}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(product)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
+                   <TableCell>
+                     <div className="flex justify-end gap-1">
+                       <Button
+                         variant="ghost"
+                         size="icon"
+                         onClick={() => openEdit(product)}
+                         aria-label={`Edit ${product.name}`}
+                         title="Edit product"
+                       >
+                         <Edit className="w-4 h-4" />
+                       </Button>
+                       <Button
+                         variant="ghost"
+                         size="icon"
+                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                         onClick={() => setProductPendingDeletion(product)}
+                         aria-label={`Delete ${product.name}`}
+                         title="Delete product"
+                       >
+                         <Trash2 className="w-4 h-4" />
+                       </Button>
+                     </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -645,13 +686,13 @@ export default function ProductsPage() {
               {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{priceMode === "markup" && !editingProduct ? "Calculated Retail Price ($)" : "Retail Price ($)"}</Label>
+                 <Label>{priceMode === "markup" ? "Calculated Retail Price ($)" : "Retail Price ($)"}</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  readOnly={priceMode === "markup" && !editingProduct}
+                   readOnly={priceMode === "markup"}
                   {...register("price")}
                 />
                 {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
@@ -662,58 +703,56 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {!editingProduct && (
-              <div className="space-y-3 rounded-md border bg-muted/30 p-3">
-                <div className="space-y-2">
-                  <Label>Retail price method</Label>
-                  <Select
-                    value={priceMode}
-                    onValueChange={(value) => {
-                      const nextMode = value as "manual" | "markup";
-                      setPriceMode(nextMode);
-                      if (nextMode === "markup") {
-                        const costPrice = Number(watchedCostPrice);
-                        setValue("price", Number.isFinite(costPrice) ? costPrice : 0, { shouldValidate: true });
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manual">Enter retail price manually</SelectItem>
-                      <SelectItem value="markup">Calculate from cost and markup</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {priceMode === "markup" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="markup-percentage">Markup percentage</Label>
-                    <div className="relative">
-                      <Input
-                        id="markup-percentage"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={markupPercentage}
-                        onChange={(event) => setMarkupPercentage(event.target.value)}
-                        placeholder="e.g. 25"
-                        className="pr-8"
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-                    </div>
-                    {markupError ? (
-                      <p className="text-xs text-destructive">Enter a markup between 0% and 100%.</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Retail price = cost × (1 + markup). The price above updates automatically.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+             <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+               <div className="space-y-2">
+                 <Label>Retail price method</Label>
+                 <Select
+                   value={priceMode}
+                   onValueChange={(value) => {
+                     const nextMode = value as "manual" | "markup";
+                     setPriceMode(nextMode);
+                     if (nextMode === "markup") {
+                       const costPrice = Number(watchedCostPrice);
+                       setValue("price", Number.isFinite(costPrice) ? costPrice : 0, { shouldValidate: true });
+                     }
+                   }}
+                 >
+                   <SelectTrigger>
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="manual">Enter retail price manually</SelectItem>
+                     <SelectItem value="markup">Calculate from cost and markup</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+               {priceMode === "markup" && (
+                 <div className="space-y-2">
+                   <Label htmlFor="markup-percentage">Markup percentage</Label>
+                   <div className="relative">
+                     <Input
+                       id="markup-percentage"
+                       type="number"
+                       min="0"
+                       max="100"
+                       step="0.1"
+                       value={markupPercentage}
+                       onChange={(event) => setMarkupPercentage(event.target.value)}
+                       placeholder="e.g. 25"
+                       className="pr-8"
+                     />
+                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                   </div>
+                   {markupError ? (
+                     <p className="text-xs text-destructive">Enter a markup between 0% and 100%.</p>
+                   ) : (
+                     <p className="text-xs text-muted-foreground">
+                       Retail price = cost × (1 + markup). The price above updates automatically.
+                     </p>
+                   )}
+                 </div>
+               )}
+             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -785,6 +824,36 @@ export default function ProductsPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog
+        open={!!productPendingDeletion}
+        onOpenChange={(open) => !open && setProductPendingDeletion(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <span className="font-medium text-foreground">{productPendingDeletion?.name}</span>
+              {" "}from your catalog. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProductMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteProductMutation.isPending}
+              onClick={() => {
+                if (productPendingDeletion) {
+                  deleteProductMutation.mutate({ id: productPendingDeletion.id });
+                }
+              }}
+            >
+              {deleteProductMutation.isPending ? "Deleting..." : "Delete product"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
         <DialogContent className="max-w-3xl">
