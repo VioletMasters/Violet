@@ -23,6 +23,7 @@ import {
   Ban,
   CheckCircle2,
   History,
+  KeyRound,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -255,9 +256,20 @@ export default function SubscriptionPage() {
   const isFree = currentPlan.tier === "free";
   const productsUsed = sub.usage?.products ?? 0;
   const usersUsed = sub.usage?.users ?? 0;
+  const customersUsed = sub.usage?.customers ?? 0;
   const billingNeedsAttention =
     ["expired", "cancelled"].includes(sub.status) ||
     ["failed", "past_due", "refunded"].includes(sub.paymentStatus ?? "");
+  const recentDowngrade = history?.find((event) => event.eventType === "downgraded");
+  const entitlementLimits = (sub.license?.entitlements ?? {}) as Record<string, unknown>;
+  const productLimit =
+    typeof entitlementLimits.maxProducts === "number"
+      ? entitlementLimits.maxProducts
+      : currentPlan.maxProducts;
+  const customerLimit =
+    typeof entitlementLimits.maxCustomers === "number"
+      ? entitlementLimits.maxCustomers
+      : currentPlan.maxCustomers;
   const availablePlans = (plans ?? []).filter((plan) => paidTiers.includes(plan.tier as PaidTier));
 
   return (
@@ -276,6 +288,16 @@ export default function SubscriptionPage() {
             tone: "warning",
             title: "Billing action required",
             message: tenant.billingMessage || "Restore your Whop subscription to continue using Violet.",
+          }}
+        />
+      )}
+      {!notice && !tenant?.requiresBillingAction && recentDowngrade && isFree && (
+        <CheckoutStatusNotice
+          notice={{
+            tone: "warning",
+            title: "Your account is now on Violet Free",
+            message:
+              "The paid membership ended. Your products and customers were kept, but Free plan limits apply to new additions. Upgrade again to add more.",
           }}
         />
       )}
@@ -325,12 +347,17 @@ export default function SubscriptionPage() {
             <UsageMeter
               label="Products"
               used={productsUsed}
-              limit={currentPlan.maxProducts}
+              limit={productLimit}
             />
             <UsageMeter
               label="Users"
               used={usersUsed}
               limit={currentPlan.maxUsers}
+            />
+            <UsageMeter
+              label="Customers"
+              used={customersUsed}
+              limit={customerLimit}
             />
           </div>
 
@@ -343,6 +370,29 @@ export default function SubscriptionPage() {
             ))}
           </div>
         </CardContent>
+
+        <div className="border-t bg-muted/20 p-4">
+          <div className="flex items-start gap-3">
+            <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold">Violet license</p>
+                <Badge variant={sub.license?.status === "ACTIVE" ? "success" : "secondary"} className="text-[10px]">
+                  {sub.license?.status ?? "UNAVAILABLE"}
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
+                <span>License ID: <strong className="font-mono text-foreground">{sub.license?.id ?? "—"}</strong></span>
+                <span>Key ending: <strong className="font-mono text-foreground">{sub.license?.keyLast4 ? `••••${sub.license.keyLast4}` : "—"}</strong></span>
+                <span>Version: <strong className="text-foreground">{sub.license?.version ?? "—"}</strong></span>
+                <span>Last validated: <strong className="text-foreground">{sub.license?.lastValidatedAt ? formatDate(sub.license.lastValidatedAt) : "—"}</strong></span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                License identity and limits are issued by Violet. Paid access follows the verified subscription state.
+              </p>
+            </div>
+          </div>
+        </div>
 
         <div className="flex flex-col gap-3 border-t bg-secondary/30 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
