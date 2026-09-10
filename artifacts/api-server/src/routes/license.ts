@@ -2,9 +2,6 @@ import { Router } from "express";
 import {
   db,
   licenseSessionsTable,
-  plansTable,
-  subscriptionsTable,
-  tenantsTable,
   usersTable,
 } from "@workspace/db";
 import { and, eq, gt, lte } from "drizzle-orm";
@@ -16,6 +13,7 @@ import {
   getInstallationId,
   isSelfHostedRuntime,
 } from "../lib/remoteLicense";
+import { getTenantEntitlementState } from "../lib/entitlements";
 
 const router = Router();
 const LICENSE_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -27,19 +25,11 @@ function stringField(value: unknown, maxLength: number) {
 }
 
 async function licenseSnapshot(tenantId: string, message: string, valid: boolean) {
-  const [tenant] = await db
-    .select()
-    .from(tenantsTable)
-    .where(eq(tenantsTable.id, tenantId))
-    .limit(1);
-  const [subscription] = await db
-    .select()
-    .from(subscriptionsTable)
-    .where(eq(subscriptionsTable.tenantId, tenantId))
-    .limit(1);
-  const [plan] = subscription
-    ? await db.select().from(plansTable).where(eq(plansTable.id, subscription.planId)).limit(1)
-    : [null];
+  const state = await getTenantEntitlementState(tenantId);
+  const tenant = state?.tenant;
+  const subscription = state?.subscription;
+  const plan = state?.plan;
+  const license = state?.license;
 
   return {
     valid,
@@ -49,6 +39,13 @@ async function licenseSnapshot(tenantId: string, message: string, valid: boolean
     paymentStatus: subscription?.paymentStatus ?? null,
     licenseStatus: tenant?.licenseStatus ?? null,
     licenseValidUntil: tenant?.licenseValidUntil?.toISOString() ?? null,
+    licenseId: license?.id ?? null,
+    licenseKeyLast4: license?.licenseKeyLast4 ?? null,
+    licenseVersion: license?.version ?? null,
+    licenseLifecycleStatus: license?.status ?? null,
+    licenseActivatedAt: license?.activatedAt?.toISOString() ?? null,
+    entitlements: state?.entitlements ?? null,
+    usage: state?.usage ?? null,
   };
 }
 
