@@ -37,6 +37,7 @@ const client = new pg.Client({ connectionString: DATABASE_URL });
 
 async function main() {
   await client.connect();
+  await client.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
   console.log("🌱  Seeding database...");
 
   // ── 1. Subscription plans ──────────────────────────────────────────────
