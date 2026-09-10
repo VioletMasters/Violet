@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, customersTable } from "@workspace/db";
 import { eq, and, ilike, sql, desc } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
+import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
 const router = Router();
 
@@ -51,6 +52,16 @@ router.post("/customers", requireManagerAccess, async (req, res): Promise<void> 
   if (!firstName) {
     res.status(400).json({ error: "firstName is required" });
     return;
+  }
+  try {
+    await enforceTenantLimit(tenantId, "customers");
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
   }
   const [customer] = await db.insert(customersTable).values({ tenantId, firstName, lastName, email, phone, notes }).returning();
   res.status(201).json({
