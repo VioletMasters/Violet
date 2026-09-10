@@ -26,6 +26,126 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type PrinterRole = typeof PrinterRole[keyof typeof PrinterRole];
+
+
+export const PrinterRole = {
+  customer_receipt: 'customer_receipt',
+  warehouse: 'warehouse',
+  kitchen: 'kitchen',
+  packing: 'packing',
+  office: 'office',
+  custom: 'custom',
+} as const;
+
+export type PrinterConnectionType = typeof PrinterConnectionType[keyof typeof PrinterConnectionType];
+
+
+export const PrinterConnectionType = {
+  os: 'os',
+  usb: 'usb',
+  network: 'network',
+  shared: 'shared',
+} as const;
+
+export interface Printer {
+  id: string;
+  tenantId: string;
+  /** @nullable */
+  storeId?: string | null;
+  /** @nullable */
+  registerId?: string | null;
+  name: string;
+  role: PrinterRole;
+  connectionType: PrinterConnectionType;
+  deviceName: string;
+  /** @nullable */
+  deviceAddress?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PrinterInput {
+  name: string;
+  /** @nullable */
+  storeId?: string | null;
+  /** @nullable */
+  registerId?: string | null;
+  role: string;
+  connectionType?: string;
+  deviceName: string;
+  deviceAddress?: string;
+  platform?: string;
+  isActive?: boolean;
+  isDefault?: boolean;
+}
+
+export type PrinterUpdate = PrinterInput;
+
+export interface PrintersResponse {
+  data: Printer[];
+  roles: string[];
+  connectionTypes: string[];
+}
+
+export type PrintJobStatus = typeof PrintJobStatus[keyof typeof PrintJobStatus];
+
+
+export const PrintJobStatus = {
+  queued: 'queued',
+  printing: 'printing',
+  printed: 'printed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface PrintJob {
+  id: string;
+  tenantId: string;
+  /** @nullable */
+  saleId?: string | null;
+  /** @nullable */
+  storeId?: string | null;
+  /** @nullable */
+  registerId?: string | null;
+  /** @nullable */
+  printerId?: string | null;
+  documentType: string;
+  status: PrintJobStatus;
+  payload: string;
+  /** @nullable */
+  errorMessage?: string | null;
+  retryCount: number;
+  createdAt: string;
+  /** @nullable */
+  printedAt?: string | null;
+  updatedAt: string;
+}
+
+export interface PrintJobsResponse {
+  data: PrintJob[];
+}
+
+export type PrintJobStatusInputStatus = typeof PrintJobStatusInputStatus[keyof typeof PrintJobStatusInputStatus];
+
+
+export const PrintJobStatusInputStatus = {
+  queued: 'queued',
+  printing: 'printing',
+  printed: 'printed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface PrintJobStatusInput {
+  status: PrintJobStatusInputStatus;
+  errorMessage?: string;
+}
+
 /**
  * Paid plan selected before registration; the account is removed if checkout is not completed within the grace period.
  */
@@ -92,6 +212,19 @@ export interface LicenseRevalidateInput {
   installationId: string;
 }
 
+/**
+ * @nullable
+ */
+export type LicenseVerificationResponseEntitlements = { [key: string]: unknown } | null;
+
+export interface EntitlementUsage {
+  users: number;
+  products: number;
+  customers: number;
+  branches: number;
+  registers: number;
+}
+
 export interface LicenseVerificationResponse {
   valid: boolean;
   message: string;
@@ -105,8 +238,41 @@ export interface LicenseVerificationResponse {
   licenseStatus: string | null;
   /** @nullable */
   licenseValidUntil: string | null;
+  /** @nullable */
+  licenseId?: string | null;
+  /** @nullable */
+  licenseKeyLast4?: string | null;
+  /** @nullable */
+  licenseVersion?: string | null;
+  /** @nullable */
+  licenseLifecycleStatus?: string | null;
+  /** @nullable */
+  licenseActivatedAt?: string | null;
+  /** @nullable */
+  entitlements?: LicenseVerificationResponseEntitlements;
+  usage?: EntitlementUsage | null;
   licenseSessionToken?: string;
   tokenExpiresAt?: string;
+}
+
+/**
+ * @nullable
+ */
+export type LicenseInfoEntitlements = { [key: string]: unknown } | null;
+
+export interface LicenseInfo {
+  id: string;
+  keyLast4: string;
+  status: string;
+  version: string;
+  /** @nullable */
+  activatedAt?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
+  lastValidatedAt?: string | null;
+  /** @nullable */
+  entitlements?: LicenseInfoEntitlements;
 }
 
 export interface ManagerAccessInput {
@@ -207,6 +373,11 @@ export const TenantDetailStatus = {
   expired: 'expired',
 } as const;
 
+/**
+ * @nullable
+ */
+export type TenantDetailEntitlements = { [key: string]: unknown } | null;
+
 export type TenantDetailSubscriptionHistoryItem = {
   id: string;
   eventType: string;
@@ -243,6 +414,23 @@ export interface TenantDetail {
   /** @nullable */
   cancelRequestedAt?: string | null;
   licenseStatus?: string;
+  /** @nullable */
+  licenseId?: string | null;
+  /** @nullable */
+  licenseKeyLast4?: string | null;
+  /** @nullable */
+  licenseLifecycleStatus?: string | null;
+  /** @nullable */
+  licenseVersion?: string | null;
+  /** @nullable */
+  licenseActivatedAt?: string | null;
+  /** @nullable */
+  licenseExpiresAt?: string | null;
+  /** @nullable */
+  licenseLastValidatedAt?: string | null;
+  /** @nullable */
+  entitlements?: TenantDetailEntitlements;
+  usage?: EntitlementUsage | null;
   /** @nullable */
   whopMembershipId?: string | null;
   subscriptionHistory?: TenantDetailSubscriptionHistoryItem[];
@@ -309,6 +497,9 @@ export interface TopProduct {
   totalRevenue: number;
   /** @nullable */
   imageUrl?: string | null;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
 }
 
 export interface SalesTrendPoint {
@@ -324,6 +515,7 @@ export interface Category {
   description?: string | null;
   /** @nullable */
   color?: string | null;
+  printDestination?: string;
   tenantId: string;
   productCount?: number;
   createdAt?: string;
@@ -334,6 +526,7 @@ export interface CategoryInput {
   name: string;
   description?: string;
   color?: string;
+  printDestination?: string;
 }
 
 export interface CategoryUpdate {
@@ -341,6 +534,7 @@ export interface CategoryUpdate {
   name?: string;
   description?: string;
   color?: string;
+  printDestination?: string;
 }
 
 export interface Brand {
@@ -388,6 +582,9 @@ export interface Product {
   brandName?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
   tenantId: string;
   isActive?: boolean;
   createdAt?: string;
@@ -422,6 +619,9 @@ export interface ProductInput {
   /** @nullable */
   brandId?: string | null;
   imageUrl?: string;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
 }
 
 export type ProductImportInputRowsItem = {
@@ -435,6 +635,8 @@ export type ProductImportInputRowsItem = {
   minStock?: number;
   category?: string;
   brand?: string;
+  printDestination?: string;
+  warehouseLocation?: string;
 };
 
 export interface ProductImportInput {
@@ -472,6 +674,9 @@ export interface ProductUpdate {
   /** @nullable */
   brandId?: string | null;
   imageUrl?: string;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
   isActive?: boolean;
 }
 
@@ -587,6 +792,16 @@ export interface Sale {
      * @nullable
      */
   cashTendered?: number | null;
+  /**
+     * Total cash received across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  cashReceived?: number | null;
+  /**
+     * Change due across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  changeDue?: number | null;
   paymentMethod: SalePaymentMethod;
   status: SaleStatus;
   cashierId?: string;
@@ -594,6 +809,8 @@ export interface Sale {
   items: SaleItem[];
   /** Internal-only voided lines. Customer-facing receipts must use items only. */
   voidedItems?: SaleItem[];
+  /** Independent receipt and operational ticket jobs created after the sale commits. */
+  printJobs?: PrintJob[];
   tenantId: string;
   createdAt: string;
 }
@@ -613,6 +830,29 @@ export interface VoidedSaleItemInput {
   unitPrice: number;
   /** @maxLength 200 */
   reason?: string;
+}
+
+export type SalePaymentInputMethod = typeof SalePaymentInputMethod[keyof typeof SalePaymentInputMethod];
+
+
+export const SalePaymentInputMethod = {
+  cash: 'cash',
+  card: 'card',
+  bank_transfer: 'bank_transfer',
+  store_credit: 'store_credit',
+  gift_card: 'gift_card',
+} as const;
+
+export interface SalePaymentInput {
+  method: SalePaymentInputMethod;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * Cash handed over for this tender; it may exceed amount to represent change.
+     * @minimum 0
+     */
+  tenderedAmount?: number;
+  reference?: string;
 }
 
 export type SaleInputPaymentMethod = typeof SaleInputPaymentMethod[keyof typeof SaleInputPaymentMethod];
@@ -640,6 +880,15 @@ export interface SaleInput {
   voidedItems?: VoidedSaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
   cashTendered?: number;
+  /**
+     * Split tenders whose amounts must add up to the sale total.
+     * @minItems 2
+     */
+  payments?: SalePaymentInput[];
+  storeId?: string;
+  registerId?: string;
+  /** The authenticated cashier's active register shift. Sales cannot be completed without it. */
+  shiftId: string;
   note?: string;
 }
 
@@ -940,12 +1189,6 @@ export const SubscriptionPaymentStatus = {
   past_due: 'past_due',
 } as const;
 
-export type SubscriptionUsage = {
-  users?: number;
-  products?: number;
-  customers?: number;
-};
-
 export interface Subscription {
   id: string;
   tenantId: string;
@@ -964,7 +1207,8 @@ export interface Subscription {
   checkoutPending?: boolean;
   /** @nullable */
   lastWhopSyncAt?: string | null;
-  usage?: SubscriptionUsage;
+  usage?: EntitlementUsage;
+  license?: LicenseInfo | null;
 }
 
 export type SubscriptionEventEventType = typeof SubscriptionEventEventType[keyof typeof SubscriptionEventEventType];
@@ -977,6 +1221,7 @@ export const SubscriptionEventEventType = {
   cancelled: 'cancelled',
   reactivated: 'reactivated',
   admin_override: 'admin_override',
+  downgraded: 'downgraded',
 } as const;
 
 export interface SubscriptionEvent {
@@ -1448,6 +1693,16 @@ export interface AdminSale {
   /** @nullable */
   tenantName?: string | null;
   totalAmount: number;
+  /**
+     * Total cash received across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  cashReceived?: number | null;
+  /**
+     * Change due across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  changeDue?: number | null;
   currency?: string;
   paymentMethod: string;
   status: string;
@@ -1489,9 +1744,21 @@ export type ReportStoreIdParameter = string;
 
 export type ReportRegisterIdParameter = string;
 
+export type ReportShiftIdParameter = string;
+
 export type ReportCashierIdParameter = string;
 
 export type ReportPaymentMethodParameter = string;
+
+export type ReportTransactionStatusParameter = typeof ReportTransactionStatusParameter[keyof typeof ReportTransactionStatusParameter];
+
+
+export const ReportTransactionStatusParameter = {
+  completed: 'completed',
+  refunded: 'refunded',
+  partial_refund: 'partial_refund',
+  voided: 'voided',
+} as const;
 
 export type ListPosProductsParams = {
 search?: string;
@@ -1532,7 +1799,10 @@ storeId?: string;
 export type ListRegisterShiftsParams = {
 storeId?: string;
 registerId?: string;
+cashierId?: string;
 status?: ListRegisterShiftsStatus;
+startDate?: string;
+endDate?: string;
 };
 
 export type ListRegisterShiftsStatus = typeof ListRegisterShiftsStatus[keyof typeof ListRegisterShiftsStatus];
@@ -1542,6 +1812,14 @@ export const ListRegisterShiftsStatus = {
   open: 'open',
   closed: 'closed',
 } as const;
+
+export type ExportClosedRegisterShiftsParams = {
+startDate: ReportStartDateParameter;
+endDate: ReportEndDateParameter;
+storeId?: ReportStoreIdParameter;
+registerId?: ReportRegisterIdParameter;
+cashierId?: ReportCashierIdParameter;
+};
 
 export type ListPurchaseOrdersParams = {
 storeId?: string;
@@ -1607,6 +1885,10 @@ registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
 paymentMethod?: ReportPaymentMethodParameter;
 /**
+ * Limit the report to transactions with this status.
+ */
+status?: ReportTransactionStatusParameter;
+/**
  * @minimum 1
  */
 page?: number;
@@ -1640,6 +1922,7 @@ startDate: ReportStartDateParameter;
 endDate: ReportEndDateParameter;
 storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
+shiftId?: ReportShiftIdParameter;
 };
 
 export type GetInventoryMovementReportParams = {
@@ -1661,6 +1944,10 @@ storeId?: ReportStoreIdParameter;
 registerId?: ReportRegisterIdParameter;
 cashierId?: ReportCashierIdParameter;
 paymentMethod?: ReportPaymentMethodParameter;
+/**
+ * Limit the report to transactions with this status.
+ */
+status?: ReportTransactionStatusParameter;
 };
 
 export type ExportReportingTransactionsFormat = typeof ExportReportingTransactionsFormat[keyof typeof ExportReportingTransactionsFormat];
@@ -1671,6 +1958,12 @@ export const ExportReportingTransactionsFormat = {
   xlsx: 'xlsx',
   pdf: 'pdf',
 } as const;
+
+export type ListPrintJobsParams = {
+status?: string;
+saleId?: string;
+limit?: number;
+};
 
 export type ListTenantsParams = {
 search?: string;
