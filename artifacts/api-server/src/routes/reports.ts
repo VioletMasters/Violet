@@ -4,9 +4,10 @@ import {
   refundsTable, refundItemsTable, registersTable, saleItemsTable, salePaymentsTable, salesTable,
   storesTable, productsTable, usersTable, settingsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
 import { FINANCIAL_DEFINITIONS, toCsv, toPdf, toXlsx } from "../lib/reporting";
+import { summarizeCashTender, type CashTenderSummary } from "../lib/cashTender";
 
 const router = Router();
 type Query = Record<string, string | undefined>;
@@ -30,6 +31,51 @@ function validDates(query: Query): string | null {
 }
 
 const money = (value: unknown) => Number(Number(value ?? 0).toFixed(2));
+
+type CashTenderSale = {
+  id: string;
+  paymentMethod: string;
+  totalAmount?: string | number;
+  total?: string | number;
+  cashTendered?: string | number | null;
+};
+
+async function cashTenderTotalsBySale(
+  sales: CashTenderSale[],
+  tenantId: string,
+): Promise<Map<string, CashTenderSummary>> {
+  const totals = new Map<string, CashTenderSummary>();
+  const saleIds = sales.map((sale) => sale.id);
+  if (saleIds.length === 0) return totals;
+  const payments = await db.select({
+    saleId: salePaymentsTable.saleId,
+    method: salePaymentsTable.method,
+    amount: salePaymentsTable.amount,
+    tenderedAmount: salePaymentsTable.tenderedAmount,
+  }).from(salePaymentsTable).where(and(
+    eq(salePaymentsTable.tenantId, tenantId),
+    inArray(salePaymentsTable.saleId, saleIds),
+    eq(salePaymentsTable.method, "cash"),
+  ));
+  const paymentsBySale = new Map<string, typeof payments>();
+  for (const payment of payments) {
+    paymentsBySale.set(payment.saleId, [...(paymentsBySale.get(payment.saleId) ?? []), payment]);
+  }
+  for (const [saleId, salePayments] of paymentsBySale) {
+    const summary = summarizeCashTender(salePayments);
+    if (summary) totals.set(saleId, summary);
+  }
+  for (const sale of sales) {
+    if (totals.has(sale.id)) continue;
+    const summary = summarizeCashTender([], {
+      paymentMethod: sale.paymentMethod,
+      totalAmount: sale.totalAmount ?? sale.total!,
+      cashTendered: sale.cashTendered,
+    });
+    if (summary) totals.set(sale.id, summary);
+  }
+  return totals;
+}
 
 router.get("/reports/definitions", requireManagerAccess, (_req, res) => res.json(FINANCIAL_DEFINITIONS));
 
@@ -105,6 +151,7 @@ router.get("/reports/transactions", requireManagerAccess, async (req, res): Prom
     db.select().from(salesTable).where(and(...conditions)).orderBy(order).limit(limit).offset((page - 1) * limit),
     db.select({ total: sql<number>`COUNT(*)` }).from(salesTable).where(and(...conditions)),
   ]);
+  const cashTotalsBySale = await cashTenderTotalsBySale(rows, req.tenantId!);
   const voidedItemsBySale = new Map<string, unknown[]>();
   if (settings?.showVoidedItems && rows.length > 0) {
     const voidedItems = await db.select().from(saleItemsTable).where(and(
@@ -126,9 +173,15 @@ router.get("/reports/transactions", requireManagerAccess, async (req, res): Prom
     }
   }
   res.json({
-    data: rows.map((row) => settings?.showVoidedItems
-      ? { ...row, voidedItems: voidedItemsBySale.get(row.id) ?? [] }
-      : row),
+    data: rows.map((row) => {
+      const cashTotals = cashTotalsBySale.get(row.id);
+      return {
+        ...row,
+        cashReceived: cashTotals ? money(cashTotals.received) : null,
+        changeDue: cashTotals?.changeDue ?? null,
+        ...(settings?.showVoidedItems ? { voidedItems: voidedItemsBySale.get(row.id) ?? [] } : {}),
+      };
+    }),
     total: Number(count[0]?.total ?? 0),
     page,
     limit,
@@ -262,9 +315,63 @@ router.get("/reports/cash", requireManagerAccess, async (req, res): Promise<void
   const conditions: SQL[] = [eq(cashEventsTable.tenantId, req.tenantId!), gte(cashEventsTable.createdAt, new Date(query.startDate!)), lte(cashEventsTable.createdAt, new Date(query.endDate!))];
   if (query.storeId) conditions.push(eq(cashEventsTable.storeId, query.storeId));
   if (query.registerId) conditions.push(eq(cashEventsTable.registerId, query.registerId));
-  const rows = await db.select({ type: cashEventsTable.type, amount: sql<string>`SUM(${cashEventsTable.amount}::numeric)`, count: sql<number>`COUNT(*)` })
-    .from(cashEventsTable).where(and(...conditions)).groupBy(cashEventsTable.type);
-  res.json({ data: rows.map((r) => ({ ...r, amount: money(r.amount), count: Number(r.count) })) });
+  if (query.shiftId) conditions.push(eq(cashEventsTable.shiftId, query.shiftId));
+  const movementConditions = [
+    ...conditions,
+    inArray(cashEventsTable.type, ["drop", "payout"]),
+  ];
+  const [rows, movements] = await Promise.all([
+    db.select({ type: cashEventsTable.type, amount: sql<string>`SUM(${cashEventsTable.amount}::numeric)`, count: sql<number>`COUNT(*)` })
+    .from(cashEventsTable)
+    .leftJoin(salesTable, and(
+      eq(cashEventsTable.saleId, salesTable.id),
+      eq(salesTable.tenantId, req.tenantId!),
+    ))
+    .where(and(
+      ...conditions,
+      or(isNull(cashEventsTable.saleId), ne(salesTable.status, "voided")),
+    ))
+    .groupBy(cashEventsTable.type),
+    db.select({
+      id: cashEventsTable.id,
+      type: cashEventsTable.type,
+      amount: cashEventsTable.amount,
+      reason: cashEventsTable.reason,
+      storeId: cashEventsTable.storeId,
+      storeName: storesTable.name,
+      registerId: cashEventsTable.registerId,
+      registerName: registersTable.name,
+      shiftId: cashEventsTable.shiftId,
+      createdBy: cashEventsTable.createdBy,
+      recordedByName: sql<string>`NULLIF(TRIM(CONCAT(${usersTable.firstName}, ' ', ${usersTable.lastName})), '')`,
+      createdAt: cashEventsTable.createdAt,
+    })
+      .from(cashEventsTable)
+      .leftJoin(storesTable, and(
+        eq(cashEventsTable.storeId, storesTable.id),
+        eq(storesTable.tenantId, req.tenantId!),
+      ))
+      .leftJoin(registersTable, and(
+        eq(cashEventsTable.registerId, registersTable.id),
+        eq(registersTable.tenantId, req.tenantId!),
+      ))
+      .leftJoin(usersTable, and(
+        eq(cashEventsTable.createdBy, usersTable.id),
+        eq(usersTable.tenantId, req.tenantId!),
+      ))
+      .where(and(...movementConditions))
+      .orderBy(desc(cashEventsTable.createdAt))
+      .limit(1000),
+  ]);
+  res.json({
+    data: rows.map((r) => ({ ...r, amount: money(r.amount), count: Number(r.count) })),
+    movements: movements.map((movement) => ({
+      ...movement,
+      amount: money(movement.amount),
+      createdAt: movement.createdAt.toISOString(),
+      recordedByName: movement.recordedByName || "Unknown manager",
+    })),
+  });
 });
 
 router.get("/reports/purchasing", requireManagerAccess, async (req, res): Promise<void> => {
@@ -310,13 +417,26 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
   const format = String(req.params.format ?? query.format); if (!["csv", "xlsx", "pdf"].includes(format)) { res.status(400).json({ error: "format must be csv, xlsx, or pdf" }); return; }
   const [reportSettings] = await db.select({ showVoidedItems: settingsTable.showVoidedItems })
     .from(settingsTable).where(eq(settingsTable.tenantId, req.tenantId!)).limit(1);
-  const rows = await db.select({
+  const baseQuery = { ...query, paymentMethod: undefined };
+  const exportConditions = filters(baseQuery, req.tenantId!);
+  if (query.status) exportConditions.push(eq(salesTable.status, query.status));
+  const allRows = await db.select({
     id: salesTable.id,
     receiptNumber: salesTable.receiptNumber, createdAt: salesTable.createdAt, status: salesTable.status,
     storeId: salesTable.storeId, registerId: salesTable.registerId, cashierId: salesTable.cashierId,
     subtotal: salesTable.subtotal, discount: salesTable.discountAmount, tax: salesTable.taxAmount,
     total: salesTable.totalAmount, paymentMethod: salesTable.paymentMethod, cashTendered: salesTable.cashTendered,
-  }).from(salesTable).where(and(...filters(query, req.tenantId!))).orderBy(asc(salesTable.createdAt)).limit(100000);
+  }).from(salesTable).where(and(...exportConditions)).orderBy(asc(salesTable.createdAt)).limit(100000);
+  let rows = allRows;
+  if (query.paymentMethod && query.paymentMethod !== "mixed") {
+    const splitPaymentRows = await db.select({ saleId: salePaymentsTable.saleId }).from(salePaymentsTable).where(and(
+      eq(salePaymentsTable.tenantId, req.tenantId!),
+      eq(salePaymentsTable.method, query.paymentMethod),
+    ));
+    const splitSaleIds = new Set(splitPaymentRows.map((payment) => payment.saleId));
+    rows = allRows.filter((row) => row.paymentMethod === query.paymentMethod || splitSaleIds.has(row.id));
+  }
+  const cashTotalsBySale = await cashTenderTotalsBySale(rows, req.tenantId!);
   const voidedItemsBySale = new Map<string, string[]>();
   if (reportSettings?.showVoidedItems && rows.length > 0) {
     const voidedItems = await db.select().from(saleItemsTable).where(and(
@@ -332,10 +452,8 @@ router.get(["/reports/export", "/reports/export/:format"], requireManagerAccess,
   const exportRows = rows.map((r) => ({
     ...r,
     createdAt: r.createdAt.toISOString(),
-    cashReceived: r.paymentMethod === "cash" && r.cashTendered != null ? Number(r.cashTendered) : null,
-    changeDue: r.paymentMethod === "cash" && r.cashTendered != null
-      ? Number(r.cashTendered) - Number(r.total)
-      : null,
+    cashReceived: cashTotalsBySale.has(r.id) ? money(cashTotalsBySale.get(r.id)!.received) : null,
+    changeDue: cashTotalsBySale.get(r.id)?.changeDue ?? null,
     ...(reportSettings?.showVoidedItems
       ? { voidedItems: (voidedItemsBySale.get(r.id) ?? []).join("; ") }
       : {}),
