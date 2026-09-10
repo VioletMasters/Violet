@@ -7,6 +7,7 @@
  */
 import type { SaleInputPaymentMethod } from './saleInputPaymentMethod';
 import type { SaleItemInput } from './saleItemInput';
+import type { SalePaymentInput } from './salePaymentInput';
 import type { VoidedSaleItemInput } from './voidedSaleItemInput';
 
 export interface SaleInput {
@@ -22,5 +23,14 @@ export interface SaleInput {
   voidedItems?: VoidedSaleItemInput[];
   paymentMethod: SaleInputPaymentMethod;
   cashTendered?: number;
+  /**
+     * Split tenders whose amounts must add up to the sale total.
+     * @minItems 2
+     */
+  payments?: SalePaymentInput[];
+  storeId?: string;
+  registerId?: string;
+  /** The authenticated cashier's active register shift. Sales cannot be completed without it. */
+  shiftId: string;
   note?: string;
 }
