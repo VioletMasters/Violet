@@ -249,6 +249,93 @@ async function applyMembership(
   return access;
 }
 
+export async function downgradeTenantToFree(
+  tenantId: string,
+  options: {
+    source?: string;
+    reason?: string;
+    actorId?: string | null;
+    whopMembershipId?: string | null;
+  } = {},
+) {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const [subscription] = await tx
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.tenantId, tenantId))
+      .limit(1);
+    const [freePlan] = await tx
+      .select()
+      .from(plansTable)
+      .where(eq(plansTable.tier, "free"))
+      .limit(1);
+
+    if (!subscription || !freePlan) {
+      throw new Error("Free plan is not configured for this account.");
+    }
+
+    const wasAlreadyFree = subscription.planId === freePlan.id && !subscription.whopMembershipId;
+    await tx
+      .update(subscriptionsTable)
+      .set({
+        planId: freePlan.id,
+        status: "active",
+        paymentStatus: "not_required",
+        whopPlanId: null,
+        whopCheckoutConfigurationId: null,
+        whopMembershipId: null,
+        currentPeriodStart: now,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        cancelRequestedAt: null,
+        cancelReason: null,
+        lastWhopSyncAt: now,
+        updatedAt: now,
+      })
+      .where(eq(subscriptionsTable.tenantId, tenantId));
+
+    const [tenant] = await tx
+      .select({ status: tenantsTable.status })
+      .from(tenantsTable)
+      .where(eq(tenantsTable.id, tenantId))
+      .limit(1);
+    await tx
+      .update(tenantsTable)
+      .set({
+        planId: freePlan.id,
+        status: tenant?.status === "expired" ? "active" : tenant?.status,
+        licenseStatus: "valid",
+        licenseValidatedAt: now,
+        licenseValidUntil: null,
+        pendingPaidSignup: false,
+        pendingPaidSignupExpiresAt: null,
+        updatedAt: now,
+      })
+      .where(eq(tenantsTable.id, tenantId));
+    await ensureTenantLicense(tenantId, tx);
+
+    if (!wasAlreadyFree) {
+      await tx.insert(subscriptionEventsTable).values({
+        tenantId,
+        subscriptionId: subscription.id,
+        eventType: "downgraded",
+        fromPlanId: subscription.planId,
+        toPlanId: freePlan.id,
+        source: options.source ?? "system",
+        reason:
+          options.reason ??
+          "The paid membership ended. The account was moved to Violet Free without deleting products or customers.",
+        whopMembershipId: options.whopMembershipId ?? subscription.whopMembershipId,
+        effectiveAt: now,
+        actorId: options.actorId ?? null,
+      });
+    }
+
+    return { changed: !wasAlreadyFree, freePlan };
+  });
+}
+
 export async function syncPendingCheckout(
   tenantId: string,
   consistencyCheckoutId?: string,
@@ -476,26 +563,20 @@ export async function syncExistingMembership(tenantId: string): Promise<void> {
   );
   const latestPayment = payments[0] ?? null;
   if (latestPayment && isFullyRefunded(latestPayment)) {
-    const now = new Date();
-    await db.transaction(async (tx) => {
-      await tx
-        .update(subscriptionsTable)
-        .set({
-          status: "cancelled",
-          paymentStatus: "refunded",
-          lastWhopSyncAt: now,
-          updatedAt: now,
-        })
-        .where(eq(subscriptionsTable.tenantId, tenantId));
-      await tx
-        .update(tenantsTable)
-        .set({
-          licenseStatus: "revoked",
-          licenseValidatedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(tenantsTable.id, tenantId));
-      await ensureTenantLicense(tenantId, tx);
+    await downgradeTenantToFree(tenantId, {
+      source: "whop",
+      reason: "The paid membership was fully refunded. The account was moved to Violet Free without deleting data.",
+      whopMembershipId: membership.id,
+    });
+    return;
+  }
+
+  const access = membershipAccess(membership);
+  if (access.status === "cancelled") {
+    await downgradeTenantToFree(tenantId, {
+      source: "whop",
+      reason: access.message,
+      whopMembershipId: membership.id,
     });
     return;
   }
