@@ -17,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   getGetCurrentRegisterShiftQueryKey,
+  getListPosProductsQueryKey,
   getListRegisterShiftsQueryKey,
   listPosProducts,
   useConfirmManagerPassword,
@@ -167,6 +168,9 @@ export default function POSPage() {
   const createSale = useCreateSale({
     mutation: {
       onSuccess: (sale) => {
+        // Stock is deducted by the sale transaction. Refresh every search variant
+        // so the visible POS cards show the confirmed on-hand quantity immediately.
+        queryClient.invalidateQueries({ queryKey: getListPosProductsQueryKey() });
         const hasCashPayment = paymentMethod === "cash" || paymentMethod === "mixed";
         const cashAppliedAmount = paymentMethod === "mixed"
           ? Number.parseFloat(cashPaymentAmount)

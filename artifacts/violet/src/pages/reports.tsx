@@ -152,9 +152,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function ReportTable({ columns, rows, emptyTitle = "No records found" }: { columns: Array<{ key: string; label: string; align?: "right" }>; rows: AnyRecord[]; emptyTitle?: string }) {
   if (!rows.length) return <EmptyState title={emptyTitle} description="Try widening the date range or clearing a filter." />;
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div className="max-h-[28rem] overflow-auto rounded-xl border">
       <Table>
-        <TableHeader><TableRow>{columns.map((column) => <TableHead key={column.key} className={column.align === "right" ? "text-right" : ""}>{column.label}</TableHead>)}</TableRow></TableHeader>
+        <TableHeader className="sticky top-0 z-10 bg-card"><TableRow>{columns.map((column) => <TableHead key={column.key} className={column.align === "right" ? "text-right" : ""}>{column.label}</TableHead>)}</TableRow></TableHeader>
         <TableBody>{rows.map((row, index) => <TableRow key={String(row.id ?? row.productId ?? row.storeId ?? row.receiptNumber ?? index)}>
           {columns.map((column) => <TableCell key={column.key} className={column.align === "right" ? "text-right" : ""}>{row[column.key] ?? "—"}</TableCell>)}
         </TableRow>)}</TableBody>

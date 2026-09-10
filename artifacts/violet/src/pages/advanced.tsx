@@ -160,7 +160,7 @@ export default function AdvancedPage() {
                 {selectedStoreId && <span className="text-xs text-muted-foreground">{registers.length} configured</span>}
               </div>
               {selectedStoreId && registers.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="max-h-64 grid gap-2 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-2">
                   {registers.map((register) => (
                     <div key={register.id} className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
                       <div><p className="text-sm font-medium">{register.name}</p><p className="text-xs text-muted-foreground">{register.code}</p></div>

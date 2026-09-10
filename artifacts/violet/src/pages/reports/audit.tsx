@@ -40,9 +40,9 @@ export default function ReportsAudit() {
       </div>
 
       <Card className="border-border/50 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="max-h-[28rem] overflow-auto">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+            <thead className="sticky top-0 z-10 text-xs text-muted-foreground uppercase bg-muted/50 border-b">
               <tr>
                 <th className="px-4 py-3 font-medium w-48">Date & Time</th>
                 <th className="px-4 py-3 font-medium w-32">Actor</th>

@@ -242,9 +242,9 @@ export default function ReportsCash() {
       </div>
 
       <Card className="border-border/50 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="max-h-72 overflow-auto">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+            <thead className="sticky top-0 z-10 text-xs text-muted-foreground uppercase bg-muted/50 border-b">
               <tr>
                 <th className="px-4 py-3 font-medium">Event</th>
                 <th className="px-4 py-3 font-medium text-right">Events</th>
@@ -262,7 +262,7 @@ export default function ReportsCash() {
                 ))
               ) : events.length > 0 ? (
                 events.map((e: any) => (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr key={e.id ?? e.type} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                       <Badge variant={e.type === 'drop' ? 'default' : 'destructive'} className="text-[10px] uppercase">
                           {String(e.type ?? "unknown").replace("_", " ")}
@@ -299,9 +299,9 @@ export default function ReportsCash() {
           <CardDescription>Every cash drop and payout in the selected store, register, shift, and date range.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-[24rem] overflow-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-y">
+              <thead className="sticky top-0 z-10 text-xs text-muted-foreground uppercase bg-muted/50 border-y">
                 <tr>
                   <th className="px-4 py-3 font-medium">When</th>
                   <th className="px-4 py-3 font-medium">Movement</th>
@@ -347,9 +347,9 @@ export default function ReportsCash() {
           <CardDescription>Review the physical closeout against the expected drawer balance for each register.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-[24rem] overflow-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-y">
+              <thead className="sticky top-0 z-10 text-xs text-muted-foreground uppercase bg-muted/50 border-y">
                 <tr>
                   <th className="px-4 py-3 font-medium">Closed</th>
                   <th className="px-4 py-3 font-medium">Store / Register</th>

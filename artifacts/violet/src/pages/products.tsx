@@ -232,7 +232,7 @@ function CatalogAttributeManager({
       {attributes.length === 0 ? (
         <p className="py-2 text-sm text-muted-foreground">No {title.toLowerCase()} yet.</p>
       ) : (
-        <div className="space-y-1">
+        <div className="max-h-64 space-y-1 overflow-y-auto overscroll-contain pr-1">
           {attributes.map((attribute) => {
             const isInUse = (attribute.productCount ?? 0) > 0;
             return (
@@ -602,9 +602,9 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="max-h-[32rem] overflow-auto rounded-xl border bg-card">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead>Product Name</TableHead>
               <TableHead>SKU</TableHead>

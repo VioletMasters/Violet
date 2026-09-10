@@ -55,9 +55,9 @@ export default function ReportsInventory() {
               <CardDescription>Every row reconciles current on-hand cost, retail value, and projected gross profit.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <div className="max-h-[28rem] overflow-auto">
                 <table className="w-full min-w-[900px] text-sm">
-                  <thead className="border-b bg-muted/50 text-xs uppercase text-muted-foreground">
+                  <thead className="sticky top-0 z-10 border-b bg-muted/50 text-xs uppercase text-muted-foreground">
                     <tr>
                       {["Product", "SKU", "On hand", "Unit cost", "Sale price", "Cost value", "Retail value", "Projected profit"].map((label, index) => (
                         <th key={label} className={`px-4 py-3 font-medium ${index > 1 ? "text-right" : "text-left"}`}>{label}</th>
