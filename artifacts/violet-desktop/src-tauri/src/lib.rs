@@ -9,7 +9,7 @@ use std::{
 };
 
 use rand::{rngs::OsRng, RngCore};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, Runtime};
 
 const TRUSTED_LICENSE_SERVER_URL: &str = "https://Violetsolutions.replit.app";
@@ -122,6 +122,149 @@ fn require_setup_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
     } else {
         Err("This command is only available from Violet's local setup screen.".into())
     }
+}
+
+fn require_print_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
+    let current = webview
+        .url()
+        .map_err(|_| "Could not verify the current Violet window.".to_string())?;
+    let is_webview = matches!(current.scheme(), "http" | "https")
+        && current.host_str().is_some();
+    if is_bundled_setup_origin(&current) || is_webview {
+        Ok(())
+    } else {
+        Err("Native printing is only available from a Violet webview.".into())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct NativePrinter {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct NativePrintRequest {
+    printer_name: String,
+    content: String,
+}
+
+fn parse_windows_printer_names(output: &str) -> Vec<NativePrinter> {
+    output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|name| NativePrinter {
+            name: name.to_string(),
+        })
+        .collect()
+}
+
+fn parse_cups_printer_names(output: &str) -> Vec<NativePrinter> {
+    output
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("printer "))
+        .filter_map(|line| line.split_whitespace().next())
+        .map(|name| NativePrinter {
+            name: name.to_string(),
+        })
+        .collect()
+}
+
+fn windows_print_script(printer_name: &str, path: &Path) -> String {
+    let printer = printer_name.replace('\'', "''");
+    let file = path.to_string_lossy().replace('\'', "''");
+    format!(
+        "Start-Process -FilePath '{}' -Verb PrintTo -ArgumentList \"'{}'\"",
+        file, printer
+    )
+}
+
+fn cups_print_args(printer_name: &str, path: &Path) -> Vec<String> {
+    vec![
+        "-d".to_string(),
+        printer_name.trim().to_string(),
+        path.to_string_lossy().into_owned(),
+    ]
+}
+
+fn validate_native_print_request(request: &NativePrintRequest) -> Result<(), String> {
+    if request.printer_name.trim().is_empty() || request.content.trim().is_empty() {
+        return Err("A printer name and printable document are required.".into());
+    }
+    Ok(())
+}
+
+fn command_output_lines(command: &mut Command) -> Result<Vec<String>, String> {
+    let output = command.output().map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect())
+}
+
+#[tauri::command]
+fn list_native_printers(webview: tauri::WebviewWindow) -> Result<Vec<NativePrinter>, String> {
+    require_print_origin(&webview)?;
+
+    #[cfg(windows)]
+    {
+        let names = command_output_lines(Command::new("powershell").args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-Printer | Select-Object -ExpandProperty Name",
+        ]))?;
+        return Ok(parse_windows_printer_names(&names.join("\n")));
+    }
+    #[cfg(not(windows))]
+    {
+        let names = command_output_lines(Command::new("lpstat").args(["-p"]))?;
+        return Ok(parse_cups_printer_names(&names.join("\n")));
+    }
+}
+
+#[tauri::command]
+fn print_native_document(
+    request: NativePrintRequest,
+    webview: tauri::WebviewWindow,
+) -> Result<(), String> {
+    require_print_origin(&webview)?;
+    validate_native_print_request(&request)?;
+
+    let path = std::env::temp_dir().join(format!("violet-print-{}.txt", uuid::Uuid::new_v4()));
+    fs::write(&path, request.content.as_bytes()).map_err(|error| error.to_string())?;
+    let result = (|| {
+        #[cfg(windows)]
+        {
+            let script = windows_print_script(&request.printer_name, &path);
+            let output = Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !output.status.success() {
+                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let args = cups_print_args(&request.printer_name, &path);
+            let output = Command::new("lp")
+                .args(args)
+                .output()
+                .map_err(|error| error.to_string())?;
+            if !output.status.success() {
+                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+            }
+        }
+        Ok(())
+    })();
+    let _ = fs::remove_file(&path);
+    result
 }
 
 #[tauri::command]
@@ -799,7 +942,9 @@ pub fn run() {
             start_managed_host,
             resume_managed_host,
             retry_managed_host,
-            reset_managed_host
+            reset_managed_host,
+            list_native_printers,
+            print_native_document
         ])
         .run(tauri::generate_context!());
 
@@ -810,7 +955,13 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{dotenv_value, is_bundled_setup_origin, normalise_email, parse_dotenv};
+    use std::path::Path;
+
+    use super::{
+        cups_print_args, dotenv_value, is_bundled_setup_origin, normalise_email, parse_cups_printer_names,
+        parse_dotenv, parse_windows_printer_names, validate_native_print_request, windows_print_script,
+        NativePrintRequest,
+    };
 
     #[test]
     fn bundled_tauri_origin_is_allowed() {
@@ -845,5 +996,40 @@ mod tests {
     #[test]
     fn email_is_trimmed_and_lowercased() {
         assert_eq!(normalise_email("  Owner@EXAMPLE.COM "), "owner@example.com");
+    }
+
+    #[test]
+    fn native_printer_discovery_parses_windows_and_cups_output() {
+        let windows = parse_windows_printer_names(" Receipt Printer \n\nOffice Printer\n");
+        assert_eq!(
+            windows.iter().map(|printer| printer.name.as_str()).collect::<Vec<_>>(),
+            ["Receipt Printer", "Office Printer"]
+        );
+
+        let cups = parse_cups_printer_names(
+            "printer receipt is idle. enabled since Tue\nmalformed\nprinter office disabled since Tue",
+        );
+        assert_eq!(
+            cups.iter().map(|printer| printer.name.as_str()).collect::<Vec<_>>(),
+            ["receipt", "office"]
+        );
+    }
+
+    #[test]
+    fn native_dispatch_validates_requests_and_builds_platform_commands() {
+        let invalid = NativePrintRequest {
+            printer_name: " ".into(),
+            content: "receipt".into(),
+        };
+        assert!(validate_native_print_request(&invalid).is_err());
+
+        let path = Path::new("/tmp/violet receipt.txt");
+        assert_eq!(
+            cups_print_args(" receipt ", path),
+            vec!["-d", "receipt", "/tmp/violet receipt.txt"]
+        );
+        let script = windows_print_script("Front O'ffice", path);
+        assert!(script.contains("violet receipt.txt"));
+        assert!(script.contains("Front O''ffice"));
     }
 }
