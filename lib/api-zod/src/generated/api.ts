@@ -1716,7 +1716,7 @@ export const ReactivateBillingSubscriptionResponse = zod.object({
 export const GetBillingHistoryResponseItem = zod.object({
   "id": zod.string(),
   "tenantId": zod.string(),
-  "eventType": zod.enum(['activated', 'plan_changed', 'cancellation_requested', 'cancelled', 'reactivated', 'admin_override']),
+  "eventType": zod.enum(['activated', 'plan_changed', 'cancellation_requested', 'cancelled', 'reactivated', 'admin_override', 'downgraded']),
   "fromPlanId": zod.string().nullish(),
   "toPlanId": zod.string().nullish(),
   "fromPlanName": zod.string().nullish(),

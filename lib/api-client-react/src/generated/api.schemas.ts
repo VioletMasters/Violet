@@ -1221,6 +1221,7 @@ export const SubscriptionEventEventType = {
   cancelled: 'cancelled',
   reactivated: 'reactivated',
   admin_override: 'admin_override',
+  downgraded: 'downgraded',
 } as const;
 
 export interface SubscriptionEvent {
