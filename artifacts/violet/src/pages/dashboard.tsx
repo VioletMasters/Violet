@@ -215,6 +215,8 @@ export default function DashboardPage() {
                     <th className="py-3 font-medium">Date</th>
                     <th className="py-3 font-medium">Customer</th>
                     <th className="py-3 font-medium text-right">Amount</th>
+                    <th className="py-3 font-medium text-right">Cash Received</th>
+                    <th className="py-3 font-medium text-right">Change Due</th>
                     <th className="py-3 font-medium text-right">Method</th>
                     <th className="py-3 font-medium text-right">Status</th>
                   </tr>
@@ -226,6 +228,12 @@ export default function DashboardPage() {
                       <td className="py-3 text-muted-foreground">{new Date(sale.createdAt).toLocaleString()}</td>
                       <td className="py-3">{sale.customerName || "Walk-in"}</td>
                       <td className="py-3 text-right font-medium">{formatCurrency(sale.totalAmount)}</td>
+                      <td className="py-3 text-right tabular-nums">
+                        {sale.cashReceived == null ? "—" : formatCurrency(sale.cashReceived)}
+                      </td>
+                      <td className="py-3 text-right tabular-nums">
+                        {sale.changeDue == null ? "—" : formatCurrency(sale.changeDue)}
+                      </td>
                       <td className="py-3 text-right capitalize">{sale.paymentMethod.replace('_', ' ')}</td>
                       <td className="py-3 text-right">
                         <Badge variant={sale.status === 'completed' ? 'success' : 'secondary'}>
