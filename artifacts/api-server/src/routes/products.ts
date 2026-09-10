@@ -2,6 +2,7 @@ import { Router } from "express";
 import { brandsTable, db, productsTable, categoriesTable } from "@workspace/db";
 import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
+import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
 const router = Router();
 
@@ -16,6 +17,8 @@ type ProductImportRow = {
   minStock?: unknown;
   category?: unknown;
   brand?: unknown;
+  printDestination?: unknown;
+  warehouseLocation?: unknown;
 };
 
 function textValue(value: unknown) {
@@ -141,6 +144,8 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
       brandId: p.brandId ?? null,
       brandName: brandName ?? null,
       imageUrl: p.imageUrl ?? null,
+      printDestination: p.printDestination,
+      warehouseLocation: p.warehouseLocation ?? null,
       tenantId: p.tenantId,
       isActive: p.isActive,
       createdAt: p.createdAt.toISOString(),
@@ -154,11 +159,21 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
 // POST /products
 router.post("/products", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const { name, description, sku, barcode, price, costPrice, stock = 0, minStock = 5, categoryId, brandId, imageUrl } = req.body;
+  const { name, description, sku, barcode, price, costPrice, stock = 0, minStock = 5, categoryId, brandId, imageUrl, printDestination = "customer_receipt", warehouseLocation } = req.body;
 
   if (!name || !sku || price === undefined) {
     res.status(400).json({ error: "name, sku, and price are required" });
     return;
+  }
+  try {
+    await enforceTenantLimit(tenantId, "products");
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
   }
 
   const [[category], [brand]] = await Promise.all([
@@ -191,6 +206,8 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
     categoryId: categoryId || undefined,
     brandId: brandId || undefined,
     imageUrl,
+    printDestination,
+    warehouseLocation: warehouseLocation || null,
   }).returning();
 
   res.status(201).json({
@@ -208,6 +225,8 @@ router.post("/products", requireManagerAccess, async (req, res): Promise<void> =
     brandId: product.brandId ?? null,
     brandName: brand?.name ?? null,
     imageUrl: product.imageUrl ?? null,
+    printDestination: product.printDestination,
+    warehouseLocation: product.warehouseLocation ?? null,
     tenantId: product.tenantId,
     isActive: product.isActive,
     createdAt: product.createdAt.toISOString(),
@@ -230,6 +249,16 @@ router.post("/products/import", requireManagerAccess, async (req, res): Promise<
 
   const tenantId = req.tenantId!;
   const result = { total: rows.length, created: 0, updated: 0, skipped: 0, errors: [] as Array<{ row: number; message: string }> };
+  try {
+    await enforceTenantLimit(tenantId, "products", rows.length);
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
+  }
 
   await db.transaction(async (tx) => {
     for (let index = 0; index < rows.length; index += 1) {
@@ -282,6 +311,8 @@ router.post("/products/import", requireManagerAccess, async (req, res): Promise<
         categoryId: categoryId ?? null,
         brandId: brandId ?? null,
         isActive: true,
+        printDestination: textValue(row.printDestination) || "customer_receipt",
+        warehouseLocation: textValue(row.warehouseLocation) || null,
       };
 
       if (existing) {
@@ -334,6 +365,8 @@ router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void
     brandId: p.brandId ?? null,
     brandName: brandName ?? null,
     imageUrl: p.imageUrl ?? null,
+    printDestination: p.printDestination,
+    warehouseLocation: p.warehouseLocation ?? null,
     tenantId: p.tenantId,
     isActive: p.isActive,
     createdAt: p.createdAt.toISOString(),
@@ -344,7 +377,7 @@ router.get("/products/:id", requireManagerAccess, async (req, res): Promise<void
 router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const { name, description, sku, barcode, price, costPrice, stock, minStock, categoryId, brandId, imageUrl, isActive } = req.body;
+  const { name, description, sku, barcode, price, costPrice, stock, minStock, categoryId, brandId, imageUrl, isActive, printDestination, warehouseLocation } = req.body;
 
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
@@ -359,6 +392,8 @@ router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<vo
   if (brandId !== undefined) updates.brandId = brandId || null;
   if (imageUrl !== undefined) updates.imageUrl = imageUrl;
   if (isActive !== undefined) updates.isActive = isActive;
+  if (printDestination !== undefined) updates.printDestination = printDestination;
+  if (warehouseLocation !== undefined) updates.warehouseLocation = warehouseLocation || null;
 
   const [[category], [brand]] = await Promise.all([
     categoryId
@@ -412,6 +447,8 @@ router.patch("/products/:id", requireManagerAccess, async (req, res): Promise<vo
     brandId: product.brandId ?? null,
     brandName: catalogDetails?.brandName ?? null,
     imageUrl: product.imageUrl ?? null,
+    printDestination: product.printDestination,
+    warehouseLocation: product.warehouseLocation ?? null,
     tenantId: product.tenantId,
     isActive: product.isActive,
     createdAt: product.createdAt.toISOString(),
