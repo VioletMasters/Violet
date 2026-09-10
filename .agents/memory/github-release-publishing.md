@@ -14,5 +14,7 @@ Actions-based release through the connector API.
 
 **How to apply:** Before attempting a release, ensure the local Git remote is
 authenticated through GitHub CLI, Git Credential Manager, or a trusted desktop
-Git client. Push the project branch and its version tag through Git; then use
-the GitHub Actions run and Release assets as the source of truth.
+Git client. The workspace Integrations page manages the GitHub API connector;
+connecting it does not repair an invalid HTTPS credential used by `git push`.
+Push the project branch and its version tag through Git; then use the GitHub
+Actions run and Release assets as the source of truth.
