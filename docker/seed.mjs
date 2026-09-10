@@ -118,6 +118,35 @@ async function main() {
   `, [tenantId]);
   console.log("  ✓ Local license subscription");
 
+  await client.query(`
+    INSERT INTO licenses
+      (tenant_id, plan_id, license_key_hash, license_key_last4, status,
+       subscription_status, entitlements, activated_at, last_validated_at)
+    SELECT
+      $1,
+      p.id,
+      encode(gen_random_bytes(32), 'hex'),
+      'BOOT',
+      'ACTIVE',
+      'active',
+      jsonb_build_object(
+        'tier', p.tier,
+        'customerLabel', 'Violet Free',
+        'maxUsers', p.max_users,
+        'maxRegisters', p.max_registers,
+        'maxBranches', p.max_branches,
+        'maxProducts', LEAST(p.max_products, 250),
+        'maxCustomers', LEAST(p.max_customers, 500),
+        'features', to_jsonb(p.features)
+      ),
+      NOW(),
+      NOW()
+    FROM subscription_plans p
+    WHERE p.tier = 'free'
+    ON CONFLICT (tenant_id) DO NOTHING
+  `, [tenantId]);
+  console.log("  ✓ Local license identity");
+
   // Settings
   await client.query(`
     INSERT INTO settings (tenant_id, business_name, business_email)
