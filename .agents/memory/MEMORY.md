@@ -17,3 +17,4 @@
 - [Windows Actions Docker engine](windows-actions-docker-engine.md) — packaged Store Host smoke tests need Docker Desktop in Linux-container mode before Compose.
 - [Report export format contract](report-export-format-contract.md) — preserve trailing cash reconciliation fields when serializing every report format.
 - [Wouter nested routes](wouter-nested-routes.md) — use `/*` for the app catch-all so multi-segment paths reach nested routes.
+- [Playwright native runtime](playwright-native-runtime.md) — browser smoke tests may need explicit Nix graphics libraries in this container; keep them out of project config unless required.

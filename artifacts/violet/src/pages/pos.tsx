@@ -81,6 +81,8 @@ type RegisterOption = {
   isActive?: boolean;
 };
 
+const POS_PRODUCT_REFRESH_INTERVAL_MS = 3_000;
+
 function createCheckoutIdempotencyKey(): string {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
@@ -116,7 +118,16 @@ export default function POSPage() {
   });
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
-  const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
+  const productParams = { search: normalizedSearch, limit: 50 };
+  const { data: productsData, isLoading } = useListPosProducts(
+    productParams,
+    {
+      query: {
+        queryKey: getListPosProductsQueryKey(productParams),
+        refetchInterval: POS_PRODUCT_REFRESH_INTERVAL_MS,
+      },
+    },
+  );
   const {
     data: posTaxSettings,
     isLoading: isLoadingTaxSettings,
