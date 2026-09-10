@@ -261,6 +261,15 @@ export default function SubscriptionPage() {
     ["expired", "cancelled"].includes(sub.status) ||
     ["failed", "past_due", "refunded"].includes(sub.paymentStatus ?? "");
   const recentDowngrade = history?.find((event) => event.eventType === "downgraded");
+  const entitlementLimits = (sub.license?.entitlements ?? {}) as Record<string, unknown>;
+  const productLimit =
+    typeof entitlementLimits.maxProducts === "number"
+      ? entitlementLimits.maxProducts
+      : currentPlan.maxProducts;
+  const customerLimit =
+    typeof entitlementLimits.maxCustomers === "number"
+      ? entitlementLimits.maxCustomers
+      : currentPlan.maxCustomers;
   const availablePlans = (plans ?? []).filter((plan) => paidTiers.includes(plan.tier as PaidTier));
 
   return (
@@ -338,7 +347,7 @@ export default function SubscriptionPage() {
             <UsageMeter
               label="Products"
               used={productsUsed}
-              limit={currentPlan.maxProducts}
+              limit={productLimit}
             />
             <UsageMeter
               label="Users"
@@ -348,7 +357,7 @@ export default function SubscriptionPage() {
             <UsageMeter
               label="Customers"
               used={customersUsed}
-              limit={currentPlan.maxCustomers}
+              limit={customerLimit}
             />
           </div>
 

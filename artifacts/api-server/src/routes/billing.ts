@@ -434,7 +434,7 @@ router.post("/billing/cancel", requireSession, async (req, res): Promise<void> =
       success: true,
       status: immediate ? "cancelled" : "scheduled",
       message: immediate
-        ? "The subscription was cancelled and access was revoked immediately."
+        ? "The subscription was cancelled and the account was moved to Violet Free. Existing data was kept."
         : subscription.currentPeriodEnd
           ? `Auto-renewal is off. Access remains available until ${subscription.currentPeriodEnd.toISOString()}.`
           : "Auto-renewal is off for this subscription.",
