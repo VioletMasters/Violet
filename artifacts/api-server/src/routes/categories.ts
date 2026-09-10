@@ -32,17 +32,18 @@ router.get("/categories", requireManagerAccess, async (req, res): Promise<void> 
 // POST /categories
 router.post("/categories", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
-  const { name, description, color } = req.body;
+  const { name, description, color, printDestination = "customer_receipt" } = req.body;
   if (!name) {
     res.status(400).json({ error: "name is required" });
     return;
   }
-  const [cat] = await db.insert(categoriesTable).values({ tenantId, name, description, color }).returning();
+  const [cat] = await db.insert(categoriesTable).values({ tenantId, name, description, color, printDestination }).returning();
   res.status(201).json({
     id: cat.id,
     name: cat.name,
     description: cat.description ?? null,
     color: cat.color ?? null,
+    printDestination: cat.printDestination,
     tenantId: cat.tenantId,
     productCount: 0,
     createdAt: cat.createdAt.toISOString(),
@@ -53,11 +54,12 @@ router.post("/categories", requireManagerAccess, async (req, res): Promise<void>
 router.patch("/categories/:id", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const { name, description, color } = req.body;
+  const { name, description, color, printDestination } = req.body;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (description !== undefined) updates.description = description;
   if (color !== undefined) updates.color = color;
+  if (printDestination !== undefined) updates.printDestination = printDestination;
 
   const [cat] = await db.update(categoriesTable).set(updates)
     .where(and(eq(categoriesTable.id, id), eq(categoriesTable.tenantId, tenantId)))
@@ -73,6 +75,7 @@ router.patch("/categories/:id", requireManagerAccess, async (req, res): Promise<
     name: cat.name,
     description: cat.description ?? null,
     color: cat.color ?? null,
+    printDestination: cat.printDestination,
     tenantId: cat.tenantId,
     productCount: 0,
     createdAt: cat.createdAt.toISOString(),
