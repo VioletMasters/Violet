@@ -67,8 +67,10 @@ export default function App() {
   const [docker, setDocker] = useState<DockerStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const operationRef = useRef(0);
 
   const choose = () => {
+    operationRef.current += 1;
     setPhase('choose');
     setMode(null);
     setError(null);
@@ -137,11 +139,13 @@ export default function App() {
     }
   };
 
-  const connect = async (m: Mode, targetUrl: string) => {
+  const connect = async (m: Mode, targetUrl: string, activeOperation = ++operationRef.current) => {
     setPhase('connecting');
     setUrl(targetUrl);
     await saveConfig(m, targetUrl);
+    if (activeOperation !== operationRef.current) return;
     await goTo(loginUrl(targetUrl)).catch(() => {
+      if (activeOperation !== operationRef.current) return;
       setPhase('details');
       setError(`Could not open ${targetUrl}`);
     });
@@ -151,6 +155,7 @@ export default function App() {
     e.preventDefault();
     setError(null);
     if (!isTauri) return;
+    const activeOperation = ++operationRef.current;
     setPhase('starting');
     try {
       const { invoke } = await import('@tauri-apps/api/core');
@@ -158,8 +163,10 @@ export default function App() {
         adminEmail: email,
         adminPassword: password,
       });
-      await connect('host', host.url);
+      if (activeOperation !== operationRef.current) return;
+      await connect('host', host.url, activeOperation);
     } catch (reason) {
+      if (activeOperation !== operationRef.current) return;
       setPhase('details');
       setError(typeof reason === 'string' ? reason : 'Could not start the Store Host.');
     }
@@ -168,12 +175,15 @@ export default function App() {
   const retryHost = async () => {
     setError(null);
     if (!isTauri) return;
+    const activeOperation = ++operationRef.current;
     setPhase('starting');
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const host = await invoke<{ url: string }>('retry_managed_host');
-      await connect('host', host.url);
+      if (activeOperation !== operationRef.current) return;
+      await connect('host', host.url, activeOperation);
     } catch (reason) {
+      if (activeOperation !== operationRef.current) return;
       setPhase('details');
       setError(typeof reason === 'string' ? reason : 'Could not retry starting the Store Host.');
     }
@@ -200,6 +210,7 @@ export default function App() {
     setError(null);
     const target = normaliseUrl(url);
     if (!target) return;
+    const activeOperation = ++operationRef.current;
     setPhase('connecting');
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -215,8 +226,10 @@ export default function App() {
       });
       const health = await res.json().catch(() => null) as { status?: unknown } | null;
       if (!res.ok || health?.status !== 'ok') throw new Error();
-      await connect('client', target);
+      if (activeOperation !== operationRef.current) return;
+      await connect('client', target, activeOperation);
     } catch {
+      if (activeOperation !== operationRef.current) return;
       setPhase('details');
       setError(`Could not connect to ${target}. Verify the address and that the server is running.`);
     } finally {
@@ -258,7 +271,7 @@ export default function App() {
   return (
     <Shell>
       <button type="button" className="back" onClick={choose}>
-        ← All modes
+          ← Back to setup options
       </button>
       <h1>{mode === 'host' ? 'Start locally' : 'Connect this Store Client'}</h1>
 
@@ -372,7 +385,7 @@ function Loading({ phase, url, onCancel }: { phase: Phase; url: string; onCancel
             : `Opening ${url}`}
         </p>
         <button type="button" className="link" onClick={onCancel}>
-          Cancel / change mode
+          Cancel and choose another setup option
         </button>
       </section>
     </main>

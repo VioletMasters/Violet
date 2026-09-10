@@ -5,7 +5,9 @@ FROM node:22-slim AS builder
 
 WORKDIR /build
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Pin pnpm so clean Windows/Docker Desktop builds use the same build-script
+# policy as the workspace instead of inheriting a newly released major.
+RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY tsconfig.base.json tsconfig.json ./

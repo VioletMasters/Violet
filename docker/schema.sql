@@ -1,6 +1,8 @@
 -- Violet Enterprise — database schema
 -- Applied idempotently on first boot (errors for existing objects are ignored)
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS public.tenants (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,

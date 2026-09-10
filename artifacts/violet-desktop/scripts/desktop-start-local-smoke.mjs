@@ -352,6 +352,20 @@ try {
     "the local admin form",
     "(function () { return Boolean(document.querySelector('input[type=email]')); })()",
   );
+  await clickButton(page, "Back to setup options");
+  await clickButton(page, "Store Client");
+  await waitFor(
+    page,
+    "the Store Client address form after returning from Start locally",
+    "(function () { return document.body?.innerText?.includes('Connect this Store Client') && Boolean(document.querySelector('input[autocomplete=url]')); })()",
+  );
+  await clickButton(page, "Back to setup options");
+  await clickButton(page, "Start locally");
+  await waitFor(
+    page,
+    "the local admin form after returning from Store Client",
+    "(function () { return Boolean(document.querySelector('input[type=email]')); })()",
+  );
   await setInput(page, 'input[type="email"]', localEmail);
   await setInput(page, 'input[type="password"]', localPassword);
   await clickButton(page, "Start locally (Free)");

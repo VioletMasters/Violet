@@ -430,8 +430,10 @@ fn startup_failure_hint(value: &str) -> Option<&'static str> {
         Some("Port 80 is already in use. Stop the other service or change the Store Host port before retrying.")
     } else if lower.contains("entrypoint.sh") || lower.contains("no such file or directory") {
         Some("The API image is incomplete or has an invalid shell-script line ending. Rebuild the Store Host image.")
+    } else if lower.contains("gen_random_bytes") || lower.contains("seed failed") {
+        Some("The API could not initialize the local database. Rebuild the Store Host image; existing store data will be preserved.")
     } else if lower.contains("could not connect to the database")
-        || lower.contains("connection refused")
+        || lower.contains("connection refused") && lower.contains("api-")
     {
         Some("The API cannot reach PostgreSQL yet. Keep the database container running and retry.")
     } else {
@@ -444,9 +446,13 @@ fn managed_host_diagnostics(directory: &Path) -> String {
         .current_dir(directory)
         .args(["compose", "ps", "--all", "--format", "json"])
         .output();
-    let logs = docker_command()
+    let api_logs = docker_command()
         .current_dir(directory)
-        .args(["compose", "logs", "--no-color", "--tail", "40"])
+        .args(["compose", "logs", "--no-color", "--tail", "80", "api"])
+        .output();
+    let db_logs = docker_command()
+        .current_dir(directory)
+        .args(["compose", "logs", "--no-color", "--tail", "20", "db"])
         .output();
 
     let status_text = status
@@ -455,7 +461,7 @@ fn managed_host_diagnostics(directory: &Path) -> String {
         .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
         .unwrap_or_default();
     let status_summary = compose_service_summary(&status_text);
-    let log_text = logs
+    let api_log_text = api_logs
         .as_ref()
         .ok()
         .map(|output| {
@@ -464,17 +470,30 @@ fn managed_host_diagnostics(directory: &Path) -> String {
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr)
             );
-            tail_lines(&combined, 18, 3600)
+            tail_lines(&combined, 50, 6000)
         })
-        .unwrap_or_else(|| "Docker logs could not be collected.".into());
-    let combined = format!("{status_summary}\n{log_text}");
+        .unwrap_or_else(|| "API logs could not be collected.".into());
+    let db_log_text = db_logs
+        .as_ref()
+        .ok()
+        .map(|output| {
+            let combined = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            tail_lines(&combined, 12, 1800)
+        })
+        .unwrap_or_else(|| "Database logs could not be collected.".into());
+    let combined = format!("{status_summary}\n{api_log_text}\n{db_log_text}");
     let hint = startup_failure_hint(&combined)
         .map(|hint| format!("\n\nLikely cause: {hint}"))
         .unwrap_or_default();
 
     format!(
-        "Services: {status_summary}\n\nRecent Docker output:\n{}{}",
-        redact_diagnostics(directory, &log_text),
+        "Services: {status_summary}\n\nAPI output:\n{}\n\nDatabase output:\n{}{}",
+        redact_diagnostics(directory, &api_log_text),
+        redact_diagnostics(directory, &db_log_text),
         hint
     )
 }
@@ -487,14 +506,10 @@ fn compose_start_error(directory: &Path, output: &std::process::Output) -> Strin
     );
     let compose_output = tail_lines(&compose_output, 18, 3600);
     let diagnostics = managed_host_diagnostics(directory);
-    let hint = startup_failure_hint(&format!("{compose_output}\n{diagnostics}"))
-        .map(|hint| format!("\n\nLikely cause: {hint}"))
-        .unwrap_or_default();
     format!(
-        "Docker Compose could not start the Store Host.\n\nCompose output:\n{}\n\n{}{}",
+        "Docker Compose could not start the Store Host.\n\nCompose output:\n{}\n\n{}",
         redact_diagnostics(directory, &compose_output),
-        diagnostics,
-        hint
+        diagnostics
     )
 }
 

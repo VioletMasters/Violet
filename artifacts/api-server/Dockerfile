@@ -3,8 +3,9 @@ FROM node:22-alpine AS builder
 
 WORKDIR /build
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Pin pnpm so Docker builds do not change behavior when a new major release is
+# published. pnpm 11 supports this workspace's approved-build configuration.
+RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
 
 # Copy workspace manifests (needed for workspace resolution)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
