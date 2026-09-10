@@ -85,19 +85,97 @@ export function toXlsx(rows: Record<string, unknown>[]): Buffer {
   ]);
 }
 
+const PDF_PAGE_WIDTH = 792;
+const PDF_PAGE_HEIGHT = 612;
+const PDF_MARGIN = 36;
+const PDF_FONT_SIZE = 8;
+const PDF_LINE_HEIGHT = 10;
+const PDF_CHARS_PER_LINE = 140;
+const PDF_LINES_PER_PAGE = Math.floor(
+  (PDF_PAGE_HEIGHT - (PDF_MARGIN * 2)) / PDF_LINE_HEIGHT,
+);
+
+function wrapPdfLine(value: unknown): string[] {
+  const lines: string[] = [];
+  for (const sourceLine of String(value ?? "").replace(/\r\n?/g, "\n").split("\n")) {
+    let remaining = sourceLine;
+    do {
+      if (remaining.length <= PDF_CHARS_PER_LINE) {
+        lines.push(remaining);
+        break;
+      }
+
+      // Keep the column separator with the preceding text where possible. This
+      // makes wrapped headers and values easier to scan without dropping data.
+      const separator = remaining.lastIndexOf(" | ", PDF_CHARS_PER_LINE - 3);
+      const breakAt = separator > 0 ? separator + 3 : PDF_CHARS_PER_LINE;
+      lines.push(remaining.slice(0, breakAt));
+      remaining = remaining.slice(breakAt);
+    } while (remaining.length > 0);
+  }
+  return lines.length ? lines : [""];
+}
+
+function escapePdfText(line: string): string {
+  return line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
 export function toPdf(lines: string[]): Buffer {
-  const escaped = lines.slice(0, 1000).map((line) => line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"));
-  const stream = `BT /F1 9 Tf 36 756 Td ${escaped.map((line, i) => `${i ? "0 -12 Td " : ""}(${line.slice(0, 140)}) Tj`).join(" ")} ET`;
+  const headerLines = lines.length ? wrapPdfLine(lines[0]) : [""];
+  const rowLines = lines.slice(1).map(wrapPdfLine);
+  const pages: string[][] = [];
+  let page = [...headerLines];
+
+  for (const row of rowLines) {
+    // Keep a wrapped transaction together when it fits on a page. Starting it
+    // on the next page keeps every value visually associated with the header.
+    if (
+      page.length > headerLines.length
+      && page.length + row.length > PDF_LINES_PER_PAGE
+    ) {
+      pages.push(page);
+      page = [...headerLines];
+    }
+
+    // A single unusually large value can exceed a page. Split it across pages
+    // rather than clipping it, while still repeating the header on each page.
+    let remaining = row;
+    while (remaining.length > PDF_LINES_PER_PAGE - headerLines.length) {
+      const available = Math.max(1, PDF_LINES_PER_PAGE - page.length);
+      page.push(...remaining.splice(0, available));
+      pages.push(page);
+      page = [...headerLines];
+    }
+    page.push(...remaining);
+  }
+  pages.push(page);
+
+  const fontObjectId = 3 + (pages.length * 2);
+  const pageObjects = pages.map((pageLines, index) => {
+    const pageObjectId = 3 + (index * 2);
+    const contentObjectId = pageObjectId + 1;
+    const textCommands = pageLines.map((line, lineIndex) => (
+      `${lineIndex ? "0 -10 Td " : ""}(${escapePdfText(line)}) Tj`
+    )).join(" ");
+    const stream = `BT /F1 ${PDF_FONT_SIZE} Tf ${PDF_MARGIN} ${PDF_PAGE_HEIGHT - PDF_MARGIN} Td ${textCommands} ET`;
+    return [
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_PAGE_WIDTH} ${PDF_PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    ];
+  }).flat();
+  const pageReferences = pages.map((_, index) => `${3 + (index * 2)} 0 R`).join(" ");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    `<< /Type /Pages /Kids [${pageReferences}] /Count ${pages.length} >>`,
+    ...pageObjects,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
   let output = "%PDF-1.4\n";
   const offsets = [0];
-  objects.forEach((object, i) => { offsets.push(Buffer.byteLength(output)); output += `${i + 1} 0 obj\n${object}\nendobj\n`; });
+  objects.forEach((object, i) => {
+    offsets.push(Buffer.byteLength(output));
+    output += `${i + 1} 0 obj\n${object}\nendobj\n`;
+  });
   const xref = Buffer.byteLength(output);
   output += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((n) => `${String(n).padStart(10, "0")} 00000 n `).join("\n")}\ntrailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return Buffer.from(output);
