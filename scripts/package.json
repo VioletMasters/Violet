@@ -6,7 +6,11 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify:reporting": "tsx ./src/verify-reporting.ts"
+    "verify:reporting": "tsx ./src/verify-reporting.ts",
+    "verify:cash-tender": "tsx ../artifacts/api-server/src/lib/cashTender.test.ts",
+    "verify:recent-sales": "tsx ../artifacts/api-server/src/routes/dashboard.recent-sales.test.ts",
+    "verify:dashboard-aggregates": "tsx ../artifacts/api-server/src/routes/dashboard.aggregates.test.ts",
+    "verify:printer-routing": "tsx ../artifacts/api-server/src/lib/printer-routing.test.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
