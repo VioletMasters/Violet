@@ -13,6 +13,16 @@ export interface AdminSale {
   /** @nullable */
   tenantName?: string | null;
   totalAmount: number;
+  /**
+     * Total cash received across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  cashReceived?: number | null;
+  /**
+     * Change due across cash tenders; null when the sale has no cash tender.
+     * @nullable
+     */
+  changeDue?: number | null;
   currency?: string;
   paymentMethod: string;
   status: string;
