@@ -38,6 +38,11 @@ type PosApiState = {
   saleCompleted: boolean;
 };
 
+type SaleFailure = {
+  status: number;
+  body: unknown;
+};
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -46,7 +51,11 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function installPosApi(page: Page, saleStatus = 201, state: PosApiState = { saleCompleted: false }) {
+async function installPosApi(
+  page: Page,
+  saleFailure: SaleFailure | null = null,
+  state: PosApiState = { saleCompleted: false },
+) {
   let productQueryCount = 0;
   const productSearches: string[] = [];
   let saleRequest: Record<string, unknown> | null = null;
@@ -89,8 +98,8 @@ async function installPosApi(page: Page, saleStatus = 201, state: PosApiState = 
   );
   await page.route("**/api/sales", async (route) => {
     saleRequest = route.request().postDataJSON() as Record<string, unknown>;
-    if (saleStatus !== 201) {
-      await fulfillJson(route, { error: "Sale could not be completed." }, saleStatus);
+    if (saleFailure) {
+      await fulfillJson(route, saleFailure.body, saleFailure.status);
       return;
     }
     state.saleCompleted = true;
@@ -101,7 +110,7 @@ async function installPosApi(page: Page, saleStatus = 201, state: PosApiState = 
       cashTendered: 12,
       paymentMethod: "cash",
       status: "completed",
-    }, saleStatus);
+    }, 201);
   });
 
   return {
@@ -161,8 +170,8 @@ test.describe("POS stock refresh after checkout", () => {
     const firstCashier = await browser.newPage();
     const secondCashier = await browser.newPage();
     const sharedState = { saleCompleted: false };
-    const firstApi = await installPosApi(firstCashier, 201, sharedState);
-    const secondApi = await installPosApi(secondCashier, 201, sharedState);
+    const firstApi = await installPosApi(firstCashier, null, sharedState);
+    const secondApi = await installPosApi(secondCashier, null, sharedState);
 
     await Promise.all([firstCashier.goto("/pos"), secondCashier.goto("/pos")]);
     await expect(firstCashier.getByRole("button", { name: /Test Widget/ })).toBeVisible();
@@ -179,7 +188,10 @@ test.describe("POS stock refresh after checkout", () => {
   });
 
   test("keeps the cart and product data unchanged when checkout fails", async ({ page }) => {
-    const api = await installPosApi(page, 409);
+    const api = await installPosApi(page, {
+      status: 409,
+      body: { error: "Sale could not be completed." },
+    });
 
     await page.goto("/pos");
     await expect(page.getByRole("button", { name: /Test Widget/ })).toBeVisible();
@@ -196,5 +208,30 @@ test.describe("POS stock refresh after checkout", () => {
       paymentMethod: "cash",
       shiftId: "shift-1",
     });
+  });
+
+  test("identifies stale stock and lets the cashier fix only the affected cart item", async ({ page }) => {
+    await installPosApi(page, {
+      status: 409,
+      body: {
+        error: "Test Widget only has 0 in stock",
+        code: "STOCK_CHANGED",
+        productId: "product-1",
+        productName: "Test Widget",
+        requestedQuantity: 1,
+        currentStock: 0,
+      },
+    });
+
+    await page.goto("/pos");
+    await openPaymentDialog(page);
+    await page.getByRole("button", { name: "Complete Sale" }).click();
+
+    await expect(page.getByRole("heading", { name: "Cart stock changed" })).toBeVisible();
+    await expect(page.getByText(/Test Widget.*requested 1.*only 0 remain/)).toBeVisible();
+    await page.getByRole("button", { name: "Remove item" }).click();
+
+    await expect(page.getByRole("heading", { name: "Complete Payment" })).toBeHidden();
+    await expect(page.getByText("Cart is empty. Select products to begin a sale.")).toBeVisible();
   });
 });

@@ -61,6 +61,14 @@ type PaymentCompletion = {
   printJobs?: PrintJob[];
 };
 
+type StockConflict = {
+  code: "STOCK_CHANGED";
+  productId: string;
+  productName: string;
+  requestedQuantity: number;
+  currentStock: number;
+};
+
 type RegisterShift = {
   id: string;
   storeId: string;
@@ -103,6 +111,7 @@ export default function POSPage() {
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
   const [managerPassword, setManagerPassword] = useState("");
   const [paymentCompletion, setPaymentCompletion] = useState<PaymentCompletion | null>(null);
+  const [stockConflict, setStockConflict] = useState<StockConflict | null>(null);
   const [openingCash, setOpeningCash] = useState("");
   const [selectedRegisterId, setSelectedRegisterId] = useState("");
   const [closingCash, setClosingCash] = useState("");
@@ -210,6 +219,19 @@ export default function POSPage() {
       },
       onError: (err) => {
         const status = (err as { status?: number }).status;
+        const data = (err as { data?: unknown }).data;
+        if (
+          status === 409
+          && data
+          && typeof data === "object"
+          && (data as { code?: unknown }).code === "STOCK_CHANGED"
+        ) {
+          const conflict = data as StockConflict;
+          setStockConflict(conflict);
+          checkoutAttemptKey.current = null;
+          queryClient.invalidateQueries({ queryKey: getListPosProductsQueryKey() });
+          return;
+        }
         if (!status || status >= 500) {
           toast.error("The store server did not confirm the sale. Keep this cart open and press Complete Payment again when the connection returns.");
           return;
@@ -287,6 +309,21 @@ export default function POSPage() {
     setManagerEmail(user?.email ?? "");
     setManagerPassword("");
     setPendingCartRemoval(removal);
+  };
+
+  const resolveStockConflict = (action: "remove" | "adjust") => {
+    if (!stockConflict) return;
+    setCart((prev) => prev.flatMap((item) => {
+      if (item.id !== stockConflict.productId) return [item];
+      if (action === "remove" || stockConflict.currentStock <= 0) return [];
+      return [{
+        ...item,
+        stock: stockConflict.currentStock,
+        cartQuantity: Math.min(item.cartQuantity, stockConflict.currentStock),
+      }];
+    }));
+    setStockConflict(null);
+    setPaymentModalOpen(false);
   };
 
   const confirmCartRemoval = (event: React.FormEvent<HTMLFormElement>) => {
@@ -885,6 +922,38 @@ export default function POSPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!stockConflict}
+        onOpenChange={(open) => {
+          if (!open) setStockConflict(null);
+        }}
+      >
+        <AlertDialogContent aria-describedby="stock-conflict-description">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cart stock changed</AlertDialogTitle>
+            <AlertDialogDescription id="stock-conflict-description">
+              Another register sold {stockConflict?.productName}. You requested{" "}
+              {stockConflict?.requestedQuantity}, but only {stockConflict?.currentStock} remain.
+              Update this item to continue; the rest of the cart will stay unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => resolveStockConflict("remove")}
+            >
+              Remove item
+            </Button>
+            {Boolean(stockConflict && stockConflict.currentStock > 0) && (
+              <AlertDialogAction onClick={() => resolveStockConflict("adjust")}>
+                Adjust to {stockConflict?.currentStock}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={!!paymentCompletion}

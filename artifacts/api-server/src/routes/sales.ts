@@ -12,6 +12,17 @@ import { createSalePrintJobs } from "../lib/printer-routing";
 
 const router = Router();
 
+class StockConflictError extends Error {
+  constructor(
+    readonly productId: string,
+    readonly productName: string,
+    readonly requestedQuantity: number,
+    readonly currentStock: number,
+  ) {
+    super(`Insufficient stock for ${productName}`);
+  }
+}
+
 function generateReceiptNumber(): string {
   const ts = Date.now().toString(36).toUpperCase();
   const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
@@ -350,7 +361,18 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
         .set({ stock: sql`${productsTable.stock} - ${item.quantity}` })
         .where(and(eq(productsTable.id, item.product.id), eq(productsTable.tenantId, tenantId), gte(productsTable.stock, item.quantity)))
         .returning({ id: productsTable.id });
-      if (!stockUpdate.length) throw new Error(`Insufficient stock for product ${item.product.id}`);
+      if (!stockUpdate.length) {
+        const [currentProduct] = await tx.select({ stock: productsTable.stock })
+          .from(productsTable)
+          .where(and(eq(productsTable.id, item.product.id), eq(productsTable.tenantId, tenantId)))
+          .limit(1);
+        throw new StockConflictError(
+          item.product.id,
+          item.product.name,
+          item.quantity,
+          currentProduct?.stock ?? 0,
+        );
+      }
       await tx.insert(inventoryMovementsTable).values({
         tenantId, productId: item.product.id, adjustment: -item.quantity, reason: "sale",
         createdBy: cashierId, storeId: openShift.storeId,
@@ -428,10 +450,32 @@ router.post("/sales", requireAuth, async (req, res): Promise<void> => {
       totalPrice: item.totalPrice,
     })), categoryDestinations);
     return { sale: created, existing: false };
+  }).catch((error: unknown) => {
+    if (error instanceof StockConflictError) {
+      return {
+        kind: "stock_conflict" as const,
+        productId: error.productId,
+        productName: error.productName,
+        requestedQuantity: error.requestedQuantity,
+        currentStock: error.currentStock,
+      };
+    }
+    throw error;
   });
 
   if ("kind" in saleResult && saleResult.kind === "shift_unavailable") {
     res.status(409).json({ error: "Cashier day is no longer active" });
+    return;
+  }
+  if ("kind" in saleResult && saleResult.kind === "stock_conflict") {
+    res.status(409).json({
+      error: `${saleResult.productName} only has ${saleResult.currentStock} in stock`,
+      code: "STOCK_CHANGED",
+      productId: saleResult.productId,
+      productName: saleResult.productName,
+      requestedQuantity: saleResult.requestedQuantity,
+      currentStock: saleResult.currentStock,
+    });
     return;
   }
   const result = await buildSaleResponse(saleResult.sale);
