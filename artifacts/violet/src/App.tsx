@@ -19,14 +19,26 @@ import Inventory from './pages/inventory';
 import Customers from './pages/customers';
 import Employees from './pages/employees';
 import Reports from './pages/reports';
+import ReportsCash from './pages/reports/cash';
+import { ReportsLayout } from './pages/reports/layout';
 import Settings from './pages/settings';
+import Advanced from './pages/advanced';
 import Subscription from './pages/subscription';
 import Admin from './pages/admin';
 import Suppliers from './pages/suppliers';
+import Printers from './pages/printers';
 
 function DefaultAppRoute() {
   const { user } = useAuth();
   return <Redirect to={user?.role === "super_admin" ? "/admin" : "/pos"} />;
+}
+
+function CashReportsRoute() {
+  return (
+    <ReportsLayout>
+      <ReportsCash />
+    </ReportsLayout>
+  );
 }
 
 function RootRoute() {
@@ -57,8 +69,11 @@ function AppRoutes() {
         <Route path="/customers" component={Customers} />
         <Route path="/employees" component={Employees} />
         <Route path="/suppliers" component={Suppliers} />
+        <Route path="/reports/cash" component={CashReportsRoute} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
+        <Route path="/settings/printers" component={Printers} />
+        <Route path="/advanced" component={Advanced} />
         <Route path="/subscription" component={Subscription} />
         <Route path="/change-password" component={ChangePasswordPage} />
         <Route path="/admin" component={Admin} />
@@ -79,7 +94,7 @@ function Router() {
       <Route path="/reset-password" component={ResetPasswordPage} />
       
       {/* App Routes (catch-all that renders AppLayout) */}
-      <Route path="/:rest*" component={AppRoutes} />
+      <Route path="/*" component={AppRoutes} />
     </Switch>
   );
 }
