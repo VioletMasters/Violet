@@ -201,6 +201,19 @@ export const VerifyHostedLicenseResponse = zod.object({
   "paymentStatus": zod.string().nullable(),
   "licenseStatus": zod.string().nullable(),
   "licenseValidUntil": zod.string().nullable(),
+  "licenseId": zod.string().nullish(),
+  "licenseKeyLast4": zod.string().nullish(),
+  "licenseVersion": zod.string().nullish(),
+  "licenseLifecycleStatus": zod.string().nullish(),
+  "licenseActivatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish(),
+  "usage": zod.object({
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).nullish(),
   "licenseSessionToken": zod.string().optional(),
   "tokenExpiresAt": zod.string().optional()
 })
@@ -227,6 +240,19 @@ export const RevalidateHostedLicenseResponse = zod.object({
   "paymentStatus": zod.string().nullable(),
   "licenseStatus": zod.string().nullable(),
   "licenseValidUntil": zod.string().nullable(),
+  "licenseId": zod.string().nullish(),
+  "licenseKeyLast4": zod.string().nullish(),
+  "licenseVersion": zod.string().nullish(),
+  "licenseLifecycleStatus": zod.string().nullish(),
+  "licenseActivatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish(),
+  "usage": zod.object({
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).nullish(),
   "licenseSessionToken": zod.string().optional(),
   "tokenExpiresAt": zod.string().optional()
 })
@@ -322,6 +348,8 @@ export const GetRecentSalesResponseItem = zod.object({
   "discountAmount": zod.number().optional(),
   "totalAmount": zod.number(),
   "cashTendered": zod.number().nullish().describe('Amount of cash the customer handed over. Change is the difference from totalAmount.'),
+  "cashReceived": zod.number().nullish().describe('Total cash received across cash tenders; null when the sale has no cash tender.'),
+  "changeDue": zod.number().nullish().describe('Change due across cash tenders; null when the sale has no cash tender.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']),
   "cashierId": zod.string().optional(),
@@ -352,6 +380,22 @@ export const GetRecentSalesResponseItem = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -361,12 +405,16 @@ export const GetRecentSalesResponse = zod.array(GetRecentSalesResponseItem)
 /**
  * @summary Get top selling products
  */
+export const getTopProductsResponsePrintDestinationDefault = `customer_receipt`;
+
 export const GetTopProductsResponseItem = zod.object({
   "productId": zod.string(),
   "name": zod.string(),
   "totalSold": zod.number(),
   "totalRevenue": zod.number(),
-  "imageUrl": zod.string().nullish()
+  "imageUrl": zod.string().nullish(),
+  "printDestination": zod.string().default(getTopProductsResponsePrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish()
 })
 export const GetTopProductsResponse = zod.array(GetTopProductsResponseItem)
 
@@ -423,6 +471,8 @@ export const ListProductsQueryParams = zod.object({
   "limit": zod.coerce.number().default(listProductsQueryLimitDefault)
 })
 
+export const listProductsResponseDataItemPrintDestinationDefault = `customer_receipt`;
+
 export const ListProductsResponse = zod.object({
   "data": zod.array(zod.object({
   "id": zod.string(),
@@ -439,6 +489,8 @@ export const ListProductsResponse = zod.object({
   "brandId": zod.string().nullish(),
   "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "printDestination": zod.string().default(listProductsResponseDataItemPrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
   "createdAt": zod.string().optional()
@@ -459,6 +511,7 @@ export const createProductBodyCostPriceMin = 0;
 
 export const createProductBodyStockDefault = 0;
 export const createProductBodyMinStockDefault = 5;
+export const createProductBodyPrintDestinationDefault = `customer_receipt`;
 
 export const CreateProductBody = zod.object({
   "name": zod.string().min(1),
@@ -471,8 +524,12 @@ export const CreateProductBody = zod.object({
   "minStock": zod.number().default(createProductBodyMinStockDefault),
   "categoryId": zod.string().nullish(),
   "brandId": zod.string().nullish(),
-  "imageUrl": zod.string().optional()
+  "imageUrl": zod.string().optional(),
+  "printDestination": zod.string().default(createProductBodyPrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish()
 })
+
+export const createProductResponsePrintDestinationDefault = `customer_receipt`;
 
 export const CreateProductResponse = zod.object({
   "id": zod.string(),
@@ -489,6 +546,8 @@ export const CreateProductResponse = zod.object({
   "brandId": zod.string().nullish(),
   "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "printDestination": zod.string().default(createProductResponsePrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
   "createdAt": zod.string().optional()
@@ -513,7 +572,9 @@ export const ImportProductsBody = zod.object({
   "stock": zod.number().optional(),
   "minStock": zod.number().optional(),
   "category": zod.string().optional(),
-  "brand": zod.string().optional()
+  "brand": zod.string().optional(),
+  "printDestination": zod.string().optional(),
+  "warehouseLocation": zod.string().optional()
 })).max(importProductsBodyRowsMax)
 })
 
@@ -536,6 +597,8 @@ export const GetProductParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const getProductResponsePrintDestinationDefault = `customer_receipt`;
+
 export const GetProductResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
@@ -551,6 +614,8 @@ export const GetProductResponse = zod.object({
   "brandId": zod.string().nullish(),
   "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "printDestination": zod.string().default(getProductResponsePrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
   "createdAt": zod.string().optional()
@@ -583,8 +648,12 @@ export const UpdateProductBody = zod.object({
   "categoryId": zod.string().nullish(),
   "brandId": zod.string().nullish(),
   "imageUrl": zod.string().optional(),
+  "printDestination": zod.string().optional(),
+  "warehouseLocation": zod.string().nullish(),
   "isActive": zod.boolean().optional()
 })
+
+export const updateProductResponsePrintDestinationDefault = `customer_receipt`;
 
 export const UpdateProductResponse = zod.object({
   "id": zod.string(),
@@ -601,6 +670,8 @@ export const UpdateProductResponse = zod.object({
   "brandId": zod.string().nullish(),
   "brandName": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "printDestination": zod.string().default(updateProductResponsePrintDestinationDefault),
+  "warehouseLocation": zod.string().nullish(),
   "tenantId": zod.string(),
   "isActive": zod.boolean().optional(),
   "createdAt": zod.string().optional()
@@ -622,11 +693,14 @@ export const DeleteProductResponse = zod.object({
 /**
  * @summary List all categories
  */
+export const listCategoriesResponsePrintDestinationDefault = `customer_receipt`;
+
 export const ListCategoriesResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "description": zod.string().nullish(),
   "color": zod.string().nullish(),
+  "printDestination": zod.string().default(listCategoriesResponsePrintDestinationDefault),
   "tenantId": zod.string(),
   "productCount": zod.number().optional(),
   "createdAt": zod.string().optional()
@@ -643,14 +717,18 @@ export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
 export const CreateCategoryBody = zod.object({
   "name": zod.string().min(1),
   "description": zod.string().optional(),
-  "color": zod.string().optional()
+  "color": zod.string().optional(),
+  "printDestination": zod.string().optional()
 })
+
+export const createCategoryResponsePrintDestinationDefault = `customer_receipt`;
 
 export const CreateCategoryResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "description": zod.string().nullish(),
   "color": zod.string().nullish(),
+  "printDestination": zod.string().default(createCategoryResponsePrintDestinationDefault),
   "tenantId": zod.string(),
   "productCount": zod.number().optional(),
   "createdAt": zod.string().optional()
@@ -670,14 +748,18 @@ export const UpdateCategoryParams = zod.object({
 export const UpdateCategoryBody = zod.object({
   "name": zod.string().min(1).optional(),
   "description": zod.string().optional(),
-  "color": zod.string().optional()
+  "color": zod.string().optional(),
+  "printDestination": zod.string().optional()
 })
+
+export const updateCategoryResponsePrintDestinationDefault = `customer_receipt`;
 
 export const UpdateCategoryResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "description": zod.string().nullish(),
   "color": zod.string().nullish(),
+  "printDestination": zod.string().default(updateCategoryResponsePrintDestinationDefault),
   "tenantId": zod.string(),
   "productCount": zod.number().optional(),
   "createdAt": zod.string().optional()
@@ -921,6 +1003,8 @@ export const ListSalesResponse = zod.object({
   "discountAmount": zod.number().optional(),
   "totalAmount": zod.number(),
   "cashTendered": zod.number().nullish().describe('Amount of cash the customer handed over. Change is the difference from totalAmount.'),
+  "cashReceived": zod.number().nullish().describe('Total cash received across cash tenders; null when the sale has no cash tender.'),
+  "changeDue": zod.number().nullish().describe('Change due across cash tenders; null when the sale has no cash tender.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']),
   "cashierId": zod.string().optional(),
@@ -951,6 +1035,22 @@ export const ListSalesResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })),
@@ -973,6 +1073,12 @@ export const createSaleBodyVoidedItemsItemUnitPriceMin = 0;
 
 export const createSaleBodyVoidedItemsItemReasonMax = 200;
 
+export const createSaleBodyPaymentsItemAmountExclusiveMin = 0;
+
+export const createSaleBodyPaymentsItemTenderedAmountMin = 0;
+
+export const createSaleBodyPaymentsMin = 2;
+
 
 
 export const CreateSaleBody = zod.object({
@@ -991,6 +1097,15 @@ export const CreateSaleBody = zod.object({
 })).optional().describe('Audit-only cart lines removed before checkout. They do not affect totals or inventory.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "cashTendered": zod.number().optional(),
+  "payments": zod.array(zod.object({
+  "method": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card']),
+  "amount": zod.number().gt(createSaleBodyPaymentsItemAmountExclusiveMin),
+  "tenderedAmount": zod.number().min(createSaleBodyPaymentsItemTenderedAmountMin).optional().describe('Cash handed over for this tender; it may exceed amount to represent change.'),
+  "reference": zod.string().optional()
+})).min(createSaleBodyPaymentsMin).optional().describe('Split tenders whose amounts must add up to the sale total.'),
+  "storeId": zod.string().optional(),
+  "registerId": zod.string().optional(),
+  "shiftId": zod.string().describe('The authenticated cashier\'s active register shift. Sales cannot be completed without it.'),
   "note": zod.string().optional()
 })
 
@@ -1004,6 +1119,8 @@ export const CreateSaleResponse = zod.object({
   "discountAmount": zod.number().optional(),
   "totalAmount": zod.number(),
   "cashTendered": zod.number().nullish().describe('Amount of cash the customer handed over. Change is the difference from totalAmount.'),
+  "cashReceived": zod.number().nullish().describe('Total cash received across cash tenders; null when the sale has no cash tender.'),
+  "changeDue": zod.number().nullish().describe('Change due across cash tenders; null when the sale has no cash tender.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']),
   "cashierId": zod.string().optional(),
@@ -1034,6 +1151,22 @@ export const CreateSaleResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1056,6 +1189,8 @@ export const GetSaleResponse = zod.object({
   "discountAmount": zod.number().optional(),
   "totalAmount": zod.number(),
   "cashTendered": zod.number().nullish().describe('Amount of cash the customer handed over. Change is the difference from totalAmount.'),
+  "cashReceived": zod.number().nullish().describe('Total cash received across cash tenders; null when the sale has no cash tender.'),
+  "changeDue": zod.number().nullish().describe('Change due across cash tenders; null when the sale has no cash tender.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']),
   "cashierId": zod.string().optional(),
@@ -1086,6 +1221,22 @@ export const GetSaleResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1116,6 +1267,8 @@ export const RefundSaleResponse = zod.object({
   "discountAmount": zod.number().optional(),
   "totalAmount": zod.number(),
   "cashTendered": zod.number().nullish().describe('Amount of cash the customer handed over. Change is the difference from totalAmount.'),
+  "cashReceived": zod.number().nullish().describe('Total cash received across cash tenders; null when the sale has no cash tender.'),
+  "changeDue": zod.number().nullish().describe('Change due across cash tenders; null when the sale has no cash tender.'),
   "paymentMethod": zod.enum(['cash', 'card', 'bank_transfer', 'store_credit', 'gift_card', 'mixed']),
   "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']),
   "cashierId": zod.string().optional(),
@@ -1146,6 +1299,22 @@ export const RefundSaleResponse = zod.object({
   "voidedBy": zod.string().nullish(),
   "voidedAt": zod.string().nullish()
 })).optional().describe('Internal-only voided lines. Customer-facing receipts must use items only.'),
+  "printJobs": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})).optional().describe('Independent receipt and operational ticket jobs created after the sale commits.'),
   "tenantId": zod.string(),
   "createdAt": zod.string()
 })
@@ -1456,10 +1625,22 @@ export const GetSubscriptionResponse = zod.object({
   "checkoutPending": zod.boolean().optional(),
   "lastWhopSyncAt": zod.string().nullish(),
   "usage": zod.object({
-  "users": zod.number().optional(),
-  "products": zod.number().optional(),
-  "customers": zod.number().optional()
-}).optional()
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).optional(),
+  "license": zod.object({
+  "id": zod.string(),
+  "keyLast4": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "activatedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "lastValidatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish()
+}).nullish()
 })
 
 
@@ -1535,7 +1716,7 @@ export const ReactivateBillingSubscriptionResponse = zod.object({
 export const GetBillingHistoryResponseItem = zod.object({
   "id": zod.string(),
   "tenantId": zod.string(),
-  "eventType": zod.enum(['activated', 'plan_changed', 'cancellation_requested', 'cancelled', 'reactivated', 'admin_override']),
+  "eventType": zod.enum(['activated', 'plan_changed', 'cancellation_requested', 'cancelled', 'reactivated', 'admin_override', 'downgraded']),
   "fromPlanId": zod.string().nullish(),
   "toPlanId": zod.string().nullish(),
   "fromPlanName": zod.string().nullish(),
@@ -1605,10 +1786,33 @@ export const CreateRegisterResponse = zod.record(zod.string(), zod.unknown())
 export const ListRegisterShiftsQueryParams = zod.object({
   "storeId": zod.coerce.string().optional(),
   "registerId": zod.coerce.string().optional(),
-  "status": zod.enum(['open', 'closed']).optional()
+  "cashierId": zod.coerce.string().optional(),
+  "status": zod.enum(['open', 'closed']).optional(),
+  "startDate": zod.coerce.string().optional(),
+  "endDate": zod.coerce.string().optional()
 })
 
 export const ListRegisterShiftsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Export filtered closed register shifts as CSV
+ */
+export const ExportClosedRegisterShiftsQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date(),
+  "storeId": zod.coerce.string().optional(),
+  "registerId": zod.coerce.string().optional(),
+  "cashierId": zod.coerce.string().optional()
+})
+
+export const ExportClosedRegisterShiftsResponse = zod.unknown()
+
+
+/**
+ * @summary Get the authenticated cashier's open shift
+ */
+export const GetCurrentRegisterShiftResponse = zod.record(zod.string(), zod.unknown())
 
 
 /**
@@ -1902,6 +2106,7 @@ export const GetReportTransactionsQueryParams = zod.object({
   "registerId": zod.coerce.string().optional(),
   "cashierId": zod.coerce.string().optional(),
   "paymentMethod": zod.coerce.string().optional(),
+  "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']).optional().describe('Limit the report to transactions with this status.'),
   "page": zod.coerce.number().int().min(1).default(getReportTransactionsQueryPageDefault),
   "limit": zod.coerce.number().int().min(1).max(getReportTransactionsQueryLimitMax).default(getReportTransactionsQueryLimitDefault)
 })
@@ -1946,7 +2151,8 @@ export const GetCashReportQueryParams = zod.object({
   "startDate": zod.date(),
   "endDate": zod.date(),
   "storeId": zod.coerce.string().optional(),
-  "registerId": zod.coerce.string().optional()
+  "registerId": zod.coerce.string().optional(),
+  "shiftId": zod.coerce.string().optional()
 })
 
 export const GetCashReportResponse = zod.record(zod.string(), zod.unknown())
@@ -1997,7 +2203,8 @@ export const ExportReportingTransactionsQueryParams = zod.object({
   "storeId": zod.coerce.string().optional(),
   "registerId": zod.coerce.string().optional(),
   "cashierId": zod.coerce.string().optional(),
-  "paymentMethod": zod.coerce.string().optional()
+  "paymentMethod": zod.coerce.string().optional(),
+  "status": zod.enum(['completed', 'refunded', 'partial_refund', 'voided']).optional().describe('Limit the report to transactions with this status.')
 })
 
 export const ExportReportingTransactionsResponse = zod.unknown()
@@ -2067,6 +2274,201 @@ export const UpdateSettingsResponse = zod.object({
   "timezone": zod.string().optional(),
   "requireManagerPasswordForCartRemoval": zod.boolean().optional(),
   "showVoidedItems": zod.boolean().optional()
+})
+
+
+/**
+ * @summary List configured printers
+ */
+export const ListPrintersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "name": zod.string(),
+  "role": zod.enum(['customer_receipt', 'warehouse', 'kitchen', 'packing', 'office', 'custom']),
+  "connectionType": zod.enum(['os', 'usb', 'network', 'shared']),
+  "deviceName": zod.string(),
+  "deviceAddress": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})),
+  "roles": zod.array(zod.string()),
+  "connectionTypes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Configure a printer
+ */
+export const CreatePrinterBody = zod.object({
+  "name": zod.string(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "role": zod.string(),
+  "connectionType": zod.string().optional(),
+  "deviceName": zod.string(),
+  "deviceAddress": zod.string().optional(),
+  "platform": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const CreatePrinterResponse = zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "name": zod.string(),
+  "role": zod.enum(['customer_receipt', 'warehouse', 'kitchen', 'packing', 'office', 'custom']),
+  "connectionType": zod.enum(['os', 'usb', 'network', 'shared']),
+  "deviceName": zod.string(),
+  "deviceAddress": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a configured printer
+ */
+export const UpdatePrinterParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdatePrinterBody = zod.object({
+  "name": zod.string(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "role": zod.string(),
+  "connectionType": zod.string().optional(),
+  "deviceName": zod.string(),
+  "deviceAddress": zod.string().optional(),
+  "platform": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const UpdatePrinterResponse = zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "name": zod.string(),
+  "role": zod.enum(['customer_receipt', 'warehouse', 'kitchen', 'packing', 'office', 'custom']),
+  "connectionType": zod.enum(['os', 'usb', 'network', 'shared']),
+  "deviceName": zod.string(),
+  "deviceAddress": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Remove a configured printer
+ */
+export const DeletePrinterParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeletePrinterResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List print history and queued jobs
+ */
+export const listPrintJobsQueryLimitDefault = 50;
+
+export const ListPrintJobsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "saleId": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().default(listPrintJobsQueryLimitDefault)
+})
+
+export const ListPrintJobsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Queue a failed print job again
+ */
+export const RetryPrintJobParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RetryPrintJobResponse = zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Report a native print attempt result
+ */
+export const UpdatePrintJobStatusParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdatePrintJobStatusBody = zod.object({
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "errorMessage": zod.string().optional()
+})
+
+export const UpdatePrintJobStatusResponse = zod.object({
+  "id": zod.string(),
+  "tenantId": zod.string(),
+  "saleId": zod.string().nullish(),
+  "storeId": zod.string().nullish(),
+  "registerId": zod.string().nullish(),
+  "printerId": zod.string().nullish(),
+  "documentType": zod.string(),
+  "status": zod.enum(['queued', 'printing', 'printed', 'failed', 'cancelled']),
+  "payload": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "createdAt": zod.string(),
+  "printedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
 })
 
 
@@ -2157,6 +2559,21 @@ export const GetAdminTenantResponse = zod.object({
   "cancelAtPeriodEnd": zod.boolean().optional(),
   "cancelRequestedAt": zod.string().nullish(),
   "licenseStatus": zod.string().optional(),
+  "licenseId": zod.string().nullish(),
+  "licenseKeyLast4": zod.string().nullish(),
+  "licenseLifecycleStatus": zod.string().nullish(),
+  "licenseVersion": zod.string().nullish(),
+  "licenseActivatedAt": zod.string().nullish(),
+  "licenseExpiresAt": zod.string().nullish(),
+  "licenseLastValidatedAt": zod.string().nullish(),
+  "entitlements": zod.record(zod.string(), zod.unknown()).nullish(),
+  "usage": zod.object({
+  "users": zod.number(),
+  "products": zod.number(),
+  "customers": zod.number(),
+  "branches": zod.number(),
+  "registers": zod.number()
+}).nullish(),
   "whopMembershipId": zod.string().nullish(),
   "subscriptionHistory": zod.array(zod.object({
   "id": zod.string(),
@@ -2680,6 +3097,8 @@ export const ListAdminSalesResponse = zod.object({
   "tenantId": zod.string(),
   "tenantName": zod.string().nullish(),
   "totalAmount": zod.number(),
+  "cashReceived": zod.number().nullish().describe('Total cash received across cash tenders; null when the sale has no cash tender.'),
+  "changeDue": zod.number().nullish().describe('Change due across cash tenders; null when the sale has no cash tender.'),
   "currency": zod.string().optional(),
   "paymentMethod": zod.string(),
   "status": zod.string(),
