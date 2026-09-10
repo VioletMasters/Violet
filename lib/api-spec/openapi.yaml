@@ -4075,7 +4075,7 @@ components:
           type: string
         eventType:
           type: string
-          enum: [activated, plan_changed, cancellation_requested, cancelled, reactivated, admin_override]
+          enum: [activated, plan_changed, cancellation_requested, cancelled, reactivated, admin_override, downgraded]
         fromPlanId:
           type: ["string", "null"]
         toPlanId:
