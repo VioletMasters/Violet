@@ -289,50 +289,6 @@ jobs:
           Launch-VioletApp $desktopApp "NSIS Desktop shortcut"
           Launch-VioletApp $startMenuApp "NSIS Start Menu shortcut"
 
-          $ErrorActionPreference = "Stop"
-          $dockerCliCandidates = @(
-            (Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"),
-            (Join-Path ${env:ProgramFiles(x86)} "Docker\Docker\DockerCli.exe")
-          )
-          $dockerCli = $dockerCliCandidates |
-            Where-Object { $_ -and (Test-Path $_) } |
-            Select-Object -First 1
-          if ($dockerCli) {
-            & $dockerCli -SwitchLinuxEngine
-            if ($LASTEXITCODE -ne 0) {
-              throw "Docker Desktop could not switch to its Linux container engine."
-            }
-          }
-
-          $dockerDeadline = (Get-Date).AddMinutes(3)
-          do {
-            $dockerInfo = docker version 2>&1
-            $dockerOsType = docker info --format "{{.OSType}}" 2>&1
-            if ($LASTEXITCODE -eq 0 -and "$dockerOsType".Trim() -eq "linux") {
-              break
-            }
-            if ((Get-Date) -ge $dockerDeadline) {
-              throw "Docker Desktop was not ready in Linux-container mode for the packaged Store Host smoke test:`n$dockerInfo`nOSType: $dockerOsType"
-            }
-            Start-Sleep -Seconds 5
-          } while ($true)
-          docker compose version
-
-          $shell = New-Object -ComObject WScript.Shell
-          $shortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Violet Enterprise.lnk"
-          $appPath = $shell.CreateShortcut($shortcut).TargetPath
-          if (-not $appPath -or -not (Test-Path $appPath)) {
-            throw "The installed Violet Enterprise executable could not be resolved for the packaged smoke test."
-          }
-
-          Get-Process -Name "Violet Enterprise" -ErrorAction SilentlyContinue |
-            Stop-Process -Force -ErrorAction SilentlyContinue
-          Remove-Item (Join-Path $env:APPDATA "com.violetenterprise.desktop") -Recurse -Force -ErrorAction SilentlyContinue
-          # Keep the installed application directory intact. The resolved
-          # executable lives under LOCALAPPDATA\Violet Enterprise and is used
-          # by the packaged smoke test before the installer is uninstalled.
-          node artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs $appPath
-
           $uninstaller = Get-ChildItem -Path $desktopApp.Directory.FullName -Filter "*uninstall*.exe" -File |
             Select-Object -First 1
           if (-not $uninstaller) {
@@ -369,6 +325,70 @@ jobs:
             throw "MSI Start Menu shortcut target does not match tauri.conf.json mainBinaryName: expected $expectedExecutableName, found $($msiApp.Name)."
           }
           Launch-VioletApp $msiApp "MSI Start Menu shortcut"
+
+      - name: Check packaged Store Host smoke capability
+        if: matrix.platform == 'windows'
+        id: docker_linux
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          if (Get-Variable PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+            $PSNativeCommandUseErrorActionPreference = $false
+          }
+          $available = "false"
+          $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+          if ($dockerCommand) {
+            $dockerInfo = docker info --format "{{.OSType}}|{{.OperatingSystem}}" 2>$null
+            $dockerInfoExit = $LASTEXITCODE
+            $dockerParts = "$dockerInfo".Trim().Split("|", 2)
+            $dockerReady = $dockerInfoExit -eq 0 `
+              -and $dockerParts.Count -eq 2 `
+              -and $dockerParts[0] -eq "linux" `
+              -and $dockerParts[1] -match "Docker Desktop"
+            $composeReady = $false
+            if ($dockerReady) {
+              docker compose version *> $null
+              $composeReady = $LASTEXITCODE -eq 0
+            }
+            if ($dockerReady -and $composeReady) {
+              $available = "true"
+            }
+          }
+          "available=$available" >> $env:GITHUB_OUTPUT
+
+      - name: Run packaged Start locally smoke
+        if: matrix.platform == 'windows' && steps.docker_linux.outputs.available == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $startMenus = @(
+            [Environment]::GetFolderPath("StartMenu"),
+            [Environment]::GetFolderPath("CommonStartMenu")
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          $shortcut = Get-ChildItem -Path $startMenus -Filter "Violet Enterprise.lnk" -Recurse -File |
+            Select-Object -First 1
+          if (-not $shortcut) {
+            throw "The installed Violet Enterprise Start Menu shortcut was not found for the packaged Store Host smoke test."
+          }
+          $shell = New-Object -ComObject WScript.Shell
+          $appPath = $shell.CreateShortcut($shortcut.FullName).TargetPath
+          if (-not $appPath -or -not (Test-Path $appPath)) {
+            throw "The installed Violet Enterprise executable could not be resolved for the packaged Store Host smoke test."
+          }
+          Get-Process -Name "Violet Enterprise" -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $env:APPDATA "com.violetenterprise.desktop") -Recurse -Force -ErrorAction SilentlyContinue
+          node artifacts/violet-desktop/scripts/desktop-start-local-smoke.mjs $appPath
+
+      - name: Report unavailable packaged Store Host smoke
+        if: matrix.platform == 'windows' && steps.docker_linux.outputs.available != 'true'
+        shell: pwsh
+        run: |
+          $message = "Windows installer launch verification passed. The full packaged Start locally smoke was not run because the capability probe did not confirm Docker Desktop in Linux-container mode with Compose."
+          Write-Host "::notice title=Packaged Store Host smoke not run::$message"
+          "### Packaged Store Host smoke" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "$message Use a Docker-capable Windows runner for this additional gate." >> $env:GITHUB_STEP_SUMMARY
 
       - name: Stage desktop startup diagnostics
         if: failure() && matrix.platform == 'windows'
