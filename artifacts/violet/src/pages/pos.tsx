@@ -16,16 +16,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  getGetCurrentRegisterShiftQueryKey,
+  getListRegisterShiftsQueryKey,
   listPosProducts,
   useConfirmManagerPassword,
+  useCloseRegisterShift,
   useCreateSale,
+  useGetCurrentRegisterShift,
   useGetPosTaxSettings,
+  useListRegisters,
   useListPosProducts,
+  useOpenRegisterShift,
+  useRetryPrintJob,
 } from "@workspace/api-client-react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Package } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ArrowLeftRight, Package, Clock3, LogIn, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import type { PosProduct, SaleInputPaymentMethod } from "@workspace/api-client-react";
+import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { dispatchSalePrintJobs } from "@/lib/desktop-print";
 
 interface CartItem extends PosProduct {
   cartQuantity: number;
@@ -48,6 +57,27 @@ type PaymentCompletion = {
   tendered?: number;
   change: number;
   receiptNumber?: string;
+  printJobs?: PrintJob[];
+};
+
+type RegisterShift = {
+  id: string;
+  storeId: string;
+  registerId: string;
+  cashierId: string;
+  openingCash: string | number;
+  expectedCash?: string | number | null;
+  closingCash?: string | number | null;
+  variance?: string | number | null;
+  openedAt: string;
+};
+
+type RegisterOption = {
+  id: string;
+  name: string;
+  code: string;
+  storeId: string;
+  isActive?: boolean;
 };
 
 function createCheckoutIdempotencyKey(): string {
@@ -63,12 +93,26 @@ export default function POSPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<SaleInputPaymentMethod>("cash");
   const [cashTendered, setCashTendered] = useState<string>("");
+  const [cashPaymentAmount, setCashPaymentAmount] = useState<string>("");
+  const [cardPaymentAmount, setCardPaymentAmount] = useState<string>("");
   const [isScanning, setIsScanning] = useState(false);
   const [pendingCartRemoval, setPendingCartRemoval] = useState<PendingCartRemoval | null>(null);
   const [managerEmail, setManagerEmail] = useState(user?.email ?? "");
   const [managerPassword, setManagerPassword] = useState("");
   const [paymentCompletion, setPaymentCompletion] = useState<PaymentCompletion | null>(null);
+  const [openingCash, setOpeningCash] = useState("");
+  const [selectedRegisterId, setSelectedRegisterId] = useState("");
+  const [closingCash, setClosingCash] = useState("");
+  const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
+  const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const checkoutAttemptKey = React.useRef<string | null>(null);
+  const queryClient = useQueryClient();
+  const retryPrintJob = useRetryPrintJob({
+    mutation: {
+      onSuccess: () => toast.success("Print job queued again."),
+      onError: (error) => toast.error(error.message || "Could not retry this print job."),
+    },
+  });
 
   const normalizedSearch = search.replace(/[\r\n]+/g, "").trim();
   const { data: productsData, isLoading } = useListPosProducts({ search: normalizedSearch, limit: 50 });
@@ -77,26 +121,77 @@ export default function POSPage() {
     isLoading: isLoadingTaxSettings,
     isError: hasTaxSettingsError,
   } = useGetPosTaxSettings();
+  const { data: currentShiftResponse, isLoading: isLoadingShift } = useGetCurrentRegisterShift();
+  const { data: registersResponse } = useListRegisters();
+  const currentShift = (currentShiftResponse as { shift?: RegisterShift | null } | undefined)?.shift ?? null;
+  const registers = ((registersResponse as { data?: RegisterOption[] } | undefined)?.data ?? [])
+    .filter((register) => register.isActive !== false);
   const products = productsData?.data || [];
+
+  React.useEffect(() => {
+    if (!selectedRegisterId && registers.length === 1) {
+      setSelectedRegisterId(registers[0].id);
+    }
+  }, [registers, selectedRegisterId]);
+
+  const openShift = useOpenRegisterShift({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
+        setOpeningCash("");
+        setShiftDialogOpen(false);
+        toast.success("Cashier day started.");
+      },
+      onError: (error) => toast.error(error.message || "Could not start the cashier day."),
+    },
+  });
+
+  const closeShift = useCloseRegisterShift({
+    mutation: {
+      onSuccess: (shift) => {
+        queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListRegisterShiftsQueryKey() });
+        setClosingCash("");
+        setSettlementDialogOpen(false);
+        const settledShift = shift as RegisterShift;
+        toast.success(
+          `Settlement complete. Expected ${formatCurrency(Number(settledShift.expectedCash ?? 0))}; ` +
+          `counted ${formatCurrency(Number(settledShift.closingCash ?? 0))}; ` +
+          `variance ${formatCurrency(Number(settledShift.variance ?? 0))}.`,
+        );
+      },
+      onError: (error) => toast.error(error.message || "Could not settle the cashier day."),
+    },
+  });
 
   const createSale = useCreateSale({
     mutation: {
       onSuccess: (sale) => {
-        const tendered = paymentMethod === "cash"
-          ? Number(sale.cashTendered ?? cashTendered)
+        const hasCashPayment = paymentMethod === "cash" || paymentMethod === "mixed";
+        const cashAppliedAmount = paymentMethod === "mixed"
+          ? Number.parseFloat(cashPaymentAmount)
+          : total;
+        const tendered = hasCashPayment
+          ? Number(sale.cashTendered ?? sale.cashReceived ?? cashTendered)
+          : undefined;
+        const change = tendered != null && Number.isFinite(tendered) && Number.isFinite(cashAppliedAmount)
+          ? Math.max(0, tendered - cashAppliedAmount)
           : 0;
-        const change = Number.isFinite(tendered) ? Math.max(0, tendered - total) : 0;
         toast.success("Sale completed successfully!");
         setCart([]);
         setVoidedCartItems([]);
         setPaymentModalOpen(false);
         setCashTendered("");
+        setCashPaymentAmount("");
+        setCardPaymentAmount("");
         setSearch("");
         setPaymentCompletion({
-          tendered: paymentMethod === "cash" ? tendered : undefined,
+          tendered: hasCashPayment && tendered != null && Number.isFinite(tendered) ? tendered : undefined,
           change,
           receiptNumber: sale.receiptNumber,
+          printJobs: sale.printJobs,
         });
+        void dispatchSalePrintJobs(sale.printJobs);
         checkoutAttemptKey.current = null;
       },
       onError: (err) => {
@@ -234,10 +329,40 @@ export default function POSPage() {
   const taxRate = posTaxSettings?.taxRate ?? 0;
   const tax = subtotal * (taxRate / 100);
   const total = subtotal + tax;
-  const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError;
+  const checkoutUnavailable = isLoadingTaxSettings || hasTaxSettingsError || isLoadingShift || !currentShift;
+  const parsedCashTendered = Number.parseFloat(cashTendered);
+  const parsedCashPaymentAmount = Number.parseFloat(cashPaymentAmount);
+  const parsedCardPaymentAmount = Number.parseFloat(cardPaymentAmount);
+  const splitPaymentsTotal = (Number.isFinite(parsedCashPaymentAmount) ? parsedCashPaymentAmount : 0)
+    + (Number.isFinite(parsedCardPaymentAmount) ? parsedCardPaymentAmount : 0);
+  const splitPaymentRemaining = total - splitPaymentsTotal;
+  const cashPaymentInvalid = paymentMethod === "cash" && (
+    !cashTendered
+    || !Number.isFinite(parsedCashTendered)
+    || parsedCashTendered < total
+  );
+  const splitPaymentInvalid = paymentMethod === "mixed" && (
+    !cashPaymentAmount
+    || !cardPaymentAmount
+    || !Number.isFinite(parsedCashPaymentAmount)
+    || !Number.isFinite(parsedCardPaymentAmount)
+    || parsedCashPaymentAmount <= 0
+    || parsedCardPaymentAmount <= 0
+    || Math.abs(splitPaymentsTotal - total) > 0.005
+    || !cashTendered
+    || !Number.isFinite(parsedCashTendered)
+    || parsedCashTendered < parsedCashPaymentAmount
+  );
+  const paymentInvalid = cashPaymentInvalid || splitPaymentInvalid;
 
   const handleCheckout = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || !currentShift) return;
+    if (paymentInvalid) {
+      toast.error(paymentMethod === "mixed"
+        ? "Enter valid cash and card amounts that add up to the total."
+        : "Cash received must cover the total due.");
+      return;
+    }
     const idempotencyKey = checkoutAttemptKey.current ?? createCheckoutIdempotencyKey();
     checkoutAttemptKey.current = idempotencyKey;
     
@@ -256,9 +381,45 @@ export default function POSPage() {
           unitPrice: item.unitPrice,
           reason: item.reason,
         })),
-        cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined
+        payments: paymentMethod === "mixed"
+          ? [
+              {
+                method: "cash",
+                amount: parsedCashPaymentAmount,
+                tenderedAmount: parsedCashTendered,
+              },
+              {
+                method: "card",
+                amount: parsedCardPaymentAmount,
+              },
+            ]
+          : undefined,
+        cashTendered: paymentMethod === "cash" && cashTendered ? parseFloat(cashTendered) : undefined,
+        storeId: currentShift.storeId,
+        registerId: currentShift.registerId,
+        shiftId: currentShift.id,
       }
     });
+  };
+
+  const handleStartShift = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const amount = Number(openingCash);
+    if (!selectedRegisterId || !Number.isFinite(amount) || amount < 0) {
+      toast.error("Choose a register and enter a valid opening float.");
+      return;
+    }
+    openShift.mutate({ data: { registerId: selectedRegisterId, openingCash: amount } });
+  };
+
+  const handleSettleShift = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const amount = Number(closingCash);
+    if (!currentShift || !Number.isFinite(amount) || amount < 0) {
+      toast.error("Enter the physical cash counted at clock out.");
+      return;
+    }
+    closeShift.mutate({ id: currentShift.id, data: { closingCash: amount } });
   };
 
   React.useEffect(() => {
@@ -278,6 +439,37 @@ export default function POSPage() {
     <div className="h-[calc(100vh-theme(spacing.16)-theme(spacing.8))] flex gap-6 overflow-hidden relative">
       {/* Products Grid */}
       <div className="flex-1 flex flex-col min-w-0 bg-background rounded-xl border border-border/50 overflow-hidden shadow-sm">
+        <div className={`border-b px-4 py-3 ${currentShift ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/10"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${currentShift ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-700"}`}>
+                <Clock3 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">
+                  {isLoadingShift ? "Checking cashier day..." : currentShift ? "Cashier day is active" : "Cashier day not started"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {currentShift
+                    ? `Opening float ${formatCurrency(Number(currentShift.openingCash))}`
+                    : "Start a register shift before processing sales."}
+                </p>
+              </div>
+            </div>
+            {currentShift ? (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setSettlementDialogOpen(true)}>
+                <LogOut className="h-4 w-4" /> Clock out & settle
+              </Button>
+            ) : (
+              <Button size="sm" className="gap-2" onClick={() => setShiftDialogOpen(true)} disabled={registers.length === 0}>
+                <LogIn className="h-4 w-4" /> Start day
+              </Button>
+            )}
+          </div>
+          {!isLoadingShift && !currentShift && registers.length === 0 && (
+            <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">No registers are configured yet. Ask a manager to set one up.</p>
+          )}
+        </div>
         <div className="p-4 border-b border-border/50 flex gap-4 bg-card">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -447,6 +639,65 @@ export default function POSPage() {
 
       {/* Payment Modal */}
       <Dialog
+        open={shiftDialogOpen}
+        onOpenChange={setShiftDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Start cashier day</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-5" onSubmit={handleStartShift}>
+            <p className="text-sm text-muted-foreground">Choose the register and record the physical cash placed in the drawer before sales begin.</p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Register</label>
+              <Select value={selectedRegisterId} onValueChange={setSelectedRegisterId}>
+                <SelectTrigger><SelectValue placeholder="Choose a register" /></SelectTrigger>
+                <SelectContent>
+                  {registers.map((register) => (
+                    <SelectItem key={register.id} value={register.id}>{register.name} ({register.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="opening-float" className="text-sm font-medium">Opening float</label>
+              <Input id="opening-float" type="number" min="0" step="0.01" value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} placeholder="0.00" required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShiftDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={openShift.isPending}>{openShift.isPending ? "Starting..." : "Start day"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={settlementDialogOpen}
+        onOpenChange={setSettlementDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Clock out & settle</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-5" onSubmit={handleSettleShift}>
+            <p className="text-sm text-muted-foreground">Count all physical cash in the drawer and enter the amount before closing this cashier day.</p>
+            <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Opening float</span><span className="font-medium">{formatCurrency(Number(currentShift?.openingCash ?? 0))}</span></div>
+              <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Expected cash</span><span className="font-medium">Calculated at settlement</span></div>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="closing-cash" className="text-sm font-medium">Physical cash counted</label>
+              <Input id="closing-cash" type="number" min="0" step="0.01" value={closingCash} onChange={(event) => setClosingCash(event.target.value)} placeholder="0.00" required autoFocus />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setSettlementDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={closeShift.isPending}>{closeShift.isPending ? "Settling..." : "Clock out"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={paymentModalOpen}
         onOpenChange={(open) => {
           if (!createSale.isPending) setPaymentModalOpen(open);
@@ -463,11 +714,11 @@ export default function POSPage() {
               <div className="text-5xl font-display font-bold text-primary">{formatCurrency(total)}</div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-3 mb-6">
               <Button 
                 type="button"
                 variant={paymentMethod === "cash" ? "default" : "outline"} 
-                className="h-16 flex flex-col gap-1 items-center justify-center"
+                className="h-16 flex flex-col gap-1 items-center justify-center px-2"
                 onClick={() => setPaymentMethod("cash")}
               >
                 <Banknote className="w-6 h-6" />
@@ -476,17 +727,26 @@ export default function POSPage() {
               <Button 
                 type="button"
                 variant={paymentMethod === "card" ? "default" : "outline"} 
-                className="h-16 flex flex-col gap-1 items-center justify-center"
+                className="h-16 flex flex-col gap-1 items-center justify-center px-2"
                 onClick={() => setPaymentMethod("card")}
               >
                 <CreditCard className="w-6 h-6" />
                 <span>Card</span>
               </Button>
+              <Button
+                type="button"
+                variant={paymentMethod === "mixed" ? "default" : "outline"}
+                className="h-16 flex flex-col gap-1 items-center justify-center px-2"
+                onClick={() => setPaymentMethod("mixed")}
+              >
+                <ArrowLeftRight className="w-6 h-6" />
+                <span>Split</span>
+              </Button>
             </div>
 
             {paymentMethod === "cash" && (
               <div className="space-y-3 p-4 bg-secondary rounded-lg mb-6 border border-border/50">
-                <label className="text-sm font-medium">Cash Tendered</label>
+                <label className="text-sm font-medium">Cash Received</label>
                 <Input 
                   type="number" 
                   step="0.01" 
@@ -495,13 +755,99 @@ export default function POSPage() {
                   value={cashTendered}
                   onChange={(e) => setCashTendered(e.target.value)}
                   autoFocus
+                  required
                 />
-                {cashTendered && parseFloat(cashTendered) >= total && (
+                {!cashTendered && (
+                  <p className="text-xs text-muted-foreground">Enter the amount the customer handed over.</p>
+                )}
+                {cashTendered && parsedCashTendered < total && (
+                  <p className="text-xs text-destructive">Cash received must cover the total due.</p>
+                )}
+                {cashTendered && parsedCashTendered >= total && (
                   <div className="flex justify-between text-sm pt-2 text-green-500 font-medium">
                     <span>Change Due:</span>
-                    <span>{formatCurrency(parseFloat(cashTendered) - total)}</span>
+                    <span>{formatCurrency(parsedCashTendered - total)}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {paymentMethod === "mixed" && (
+              <div className="space-y-4 p-4 bg-secondary rounded-lg mb-6 border border-border/50">
+                <div>
+                  <p className="text-sm font-medium">Split between cash and card</p>
+                  <p className="text-xs text-muted-foreground">Enter how much of the total each tender covers.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label htmlFor="split-cash-amount" className="text-sm font-medium">Cash portion</label>
+                    <Input
+                      id="split-cash-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="h-12 text-lg font-mono bg-background"
+                      placeholder="0.00"
+                      value={cashPaymentAmount}
+                      onChange={(event) => setCashPaymentAmount(event.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="split-card-amount" className="text-sm font-medium">Card portion</label>
+                    <Input
+                      id="split-card-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="h-12 text-lg font-mono bg-background"
+                      placeholder="0.00"
+                      value={cardPaymentAmount}
+                      onChange={(event) => setCardPaymentAmount(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between border-t border-border/60 pt-3 text-sm">
+                  <span className="text-muted-foreground">Amount applied</span>
+                  <span className={Math.abs(splitPaymentRemaining) <= 0.005 ? "font-semibold text-green-500" : "font-semibold"}>
+                    {formatCurrency(splitPaymentsTotal)}
+                  </span>
+                </div>
+                {(!cashPaymentAmount || !cardPaymentAmount) && (
+                  <p className="text-xs text-muted-foreground">Enter an amount for both cash and card.</p>
+                )}
+                {cashPaymentAmount && cardPaymentAmount && Math.abs(splitPaymentRemaining) > 0.005 && (
+                  <p className="text-xs text-destructive">
+                    {splitPaymentRemaining > 0
+                      ? `Add ${formatCurrency(splitPaymentRemaining)} to complete the split.`
+                      : `Reduce the split by ${formatCurrency(Math.abs(splitPaymentRemaining))}.`}
+                  </p>
+                )}
+                <div className="space-y-3 border-t border-border/60 pt-3">
+                  <label htmlFor="split-cash-tendered" className="text-sm font-medium">Cash received</label>
+                  <Input
+                    id="split-cash-tendered"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="h-12 text-lg font-mono bg-background"
+                    placeholder={Number.isFinite(parsedCashPaymentAmount) ? parsedCashPaymentAmount.toString() : "0.00"}
+                    value={cashTendered}
+                    onChange={(event) => setCashTendered(event.target.value)}
+                  />
+                  {!cashTendered && (
+                    <p className="text-xs text-muted-foreground">Enter the cash handed over for the cash portion.</p>
+                  )}
+                  {cashTendered && Number.isFinite(parsedCashPaymentAmount) && parsedCashTendered < parsedCashPaymentAmount && (
+                    <p className="text-xs text-destructive">Cash received must cover the cash portion.</p>
+                  )}
+                  {cashTendered && Number.isFinite(parsedCashPaymentAmount) && parsedCashTendered >= parsedCashPaymentAmount && (
+                    <div className="flex justify-between text-sm text-green-500 font-medium">
+                      <span>Change Due:</span>
+                      <span>{formatCurrency(parsedCashTendered - parsedCashPaymentAmount)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -518,7 +864,7 @@ export default function POSPage() {
             <Button 
               className="w-full sm:w-auto"
               onClick={handleCheckout}
-              disabled={checkoutUnavailable || createSale.isPending || (paymentMethod === "cash" && !!cashTendered && parseFloat(cashTendered) < total)}
+              disabled={checkoutUnavailable || createSale.isPending || paymentInvalid}
             >
               {createSale.isPending ? "Processing..." : "Complete Sale"}
             </Button>
@@ -547,6 +893,12 @@ export default function POSPage() {
                 : "The sale was recorded successfully."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {paymentCompletion?.tendered != null && (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+              <span className="text-muted-foreground">Cash received</span>
+              <span className="font-semibold">{formatCurrency(paymentCompletion.tendered)}</span>
+            </div>
+          )}
           <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-6 py-7 text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Change
@@ -555,6 +907,34 @@ export default function POSPage() {
               {formatCurrency(paymentCompletion?.change ?? 0)}
             </p>
           </div>
+          {paymentCompletion?.printJobs && paymentCompletion.printJobs.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-4 text-left">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Printing</p>
+                <span className="text-xs text-muted-foreground">Sale already completed</span>
+              </div>
+              {paymentCompletion.printJobs.map((job) => (
+                <div key={job.id} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{job.documentType.replaceAll("_", " ")}</span>
+                  <Badge variant={job.status === "printed" ? "secondary" : job.status === "failed" ? "destructive" : "outline"}>{job.status}</Badge>
+                  {job.status === "failed" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={retryPrintJob.isPending}
+                      onClick={() => retryPrintJob.mutate({ id: job.id })}
+                    >
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {paymentCompletion.printJobs.some((job) => job.status === "failed") && (
+                <p className="text-xs text-muted-foreground">The transaction was saved. A manager can retry failed documents from Settings → Printers.</p>
+              )}
+            </div>
+          )}
           <AlertDialogFooter className="sm:justify-center">
             <AlertDialogAction className="h-12 min-w-40 text-base">
               Okay
