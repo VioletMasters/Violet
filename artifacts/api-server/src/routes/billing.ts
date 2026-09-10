@@ -17,6 +17,7 @@ import { isManagerRole, requireSession } from "../middlewares/auth";
 import { getHostedUpgradeUrl, isSelfHostedRuntime } from "../lib/remoteLicense";
 import { getWhopClient } from "../lib/whopClient";
 import {
+  downgradeTenantToFree,
   isPaidTier,
   syncExistingMembership,
   syncPendingCheckout,
@@ -390,12 +391,20 @@ router.post("/billing/cancel", requireSession, async (req, res): Promise<void> =
 
     const now = new Date();
     const eventType = immediate ? "cancelled" : "cancellation_requested";
-    await db.transaction(async (tx) => {
+    if (immediate) {
+      await downgradeTenantToFree(req.tenantId!, {
+        source: "customer",
+        reason: reason || "The paid subscription was canceled immediately. The account was moved to Violet Free without deleting data.",
+        actorId: req.user!.id,
+        whopMembershipId: membership?.id ?? subscription.whopMembershipId,
+      });
+    } else {
+      await db.transaction(async (tx) => {
       await tx
         .update(subscriptionsTable)
         .set({
-          status: immediate ? "cancelled" : subscription.status,
-          paymentStatus: immediate ? "failed" : subscription.paymentStatus,
+          status: subscription.status,
+          paymentStatus: subscription.paymentStatus,
           cancelAtPeriodEnd: !immediate,
           cancelRequestedAt: now,
           cancelReason: reason,
@@ -404,17 +413,6 @@ router.post("/billing/cancel", requireSession, async (req, res): Promise<void> =
         })
         .where(eq(subscriptionsTable.tenantId, req.tenantId!));
 
-      if (immediate) {
-        await tx
-          .update(tenantsTable)
-          .set({
-            licenseStatus: "revoked",
-            licenseValidatedAt: now,
-            licenseValidUntil: now,
-            updatedAt: now,
-          })
-          .where(eq(tenantsTable.id, req.tenantId!));
-      }
       await ensureTenantLicense(req.tenantId!, tx);
 
       await tx.insert(subscriptionEventsTable).values({
@@ -429,7 +427,8 @@ router.post("/billing/cancel", requireSession, async (req, res): Promise<void> =
         effectiveAt: immediate ? now : subscription.currentPeriodEnd,
         actorId: req.user!.id,
       });
-    });
+      });
+    }
 
     res.json({
       success: true,

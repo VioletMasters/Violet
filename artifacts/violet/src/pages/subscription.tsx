@@ -260,6 +260,7 @@ export default function SubscriptionPage() {
   const billingNeedsAttention =
     ["expired", "cancelled"].includes(sub.status) ||
     ["failed", "past_due", "refunded"].includes(sub.paymentStatus ?? "");
+  const recentDowngrade = history?.find((event) => event.eventType === "downgraded");
   const availablePlans = (plans ?? []).filter((plan) => paidTiers.includes(plan.tier as PaidTier));
 
   return (
@@ -278,6 +279,16 @@ export default function SubscriptionPage() {
             tone: "warning",
             title: "Billing action required",
             message: tenant.billingMessage || "Restore your Whop subscription to continue using Violet.",
+          }}
+        />
+      )}
+      {!notice && !tenant?.requiresBillingAction && recentDowngrade && isFree && (
+        <CheckoutStatusNotice
+          notice={{
+            tone: "warning",
+            title: "Your account is now on Violet Free",
+            message:
+              "The paid membership ended. Your products and customers were kept, but Free plan limits apply to new additions. Upgrade again to add more.",
           }}
         />
       )}
