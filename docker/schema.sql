@@ -59,9 +59,17 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
     last_whop_sync_at timestamp with time zone,
     current_period_start timestamp with time zone,
     current_period_end timestamp with time zone,
+    cancel_at_period_end boolean DEFAULT false NOT NULL,
+    cancel_requested_at timestamp with time zone,
+    cancel_reason text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE public.subscriptions
+    ADD COLUMN IF NOT EXISTS cancel_at_period_end boolean DEFAULT false NOT NULL,
+    ADD COLUMN IF NOT EXISTS cancel_requested_at timestamp with time zone,
+    ADD COLUMN IF NOT EXISTS cancel_reason text;
 
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

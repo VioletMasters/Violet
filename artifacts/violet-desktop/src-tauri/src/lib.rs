@@ -103,8 +103,7 @@ fn is_bundled_setup_origin(current: &url::Url) -> bool {
     // Tauri 2 serves WebviewUrl::App content from http://tauri.localhost.
     // Keep the legacy tauri://localhost form for existing installations and
     // older WebView protocol implementations.
-    (matches!(current.scheme(), "http" | "https")
-        && current.host_str() == Some("tauri.localhost"))
+    (matches!(current.scheme(), "http" | "https") && current.host_str() == Some("tauri.localhost"))
         || (current.scheme() == "tauri" && current.host_str() == Some("localhost"))
 }
 
@@ -128,8 +127,7 @@ fn require_print_origin(webview: &tauri::WebviewWindow) -> Result<(), String> {
     let current = webview
         .url()
         .map_err(|_| "Could not verify the current Violet window.".to_string())?;
-    let is_webview = matches!(current.scheme(), "http" | "https")
-        && current.host_str().is_some();
+    let is_webview = matches!(current.scheme(), "http" | "https") && current.host_str().is_some();
     if is_bundled_setup_origin(&current) || is_webview {
         Ok(())
     } else {
@@ -973,9 +971,9 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        cups_print_args, dotenv_value, is_bundled_setup_origin, normalise_email, parse_cups_printer_names,
-        parse_dotenv, parse_windows_printer_names, validate_native_print_request, windows_print_script,
-        NativePrintRequest,
+        cups_print_args, dotenv_value, is_bundled_setup_origin, normalise_email,
+        parse_cups_printer_names, parse_dotenv, parse_windows_printer_names, startup_failure_hint,
+        validate_native_print_request, windows_print_script, NativePrintRequest,
     };
 
     #[test]
@@ -1017,7 +1015,10 @@ mod tests {
     fn native_printer_discovery_parses_windows_and_cups_output() {
         let windows = parse_windows_printer_names(" Receipt Printer \n\nOffice Printer\n");
         assert_eq!(
-            windows.iter().map(|printer| printer.name.as_str()).collect::<Vec<_>>(),
+            windows
+                .iter()
+                .map(|printer| printer.name.as_str())
+                .collect::<Vec<_>>(),
             ["Receipt Printer", "Office Printer"]
         );
 
@@ -1025,8 +1026,27 @@ mod tests {
             "printer receipt is idle. enabled since Tue\nmalformed\nprinter office disabled since Tue",
         );
         assert_eq!(
-            cups.iter().map(|printer| printer.name.as_str()).collect::<Vec<_>>(),
+            cups.iter()
+                .map(|printer| printer.name.as_str())
+                .collect::<Vec<_>>(),
             ["receipt", "office"]
+        );
+    }
+
+    #[test]
+    fn startup_diagnostics_prioritize_api_database_initialization_errors() {
+        let seed_error = "api-1 | Seed failed: function gen_random_bytes(integer) does not exist";
+        assert_eq!(
+            startup_failure_hint(seed_error),
+            Some(
+                "The API could not initialize the local database. Rebuild the Store Host image; existing store data will be preserved."
+            )
+        );
+        assert_eq!(
+            startup_failure_hint(
+                "web-1 | connect() failed (111: Connection refused) while connecting to upstream"
+            ),
+            None
         );
     }
 
