@@ -11,4 +11,5 @@ export interface CategoryUpdate {
   name?: string;
   description?: string;
   color?: string;
+  printDestination?: string;
 }
