@@ -52,6 +52,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     "/employees",
     "/suppliers",
     "/reports",
+    "/advanced",
   ].some((route) => location === route || location.startsWith(`${route}/`));
 
   useEffect(() => {
