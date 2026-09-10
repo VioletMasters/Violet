@@ -3,6 +3,7 @@ import { db, employeesTable, sessionsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireManagerAccess } from "../middlewares/auth";
 import { generateTemporaryPassword, hashPassword } from "../lib/crypto";
+import { enforceTenantLimit, entitlementErrorResponse } from "../lib/entitlements";
 
 const router = Router();
 
@@ -49,6 +50,16 @@ router.post("/employees", requireManagerAccess, async (req, res): Promise<void> 
   if (!firstName || !lastName || !normalizedEmail) {
     res.status(400).json({ error: "First name, last name, and email are required" });
     return;
+  }
+  try {
+    await enforceTenantLimit(tenantId, "users");
+  } catch (error) {
+    const response = entitlementErrorResponse(error);
+    if (response) {
+      res.status(response.status).json(response.body);
+      return;
+    }
+    throw error;
   }
 
   const [existing] = await db.select({ id: usersTable.id })
