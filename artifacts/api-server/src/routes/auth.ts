@@ -23,6 +23,7 @@ import {
   verifyHostedLicenseCredentials,
 } from "../lib/remoteLicense";
 import { sendPasswordResetEmail } from "../lib/password-reset-email";
+import { ensureTenantLicense } from "../lib/entitlements";
 
 const router = Router();
 
@@ -52,65 +53,86 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  // Get free plan
-  const [freePlan] = await db.select().from(plansTable).where(eq(plansTable.tier, "free")).limit(1);
-
-  // Create tenant
-  const [tenant] = await db.insert(tenantsTable).values({
-    name: businessName,
-    email: normalizedEmail,
-    status: "active",
-    planId: freePlan?.id ?? undefined,
-    licenseStatus: "valid",
-    licenseValidatedAt: new Date(),
-    pendingPaidSignup: Boolean(requestedPaidTier),
-    pendingPaidSignupExpiresAt: requestedPaidTier
-      ? new Date(Date.now() + 24 * 60 * 60 * 1000)
-      : null,
-  }).returning();
-
-  // Create user (owner)
   const passwordHash = hashPassword(password);
-  const [user] = await db.insert(usersTable).values({
-    tenantId: tenant.id,
-    email: normalizedEmail,
-    passwordHash,
-    firstName,
-    lastName,
-    role: "owner",
-  }).returning();
+  let registered: {
+    tenant: typeof tenantsTable.$inferSelect;
+    user: typeof usersTable.$inferSelect;
+    freePlan: typeof plansTable.$inferSelect;
+    token: string;
+  };
+  try {
+    registered = await db.transaction(async (tx) => {
+      const [freePlan] = await tx.select().from(plansTable).where(eq(plansTable.tier, "free")).limit(1);
+      if (!freePlan) {
+        throw Object.assign(new Error("Free plan is not configured."), { statusCode: 503 });
+      }
 
-  // Create subscription
-  if (freePlan) {
-    await db.insert(subscriptionsTable).values({
-      tenantId: tenant.id,
-      planId: freePlan.id,
-      status: "active",
-      paymentStatus: "not_required",
-      currentPeriodStart: new Date(),
+      const now = new Date();
+      const [tenant] = await tx.insert(tenantsTable).values({
+        name: businessName,
+        email: normalizedEmail,
+        status: "active",
+        planId: freePlan.id,
+        licenseStatus: "valid",
+        licenseValidatedAt: now,
+        pendingPaidSignup: Boolean(requestedPaidTier),
+        pendingPaidSignupExpiresAt: requestedPaidTier
+          ? new Date(now.getTime() + 24 * 60 * 60 * 1000)
+          : null,
+      }).returning();
+
+      const [user] = await tx.insert(usersTable).values({
+        tenantId: tenant.id,
+        email: normalizedEmail,
+        passwordHash,
+        firstName,
+        lastName,
+        role: "owner",
+      }).returning();
+
+      await tx.insert(subscriptionsTable).values({
+        tenantId: tenant.id,
+        planId: freePlan.id,
+        status: "active",
+        paymentStatus: "not_required",
+        currentPeriodStart: now,
+      });
+      await ensureTenantLicense(tenant.id, tx);
+
+      await tx.insert(settingsTable).values({
+        tenantId: tenant.id,
+        businessName,
+        businessEmail: normalizedEmail,
+      });
+
+      const [store] = await tx.insert(storesTable).values({
+        tenantId: tenant.id, code: "MAIN", name: "Main Store",
+      }).returning();
+      await tx.insert(registersTable).values({
+        tenantId: tenant.id, storeId: store.id, code: "REG-1", name: "Register 1",
+      });
+
+      const token = generateToken();
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      await tx.insert(sessionsTable).values({ userId: user.id, token, expiresAt });
+      return { tenant, user, freePlan, token };
     });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+      res.status(400).json({ error: "Email already registered" });
+      return;
+    }
+    const statusCode =
+      typeof error === "object" && error !== null && "statusCode" in error && typeof error.statusCode === "number"
+        ? error.statusCode
+        : 500;
+    res.status(statusCode).json({
+      error: error instanceof Error ? error.message : "Unable to create the account right now.",
+    });
+    return;
   }
 
-  // Create default settings
-  await db.insert(settingsTable).values({
-    tenantId: tenant.id,
-    businessName,
-    businessEmail: normalizedEmail,
-  });
-
-  // New tenants receive a usable operating hierarchy. Existing tenants retain
-  // null attribution until an administrator deliberately assigns a store.
-  const [store] = await db.insert(storesTable).values({
-    tenantId: tenant.id, code: "MAIN", name: "Main Store",
-  }).returning();
-  await db.insert(registersTable).values({
-    tenantId: tenant.id, storeId: store.id, code: "REG-1", name: "Register 1",
-  });
-
-  // Create session
-  const token = generateToken();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-  await db.insert(sessionsTable).values({ userId: user.id, token, expiresAt });
+  const { tenant, user, freePlan, token } = registered;
 
   res.status(201).json({
     token,
