@@ -379,6 +379,28 @@ function TenantDetailDrawer({
                     </span>
                   </div>
                 )}
+                 {tenant.licenseId && (
+                   <>
+                     <div className="flex justify-between gap-4">
+                       <span className="text-muted-foreground">License ID</span>
+                       <span className="max-w-[190px] truncate font-mono text-xs" title={tenant.licenseId}>
+                         {tenant.licenseId}
+                       </span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-muted-foreground">Key ending</span>
+                       <span className="font-mono text-xs">{tenant.licenseKeyLast4 ? `••••${tenant.licenseKeyLast4}` : "—"}</span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-muted-foreground">License version</span>
+                       <span className="font-medium">{tenant.licenseVersion ?? "—"}</span>
+                     </div>
+                     <div className="flex justify-between">
+                       <span className="text-muted-foreground">Last validated</span>
+                       <span className="font-medium">{tenant.licenseLastValidatedAt ? formatDate(tenant.licenseLastValidatedAt) : "—"}</span>
+                     </div>
+                   </>
+                 )}
                 {tenant.cancelAtPeriodEnd && (
                   <Alert className="mt-3 border-amber-500/30 bg-amber-500/10">
                     <AlertDescription className="text-xs text-amber-700 dark:text-amber-300">
@@ -1594,8 +1616,11 @@ function SalesTab() {
       const csv = typeof response === "string"
         ? response
         : [
-            ["Receipt", "Tenant", "Amount", "Payment method", "Status", "Date"].map(csvEscape).join(","),
-            ...response.data.map((sale) => [sale.receiptNumber, sale.tenantName, sale.totalAmount, sale.paymentMethod, sale.status, sale.createdAt].map(csvEscape).join(",")),
+            ["Receipt", "Tenant", "Amount", "Payment method", "Cash received", "Change due", "Status", "Date"].map(csvEscape).join(","),
+            ...response.data.map((sale) => [
+              sale.receiptNumber, sale.tenantName, sale.totalAmount, sale.paymentMethod,
+              sale.cashReceived, sale.changeDue, sale.status, sale.createdAt,
+            ].map(csvEscape).join(",")),
           ].join("\n");
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -1648,13 +1673,15 @@ function SalesTab() {
       ) : (
         <Card className="overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/50"><TableRow><TableHead>Receipt</TableHead><TableHead>Tenant</TableHead><TableHead>Amount</TableHead><TableHead>Payment</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+            <TableHeader className="bg-muted/50"><TableRow><TableHead>Receipt</TableHead><TableHead>Tenant</TableHead><TableHead>Amount</TableHead><TableHead>Payment</TableHead><TableHead>Cash received</TableHead><TableHead>Change due</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
             <TableBody>{salesPage.data.map((sale: AdminSale) => (
               <TableRow key={sale.id}>
                 <TableCell className="font-mono text-xs">{sale.receiptNumber}</TableCell>
                 <TableCell><div className="font-medium">{sale.tenantName || "Unknown tenant"}</div><div className="text-xs text-muted-foreground">{sale.tenantId}</div></TableCell>
                 <TableCell className="font-medium tabular-nums">{formatCurrency(sale.totalAmount, sale.currency || "JMD")} <span className="text-xs font-normal text-muted-foreground">{sale.currency || "JMD"}</span></TableCell>
                 <TableCell className="capitalize text-muted-foreground">{sale.paymentMethod}</TableCell>
+                <TableCell className="tabular-nums">{sale.cashReceived == null ? "—" : formatCurrency(sale.cashReceived, sale.currency || "JMD")}</TableCell>
+                <TableCell className="tabular-nums">{sale.changeDue == null ? "—" : formatCurrency(sale.changeDue, sale.currency || "JMD")}</TableCell>
                 <TableCell><Badge variant={sale.status === "completed" ? "success" : "outline"} className="capitalize">{sale.status}</Badge></TableCell>
                 <TableCell className="text-sm text-muted-foreground">{formatDate(sale.createdAt)}</TableCell>
               </TableRow>
