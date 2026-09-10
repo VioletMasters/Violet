@@ -23,5 +23,8 @@ export interface ProductUpdate {
   /** @nullable */
   brandId?: string | null;
   imageUrl?: string;
+  printDestination?: string;
+  /** @nullable */
+  warehouseLocation?: string | null;
   isActive?: boolean;
 }
