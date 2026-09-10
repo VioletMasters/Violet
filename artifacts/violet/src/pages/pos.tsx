@@ -188,7 +188,6 @@ export default function POSPage() {
         setCashTendered("");
         setCashPaymentAmount("");
         setCardPaymentAmount("");
-        setSearch("");
         setPaymentCompletion({
           tendered: hasCashPayment && tendered != null && Number.isFinite(tendered) ? tendered : undefined,
           change,

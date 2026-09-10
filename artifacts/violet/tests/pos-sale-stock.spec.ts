@@ -44,6 +44,8 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
 
 async function installPosApi(page: Page, saleStatus = 201) {
   let productQueryCount = 0;
+  let saleCompleted = false;
+  const productSearches: string[] = [];
   let saleRequest: Record<string, unknown> | null = null;
 
   await page.addInitScript((state) => {
@@ -53,8 +55,9 @@ async function installPosApi(page: Page, saleStatus = 201) {
   await page.route("**/api/auth/me", (route) => fulfillJson(route, authState.user));
   await page.route("**/api/pos/products**", async (route) => {
     productQueryCount += 1;
+    productSearches.push(new URL(route.request().url()).searchParams.get("search") ?? "");
     await fulfillJson(route, {
-      data: [{ ...product, stock: productQueryCount > 1 ? 0 : 1 }],
+      data: [{ ...product, stock: saleCompleted ? 0 : 1 }],
       total: 1,
       page: 1,
       limit: 50,
@@ -87,6 +90,7 @@ async function installPosApi(page: Page, saleStatus = 201) {
       await fulfillJson(route, { error: "Sale could not be completed." }, saleStatus);
       return;
     }
+    saleCompleted = true;
     await fulfillJson(route, {
       id: "sale-1",
       receiptNumber: "RCP-1",
@@ -99,6 +103,7 @@ async function installPosApi(page: Page, saleStatus = 201) {
 
   return {
     getProductQueryCount: () => productQueryCount,
+    getProductSearches: () => productSearches,
     getSaleRequest: () => saleRequest,
   };
 }
@@ -128,6 +133,25 @@ test.describe("POS stock refresh after checkout", () => {
       shiftId: "shift-1",
       items: [{ productId: "product-1", quantity: 1, unitPrice: 12 }],
     });
+  });
+
+  test("refreshes stock for the active product search after a sale", async ({ page }) => {
+    const api = await installPosApi(page);
+    const searchInput = page.getByPlaceholder("Search products, SKU, barcode... (Press '/')");
+
+    await page.goto("/pos");
+    await searchInput.fill("Test Widget");
+    await expect(page.getByRole("button", { name: /Test Widget/ })).toBeVisible();
+    await expect(page.getByText("1 in stock")).toBeVisible();
+
+    await openPaymentDialog(page);
+    await page.getByRole("button", { name: "Complete Sale" }).click();
+
+    await expect.poll(api.getProductQueryCount).toBeGreaterThan(1);
+    await expect.poll(api.getProductSearches).toContain("Test Widget");
+    await expect(searchInput).toHaveValue("Test Widget");
+    await expect(page.getByRole("button", { name: /Test Widget/ })).toBeDisabled();
+    await expect(page.getByText("0 in stock")).toBeVisible();
   });
 
   test("keeps the cart and product data unchanged when checkout fails", async ({ page }) => {
