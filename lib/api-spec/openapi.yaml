@@ -40,6 +40,8 @@ tags:
     description: Purchase orders and receiving
   - name: settings
     description: Settings
+  - name: printers
+    description: Printer configuration and print jobs
   - name: admin
     description: Super admin
 
@@ -1352,10 +1354,41 @@ paths:
       parameters:
         - { name: storeId, in: query, schema: { type: string } }
         - { name: registerId, in: query, schema: { type: string } }
+        - { name: cashierId, in: query, schema: { type: string } }
         - { name: status, in: query, schema: { type: string, enum: [open, closed] } }
+        - { name: startDate, in: query, schema: { type: string } }
+        - { name: endDate, in: query, schema: { type: string } }
       responses:
         "200":
           description: Shift list
+          content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
+
+  /register-shifts/export:
+    get:
+      operationId: exportClosedRegisterShifts
+      tags: [operations]
+      summary: Export filtered closed register shifts as CSV
+      parameters:
+        - $ref: "#/components/parameters/ReportStartDate"
+        - $ref: "#/components/parameters/ReportEndDate"
+        - $ref: "#/components/parameters/ReportStoreId"
+        - $ref: "#/components/parameters/ReportRegisterId"
+        - $ref: "#/components/parameters/ReportCashierId"
+      responses:
+        "200":
+          description: CSV settlement export
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+
+  /register-shifts/current:
+    get:
+      operationId: getCurrentRegisterShift
+      tags: [operations]
+      summary: Get the authenticated cashier's open shift
+      responses:
+        "200":
+          description: Current shift or null
           content: { application/json: { schema: { $ref: "#/components/schemas/ReportData" } } }
 
   /register-shifts/open:
@@ -1580,6 +1613,7 @@ paths:
         - $ref: "#/components/parameters/ReportRegisterId"
         - $ref: "#/components/parameters/ReportCashierId"
         - $ref: "#/components/parameters/ReportPaymentMethod"
+        - $ref: "#/components/parameters/ReportTransactionStatus"
         - name: page
           in: query
           schema: { type: integer, minimum: 1, default: 1 }
@@ -1641,6 +1675,7 @@ paths:
         - $ref: "#/components/parameters/ReportEndDate"
         - $ref: "#/components/parameters/ReportStoreId"
         - $ref: "#/components/parameters/ReportRegisterId"
+        - $ref: "#/components/parameters/ReportShiftId"
       responses:
         "200":
           description: Cash report
@@ -1719,6 +1754,7 @@ paths:
         - $ref: "#/components/parameters/ReportRegisterId"
         - $ref: "#/components/parameters/ReportCashierId"
         - $ref: "#/components/parameters/ReportPaymentMethod"
+        - $ref: "#/components/parameters/ReportTransactionStatus"
       responses:
         "200":
           description: Valid CSV, XLSX, or PDF document
@@ -1769,6 +1805,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Settings"
+
+  # ─── Printers ───────────────────────────────────────────────────────────────
+  /printers:
+    get:
+      operationId: listPrinters
+      tags: [printers]
+      summary: List configured printers
+      responses:
+        "200":
+          description: Printers and supported options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintersResponse"
+    post:
+      operationId: createPrinter
+      tags: [printers]
+      summary: Configure a printer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrinterInput"
+      responses:
+        "201":
+          description: Printer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Printer"
+
+  /printers/{id}:
+    patch:
+      operationId: updatePrinter
+      tags: [printers]
+      summary: Update a configured printer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrinterUpdate"
+      responses:
+        "200":
+          description: Printer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Printer"
+    delete:
+      operationId: deletePrinter
+      tags: [printers]
+      summary: Remove a configured printer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /print-jobs:
+    get:
+      operationId: listPrintJobs
+      tags: [printers]
+      summary: List print history and queued jobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: saleId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 50
+      responses:
+        "200":
+          description: Print jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintJobsResponse"
+
+  /print-jobs/{id}/retry:
+    post:
+      operationId: retryPrintJob
+      tags: [printers]
+      summary: Queue a failed print job again
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintJob"
+
+  /print-jobs/{id}/status:
+    post:
+      operationId: updatePrintJobStatus
+      tags: [printers]
+      summary: Report a native print attempt result
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintJobStatusInput"
+      responses:
+        "200":
+          description: Job status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintJob"
 
   # ─── Super Admin ────────────────────────────────────────────────────────────
   /admin/stats:
@@ -2277,6 +2457,10 @@ components:
       name: registerId
       in: query
       schema: { type: string }
+    ReportShiftId:
+      name: shiftId
+      in: query
+      schema: { type: string }
     ReportCashierId:
       name: cashierId
       in: query
@@ -2285,6 +2469,13 @@ components:
       name: paymentMethod
       in: query
       schema: { type: string }
+    ReportTransactionStatus:
+      name: status
+      in: query
+      description: Limit the report to transactions with this status.
+      schema:
+        type: string
+        enum: [completed, refunded, partial_refund, voided]
   schemas:
     # ── Shared ─────────────────────────────────────────────────────────────────
     HealthStatus:
@@ -2324,6 +2515,141 @@ components:
         error:
           type: string
       required: [error]
+
+    # ── Printers ──────────────────────────────────────────────────────────────
+    Printer:
+      type: object
+      required: [id, tenantId, name, role, connectionType, deviceName, isActive, isDefault]
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        storeId:
+          type: ["string", "null"]
+        registerId:
+          type: ["string", "null"]
+        name:
+          type: string
+        role:
+          type: string
+          enum: [customer_receipt, warehouse, kitchen, packing, office, custom]
+        connectionType:
+          type: string
+          enum: [os, usb, network, shared]
+        deviceName:
+          type: string
+        deviceAddress:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    PrinterInput:
+      type: object
+      required: [name, role, deviceName]
+      properties:
+        name:
+          type: string
+        storeId:
+          type: ["string", "null"]
+        registerId:
+          type: ["string", "null"]
+        role:
+          type: string
+        connectionType:
+          type: string
+        deviceName:
+          type: string
+        deviceAddress:
+          type: string
+        platform:
+          type: string
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+
+    PrinterUpdate:
+      allOf:
+        - $ref: "#/components/schemas/PrinterInput"
+
+    PrintersResponse:
+      type: object
+      required: [data, roles, connectionTypes]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Printer"
+        roles:
+          type: array
+          items:
+            type: string
+        connectionTypes:
+          type: array
+          items:
+            type: string
+
+    PrintJob:
+      type: object
+      required: [id, tenantId, documentType, status, payload, retryCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        saleId:
+          type: ["string", "null"]
+        storeId:
+          type: ["string", "null"]
+        registerId:
+          type: ["string", "null"]
+        printerId:
+          type: ["string", "null"]
+        documentType:
+          type: string
+        status:
+          type: string
+          enum: [queued, printing, printed, failed, cancelled]
+        payload:
+          type: string
+        errorMessage:
+          type: ["string", "null"]
+        retryCount:
+          type: number
+        createdAt:
+          type: string
+        printedAt:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+
+    PrintJobsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrintJob"
+
+    PrintJobStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [queued, printing, printed, failed, cancelled]
+        errorMessage:
+          type: string
 
     # ── Auth ───────────────────────────────────────────────────────────────────
     RegisterInput:
@@ -2421,10 +2747,64 @@ components:
           type: ["string", "null"]
         licenseValidUntil:
           type: ["string", "null"]
+        licenseId:
+          type: ["string", "null"]
+        licenseKeyLast4:
+          type: ["string", "null"]
+        licenseVersion:
+          type: ["string", "null"]
+        licenseLifecycleStatus:
+          type: ["string", "null"]
+        licenseActivatedAt:
+          type: ["string", "null"]
+        entitlements:
+          type: ["object", "null"]
+          additionalProperties: true
+        usage:
+          allOf:
+            - $ref: "#/components/schemas/EntitlementUsage"
+          nullable: true
         licenseSessionToken:
           type: string
         tokenExpiresAt:
           type: string
+
+    LicenseInfo:
+      type: object
+      required: [id, keyLast4, status, version]
+      properties:
+        id:
+          type: string
+        keyLast4:
+          type: string
+        status:
+          type: string
+        version:
+          type: string
+        activatedAt:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+        lastValidatedAt:
+          type: ["string", "null"]
+        entitlements:
+          type: ["object", "null"]
+          additionalProperties: true
+
+    EntitlementUsage:
+      type: object
+      required: [users, products, customers, branches, registers]
+      properties:
+        users:
+          type: number
+        products:
+          type: number
+        customers:
+          type: number
+        branches:
+          type: number
+        registers:
+          type: number
 
     ManagerAccessInput:
       type: object
@@ -2577,6 +2957,27 @@ components:
           type: ["string", "null"]
         licenseStatus:
           type: string
+        licenseId:
+          type: ["string", "null"]
+        licenseKeyLast4:
+          type: ["string", "null"]
+        licenseLifecycleStatus:
+          type: ["string", "null"]
+        licenseVersion:
+          type: ["string", "null"]
+        licenseActivatedAt:
+          type: ["string", "null"]
+        licenseExpiresAt:
+          type: ["string", "null"]
+        licenseLastValidatedAt:
+          type: ["string", "null"]
+        entitlements:
+          type: ["object", "null"]
+          additionalProperties: true
+        usage:
+          allOf:
+            - $ref: "#/components/schemas/EntitlementUsage"
+          nullable: true
         whopMembershipId:
           type: ["string", "null"]
         subscriptionHistory:
@@ -2699,6 +3100,11 @@ components:
           type: number
         imageUrl:
           type: ["string", "null"]
+        printDestination:
+          type: string
+          default: customer_receipt
+        warehouseLocation:
+          type: ["string", "null"]
 
     SalesTrendPoint:
       type: object
@@ -2724,6 +3130,9 @@ components:
           type: ["string", "null"]
         color:
           type: ["string", "null"]
+        printDestination:
+          type: string
+          default: customer_receipt
         tenantId:
           type: string
         productCount:
@@ -2742,6 +3151,8 @@ components:
           type: string
         color:
           type: string
+        printDestination:
+          type: string
 
     CategoryUpdate:
       type: object
@@ -2752,6 +3163,8 @@ components:
         description:
           type: string
         color:
+          type: string
+        printDestination:
           type: string
 
     # ── Brand ──────────────────────────────────────────────────────────────────
@@ -2824,6 +3237,11 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: ["string", "null"]
+        printDestination:
+          type: string
+          default: customer_receipt
+        warehouseLocation:
+          type: ["string", "null"]
         tenantId:
           type: string
         isActive:
@@ -2881,6 +3299,11 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: string
+        printDestination:
+          type: string
+          default: customer_receipt
+        warehouseLocation:
+          type: ["string", "null"]
 
     ProductImportInput:
       type: object
@@ -2912,6 +3335,10 @@ components:
               category:
                 type: string
               brand:
+                type: string
+              printDestination:
+                type: string
+              warehouseLocation:
                 type: string
 
     ProductImportResponse:
@@ -2965,6 +3392,10 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: string
+        printDestination:
+          type: string
+        warehouseLocation:
+          type: ["string", "null"]
         isActive:
           type: boolean
 
@@ -3125,6 +3556,12 @@ components:
         cashTendered:
           type: ["number", "null"]
           description: Amount of cash the customer handed over. Change is the difference from totalAmount.
+        cashReceived:
+          type: ["number", "null"]
+          description: Total cash received across cash tenders; null when the sale has no cash tender.
+        changeDue:
+          type: ["number", "null"]
+          description: Change due across cash tenders; null when the sale has no cash tender.
         paymentMethod:
           type: string
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
@@ -3144,6 +3581,11 @@ components:
           description: Internal-only voided lines. Customer-facing receipts must use items only.
           items:
             $ref: "#/components/schemas/SaleItem"
+        printJobs:
+          type: array
+          description: Independent receipt and operational ticket jobs created after the sale commits.
+          items:
+            $ref: "#/components/schemas/PrintJob"
         tenantId:
           type: string
         createdAt:
@@ -3178,9 +3620,26 @@ components:
           type: string
           maxLength: 200
 
+    SalePaymentInput:
+      type: object
+      required: [method, amount]
+      properties:
+        method:
+          type: string
+          enum: [cash, card, bank_transfer, store_credit, gift_card]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        tenderedAmount:
+          type: number
+          minimum: 0
+          description: Cash handed over for this tender; it may exceed amount to represent change.
+        reference:
+          type: string
+
     SaleInput:
       type: object
-      required: [items, paymentMethod, idempotencyKey]
+      required: [items, paymentMethod, idempotencyKey, shiftId]
       properties:
         idempotencyKey:
           type: string
@@ -3203,6 +3662,19 @@ components:
           enum: [cash, card, bank_transfer, store_credit, gift_card, mixed]
         cashTendered:
           type: number
+        payments:
+          type: array
+          minItems: 2
+          description: Split tenders whose amounts must add up to the sale total.
+          items:
+            $ref: "#/components/schemas/SalePaymentInput"
+        storeId:
+          type: string
+        registerId:
+          type: string
+        shiftId:
+          type: string
+          description: The authenticated cashier's active register shift. Sales cannot be completed without it.
         note:
           type: string
 
@@ -3587,14 +4059,11 @@ components:
         lastWhopSyncAt:
           type: ["string", "null"]
         usage:
-          type: object
-          properties:
-            users:
-              type: number
-            products:
-              type: number
-            customers:
-              type: number
+          $ref: "#/components/schemas/EntitlementUsage"
+        license:
+          allOf:
+            - $ref: "#/components/schemas/LicenseInfo"
+          nullable: true
 
     SubscriptionEvent:
       type: object
@@ -3606,7 +4075,7 @@ components:
           type: string
         eventType:
           type: string
-          enum: [activated, plan_changed, cancellation_requested, cancelled, reactivated, admin_override]
+          enum: [activated, plan_changed, cancellation_requested, cancelled, reactivated, admin_override, downgraded]
         fromPlanId:
           type: ["string", "null"]
         toPlanId:
@@ -4073,6 +4542,12 @@ components:
         tenantId: { type: string }
         tenantName: { type: ["string", "null"] }
         totalAmount: { type: number }
+        cashReceived:
+          type: ["number", "null"]
+          description: Total cash received across cash tenders; null when the sale has no cash tender.
+        changeDue:
+          type: ["number", "null"]
+          description: Change due across cash tenders; null when the sale has no cash tender.
         currency: { type: string }
         paymentMethod: { type: string }
         status: { type: string }
