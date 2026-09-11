@@ -127,7 +127,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/EmailVerificationResendResponse"
         "400":
           description: Invalid email
           content:
@@ -2784,6 +2784,15 @@ components:
         email:
           type: string
           maxLength: 320
+
+    EmailVerificationResendResponse:
+      type: object
+      required: [success, verificationEmailSent]
+      properties:
+        success:
+          type: boolean
+        verificationEmailSent:
+          type: boolean
 
     LicenseVerifyInput:
       type: object

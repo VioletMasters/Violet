@@ -206,6 +206,11 @@ export interface EmailVerificationResendInput {
   email: string;
 }
 
+export interface EmailVerificationResendResponse {
+  success: boolean;
+  verificationEmailSent: boolean;
+}
+
 export interface LicenseVerifyInput {
   email: string;
   password: string;

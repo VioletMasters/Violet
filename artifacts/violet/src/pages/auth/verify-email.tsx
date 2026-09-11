@@ -76,7 +76,11 @@ export default function VerifyEmailPage() {
 
   const resendMutation = useResendEmailVerification({
     mutation: {
-      onSuccess: () => toast.success("If that account is waiting for verification, a new email is on its way."),
+      onSuccess: (data) => toast.success(
+        data.verificationEmailSent
+          ? "If that account is waiting for verification, a new email is on its way."
+          : "We could not send the verification email yet. Please contact support or try again later.",
+      ),
       onError: (error) => toast.error(error.message || "The verification email could not be sent."),
     },
   });

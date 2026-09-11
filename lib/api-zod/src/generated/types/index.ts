@@ -41,6 +41,7 @@ export * from './customerUpdate';
 export * from './dashboardStats';
 export * from './emailVerificationInput';
 export * from './emailVerificationResendInput';
+export * from './emailVerificationResendResponse';
 export * from './employee';
 export * from './employeeCreated';
 export * from './employeeInput';

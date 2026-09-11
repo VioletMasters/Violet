@@ -415,6 +415,7 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     eq(usersTable.email, email),
     eq(usersTable.isActive, "true"),
   )).limit(1);
+  let verificationEmailSent = false;
   if (user && !user.emailVerifiedAt) {
     const token = generateToken();
     await db.update(usersTable).set({
@@ -423,12 +424,13 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     }).where(eq(usersTable.id, user.id));
     try {
       await sendEmailVerificationEmail(user.email, token);
+      verificationEmailSent = true;
     } catch (error) {
       req.log.error({ err: error }, "Email verification resend delivery failed");
     }
   }
 
-  res.json({ success: true });
+  res.json({ success: true, verificationEmailSent });
 });
 
 const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;

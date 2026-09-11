@@ -45,6 +45,7 @@ import type {
   DashboardStats,
   EmailVerificationInput,
   EmailVerificationResendInput,
+  EmailVerificationResendResponse,
   Employee,
   EmployeeCreated,
   EmployeeInput,
@@ -405,9 +406,9 @@ export const getResendEmailVerificationUrl = () => {
 /**
  * @summary Resend an email verification link
  */
-export const resendEmailVerification = async (emailVerificationResendInput: EmailVerificationResendInput, options?: Parameters<typeof customFetch>[1]): Promise<SuccessResponse> => {
+export const resendEmailVerification = async (emailVerificationResendInput: EmailVerificationResendInput, options?: Parameters<typeof customFetch>[1]): Promise<EmailVerificationResendResponse> => {
 
-  return customFetch<SuccessResponse>(getResendEmailVerificationUrl(),
+  return customFetch<EmailVerificationResendResponse>(getResendEmailVerificationUrl(),
   {
     ...options,
     method: 'POST',

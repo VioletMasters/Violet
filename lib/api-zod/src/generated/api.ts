@@ -136,7 +136,8 @@ export const ResendEmailVerificationBody = zod.object({
 })
 
 export const ResendEmailVerificationResponse = zod.object({
-  "success": zod.boolean()
+  "success": zod.boolean(),
+  "verificationEmailSent": zod.boolean()
 })
 
 
