@@ -1,60 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, BarChart3, Check, CheckCircle2, Download, Menu, Package, ShieldCheck, Store, Users, Wifi, X, Zap } from "lucide-react";
 import { Link, Route, Switch, useLocation } from "wouter";
 
-type Tier = "free" | "starter" | "professional" | "enterprise";
 type Currency = "JMD" | "USD";
 
 const appUrl = (import.meta.env.VITE_APP_URL || "/").replace(/\/$/, "");
 
-const offers: Array<{
-  tier: Tier;
+type PublicPlan = {
+  id: string;
+  tier: string;
   name: string;
-  eyebrow: string;
   description: string;
-  jmd: number;
-  usd: number;
+  price: number;
+  annualPrice: number | null;
+  billingType: string;
+  currency: string;
+  checkoutPrice: number;
+  checkoutCurrency: string;
   features: string[];
-  popular?: boolean;
-}> = [
-  {
-    tier: "free",
-    name: "Free",
-    eyebrow: "Start with the essentials",
-    description: "A focused POS for small teams getting their operation off the ground.",
-    jmd: 0,
-    usd: 0,
-    features: ["1 register and 1 branch", "2 users", "Up to 250 products", "Basic inventory tracking", "Cash and card checkout"],
-  },
-  {
-    tier: "starter",
-    name: "Starter",
-    eyebrow: "For growing shops",
-    description: "More control for teams moving beyond spreadsheets and guesswork.",
-    jmd: 7500,
-    usd: 49,
-    features: ["2 registers and 1 branch", "5 users", "Up to 2,000 products", "Advanced inventory", "Employee and supplier tools", "Detailed reports"],
-    popular: true,
-  },
-  {
-    tier: "professional",
-    name: "Professional",
-    eyebrow: "For serious operators",
-    description: "Multi-branch visibility and the headroom to run a larger team.",
-    jmd: 20000,
-    usd: 129,
-    features: ["Unlimited registers", "3 branches and 20 users", "Unlimited products", "Multi-branch support", "Advanced analytics", "Priority support"],
-  },
-  {
-    tier: "enterprise",
-    name: "Enterprise",
-    eyebrow: "Built around your business",
-    description: "A complete operating system for established retailers and growing chains.",
-    jmd: 150000,
-    usd: 999,
-    features: ["Unlimited registers and products", "Unlimited branches", "Custom onboarding", "White-label ready", "Dedicated support", "Self-hosting options"],
-  },
-];
+  isPopular: boolean;
+  trialDays: number;
+};
+
+const tierOrder = ["free", "starter", "professional", "enterprise"];
 
 const features = [
   { icon: Zap, title: "Checkout at the speed of thought", text: "Keyboard-first POS flows keep every line moving when the store gets busy." },
@@ -71,15 +39,49 @@ function money(amount: number, currency: Currency) {
   }).format(amount);
 }
 
-function CheckoutButton({ tier, className = "" }: { tier: Tier; className?: string }) {
+function featureLabel(feature: string) {
+  return feature
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatPlanPrice(plan: PublicPlan, currency: Currency) {
+  if (plan.currency === currency) {
+    return { amount: plan.price, currency };
+  }
+  if (plan.checkoutCurrency === currency) {
+    return { amount: plan.checkoutPrice, currency };
+  }
+  return null;
+}
+
+function localPriceNote(plan: PublicPlan, currency: Currency) {
+  if (plan.currency === currency || plan.currency === plan.checkoutCurrency) return null;
+  if (plan.currency !== "JMD" && plan.currency !== "USD") return null;
+  return `Local price: ${money(plan.price, plan.currency as Currency)}`;
+}
+
+function billingLabel(plan: PublicPlan) {
+  if (plan.tier === "free" || plan.billingType === "one_time") return "one time";
+  if (plan.billingType === "annual") return " / year";
+  if (plan.billingType === "enterprise") return "";
+  return " / month";
+}
+
+function PlanEyebrow({ plan }: { plan: PublicPlan }) {
+  if (plan.isPopular) return <div className="popular-label">Most chosen</div>;
+  return null;
+}
+
+function CheckoutButton({ plan, className = "" }: { plan: PublicPlan; className?: string }) {
   function startCheckout() {
-    window.location.href = `${appUrl}/register?plan=${tier}`;
+    window.location.href = `${appUrl}/register?plan=${encodeURIComponent(plan.tier)}`;
   }
 
   return (
     <div className={`checkout-action ${className}`}>
       <button className="button button-primary button-wide" onClick={startCheckout}>
-        {tier === "free" ? "Create free account" : "Create account for " + offers.find((offer) => offer.tier === tier)?.name}
+        {plan.tier === "free" ? "Create free account" : "Create account for " + plan.name}
         <ArrowRight size={16} />
       </button>
     </div>
@@ -112,7 +114,46 @@ function Header() {
 
 function Home() {
   const [currency, setCurrency] = useState<Currency>("JMD");
+  const [plans, setPlans] = useState<PublicPlan[] | null>(null);
+  const [plansError, setPlansError] = useState<string | null>(null);
   const [location] = useLocation();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/plans", { headers: { Accept: "application/json" } })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Pricing request failed with status ${response.status}.`);
+        }
+        const payload = await response.json();
+        if (!Array.isArray(payload)) {
+          throw new Error("Pricing response was not a plan list.");
+        }
+        return payload as PublicPlan[];
+      })
+      .then((nextPlans) => {
+        if (cancelled) return;
+        const sortedPlans = [...nextPlans].sort((a, b) => {
+          const aIndex = tierOrder.indexOf(a.tier);
+          const bIndex = tierOrder.indexOf(b.tier);
+          if (aIndex === -1 && bIndex === -1) return a.name.localeCompare(b.name);
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+        setPlans(sortedPlans);
+        setPlansError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPlansError(error instanceof Error ? error.message : "Unable to load current pricing.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="website-shell" id="top">
@@ -159,7 +200,35 @@ function Home() {
 
         <section className="pricing-section section container" id="pricing">
           <div className="pricing-top"><div><div className="eyebrow">Plans that scale with you</div><h2>Choose your <em>pace.</em></h2><p>Start free, then add more capacity when the business earns it.</p><small className="pricing-note">Hosted checkout is currently billed in USD.</small></div><div className="currency-toggle" role="group" aria-label="Display currency"><button className={currency === "JMD" ? "selected" : ""} onClick={() => setCurrency("JMD")}>JMD</button><button className={currency === "USD" ? "selected" : ""} onClick={() => setCurrency("USD")}>USD</button></div></div>
-          <div className="pricing-grid">{offers.map((offer) => <article className={`price-card ${offer.popular ? "popular" : ""}`} key={offer.tier}>{offer.popular && <div className="popular-label">Most chosen</div>}<div className="price-eyebrow">{offer.eyebrow}</div><h3>{offer.name}</h3><p className="price-description">{offer.description}</p><div className="price">{money(currency === "JMD" ? offer.jmd : offer.usd, currency)}<small>{offer.tier === "free" ? "forever" : " / month"}</small></div><div className="price-divider" /><ul>{offer.features.map((feature) => <li key={feature}><CheckCircle2 size={16} />{feature}</li>)}</ul><CheckoutButton tier={offer.tier} /></article>)}</div>
+           {plansError ? (
+             <div className="pricing-load-state">We could not load the current plans. Please refresh and try again.</div>
+           ) : plans === null ? (
+             <div className="pricing-load-state">Loading current plans…</div>
+           ) : plans.length === 0 ? (
+             <div className="pricing-load-state">No active plans are currently available.</div>
+           ) : (
+             <div className="pricing-grid">{plans.map((plan) => {
+               const displayPrice = formatPlanPrice(plan, currency);
+               return (
+                 <article className={`price-card ${plan.isPopular ? "popular" : ""}`} key={plan.id}>
+                   <PlanEyebrow plan={plan} />
+                   <div className="price-eyebrow">{plan.tier === "free" ? "Start with the essentials" : plan.name}</div>
+                   <h3>{plan.name}</h3>
+                   <p className="price-description">{plan.description}</p>
+                   <div className="price">
+                     {displayPrice ? money(displayPrice.amount, displayPrice.currency as Currency) : "Contact us"}
+                     <small>{displayPrice ? billingLabel(plan) : ""}</small>
+                   </div>
+                   {displayPrice && localPriceNote(plan, currency) && (
+                     <div className="price-local-note">{localPriceNote(plan, currency)}</div>
+                   )}
+                   <div className="price-divider" />
+                   <ul>{plan.features.map((feature) => <li key={feature}><CheckCircle2 size={16} />{featureLabel(feature)}</li>)}</ul>
+                   <CheckoutButton plan={plan} />
+                 </article>
+               );
+             })}</div>
+           )}
         </section>
 
         <section className="self-host-section" id="self-host"><div className="container self-host-grid"><div className="self-host-copy"><div className="eyebrow">Your network. Your data.</div><h2>Operate even when the internet <em>doesn’t.</em></h2><p>Run Violet on a computer in your shop and connect every register, tablet, and phone over your local network. Cloud when you want it. Local when you need it.</p><div className="self-host-actions"><a href="/api/download" className="button button-primary"><Download size={16} /> Download Docker bundle</a><span>Windows · macOS · Linux</span></div></div><div className="self-host-cards"><div><ServerIcon /><strong>One command to start</strong><p>Docker Compose gets your full stack online in minutes.</p></div><div><Wifi size={22} /><strong>Every device on your LAN</strong><p>Cashiers use a browser. No extra installs required.</p></div><div><ShieldCheck size={22} /><strong>Private by design</strong><p>Your data stays on the machine you choose.</p></div></div></div></section>

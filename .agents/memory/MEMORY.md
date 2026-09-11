@@ -20,3 +20,4 @@
 - [Playwright native runtime](playwright-native-runtime.md) — browser smoke tests may need explicit Nix graphics libraries in this container; keep them out of project config unless required.
 - [Docker package-manager pinning](docker-package-manager-pinning.md) — pin pnpm in release images; a new major can reject previously valid approved-build workflows.
 - [Hosted admin recovery](hosted-admin-recovery.md) — emergency hosted admin promotion must preserve the password and consume a database-recorded one-time marker.
+- [Public pricing source](public-pricing-source.md) — marketing prices come from the public plans API; Whop checkout amounts remain a separate billing value.
