@@ -11,6 +11,9 @@ export const usersTable = pgTable("users", {
   avatarUrl: text("avatar_url"),
   isActive: text("is_active").notNull().default("true"),
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }).defaultNow(),
+  emailVerificationTokenHash: text("email_verification_token_hash"),
+  emailVerificationExpiresAt: timestamp("email_verification_expires_at", { withTimezone: true }),
   passwordResetTokenHash: text("password_reset_token_hash"),
   passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -18,6 +21,8 @@ export const usersTable = pgTable("users", {
 }, (table) => ({
   passwordResetTokenHashIdx: uniqueIndex("users_password_reset_token_hash_idx")
     .on(table.passwordResetTokenHash),
+  emailVerificationTokenHashIdx: uniqueIndex("users_email_verification_token_hash_idx")
+    .on(table.emailVerificationTokenHash),
 }));
 
 export type User = typeof usersTable.$inferSelect;

@@ -44,6 +44,59 @@ export const RegisterResponse = zod.object({
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "mustChangePassword": zod.boolean(),
+  "emailVerifiedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.string().optional()
+}),
+  "tenant": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().optional(),
+  "status": zod.enum(['active', 'suspended', 'trial', 'expired']),
+  "planId": zod.string(),
+  "planName": zod.string().optional(),
+  "planTier": zod.string().optional(),
+  "billingType": zod.string().optional(),
+  "userCount": zod.number().optional(),
+  "productCount": zod.number().optional(),
+  "customerCount": zod.number().optional(),
+  "subscriptionStatus": zod.string().optional(),
+  "subscriptionStart": zod.string().nullish(),
+  "subscriptionEnd": zod.string().nullish(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "cancelRequestedAt": zod.string().nullish(),
+  "requiresBillingAction": zod.boolean().optional().describe('True when the account may only access billing recovery until its Whop subscription is restored.'),
+  "billingMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "email": zod.string(),
+  "verificationRequired": zod.boolean(),
+  "verificationEmailSent": zod.boolean()
+})
+
+
+/**
+ * @summary Verify an email address with a one-time token
+ */
+export const verifyEmailBodyTokenMin = 64;
+export const verifyEmailBodyTokenMax = 128;
+
+
+
+export const VerifyEmailBody = zod.object({
+  "token": zod.string().min(verifyEmailBodyTokenMin).max(verifyEmailBodyTokenMax)
+})
+
+export const VerifyEmailResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "role": zod.enum(['owner', 'administrator', 'manager', 'cashier', 'inventory_staff', 'accountant', 'employee', 'super_admin']),
+  "tenantId": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "mustChangePassword": zod.boolean(),
+  "emailVerifiedAt": zod.coerce.date().nullish(),
   "createdAt": zod.string().optional()
 }),
   "tenant": zod.object({
@@ -72,6 +125,22 @@ export const RegisterResponse = zod.object({
 
 
 /**
+ * @summary Resend an email verification link
+ */
+export const resendEmailVerificationBodyEmailMax = 320;
+
+
+
+export const ResendEmailVerificationBody = zod.object({
+  "email": zod.string().max(resendEmailVerificationBodyEmailMax)
+})
+
+export const ResendEmailVerificationResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Login
  */
 export const LoginBody = zod.object({
@@ -89,6 +158,7 @@ export const LoginResponse = zod.object({
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "mustChangePassword": zod.boolean(),
+  "emailVerifiedAt": zod.coerce.date().nullish(),
   "createdAt": zod.string().optional()
 }),
   "tenant": zod.object({
@@ -175,6 +245,7 @@ export const ChangePasswordResponse = zod.object({
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "mustChangePassword": zod.boolean(),
+  "emailVerifiedAt": zod.coerce.date().nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -311,6 +382,7 @@ export const GetMeResponse = zod.object({
   "tenantId": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "mustChangePassword": zod.boolean(),
+  "emailVerifiedAt": zod.coerce.date().nullish(),
   "createdAt": zod.string().optional()
 })
 

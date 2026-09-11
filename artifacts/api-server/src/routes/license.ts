@@ -68,6 +68,14 @@ router.post("/license/verify", async (req, res): Promise<void> => {
     res.status(401).json({ valid: false, message: "The online Violet account could not be authenticated." });
     return;
   }
+  if (!user.emailVerifiedAt) {
+    res.status(403).json({
+      valid: false,
+      code: "EMAIL_NOT_VERIFIED",
+      message: "Verify your Violet email address before activating a Store Host.",
+    });
+    return;
+  }
   if (user.role === "super_admin") {
     res.status(403).json({
       valid: false,

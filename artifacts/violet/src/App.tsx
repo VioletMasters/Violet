@@ -9,6 +9,7 @@ import LoginPage from './pages/auth/login';
 import RegisterPage from './pages/auth/register';
 import ForgotPasswordPage from './pages/auth/forgot-password';
 import ResetPasswordPage from './pages/auth/reset-password';
+import VerifyEmailPage from './pages/auth/verify-email';
 import ChangePasswordPage from './pages/change-password';
 import DownloadPage from './pages/download';
 
@@ -92,6 +93,7 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       
       {/* App Routes (catch-all that renders AppLayout) */}
       <Route path="/*" component={AppRoutes} />

@@ -3,8 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createBillingCheckout, useRegister } from "@workspace/api-client-react";
-import { useAuth } from "@/hooks/use-auth";
+import { useRegister } from "@workspace/api-client-react";
 import { getRequestedPaidTier, planLabel } from "@/lib/billing";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,9 +22,7 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
-  const { setAuth } = useAuth();
   const selectedTier = getRequestedPaidTier();
-  const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema)
@@ -34,21 +31,13 @@ export default function RegisterPage() {
   const registerMutation = useRegister({
     mutation: {
       onSuccess: async (data) => {
-        setAuth(data.user, data.tenant, data.token);
-        toast.success("Business account created successfully!");
-        if (!selectedTier) {
-          setLocation("/download");
-          return;
-        }
-
-        setIsOpeningCheckout(true);
-        try {
-          const checkout = await createBillingCheckout({ tier: selectedTier });
-          window.location.assign(checkout.checkoutUrl);
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Secure checkout is unavailable.");
-          setLocation(`/subscription?checkout=error&tier=${selectedTier}`);
-        }
+        sessionStorage.setItem("violet_pending_verification_email", data.email);
+        toast.success(
+          data.verificationEmailSent
+            ? "Check your email to verify your Violet account."
+            : "Your account was created. Request a verification email to continue.",
+        );
+        setLocation(selectedTier ? `/verify-email?plan=${selectedTier}` : "/verify-email");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to register. Please try again.");
@@ -159,15 +148,13 @@ export default function RegisterPage() {
             <Button 
               type="submit" 
               className="w-full h-11 text-base mt-2" 
-              disabled={registerMutation.isPending || isOpeningCheckout}
+              disabled={registerMutation.isPending}
             >
               {registerMutation.isPending
                 ? "Creating account..."
-                : isOpeningCheckout
-                  ? "Opening secure checkout..."
-                  : selectedTier
-                    ? `Continue to ${planLabel(selectedTier)} checkout`
-                    : "Create free account"}
+                : selectedTier
+                  ? `Continue to ${planLabel(selectedTier)} verification`
+                  : "Create free account"}
             </Button>
           </form>
         </div>

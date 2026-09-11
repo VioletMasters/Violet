@@ -17,5 +17,7 @@ export interface UserProfile {
   /** @nullable */
   avatarUrl?: string | null;
   mustChangePassword: boolean;
+  /** @nullable */
+  emailVerifiedAt?: Date | null;
   createdAt?: string;
 }

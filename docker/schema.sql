@@ -82,6 +82,9 @@ CREATE TABLE IF NOT EXISTS public.users (
     avatar_url text,
     is_active text DEFAULT 'true'::text NOT NULL,
     must_change_password boolean DEFAULT false NOT NULL,
+    email_verified_at timestamp with time zone DEFAULT now(),
+    email_verification_token_hash text,
+    email_verification_expires_at timestamp with time zone,
     password_reset_token_hash text,
     password_reset_expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -103,8 +106,13 @@ ALTER TABLE public.sessions
     ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone;
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL,
+    ADD COLUMN IF NOT EXISTS email_verified_at timestamp with time zone DEFAULT now(),
+    ADD COLUMN IF NOT EXISTS email_verification_token_hash text,
+    ADD COLUMN IF NOT EXISTS email_verification_expires_at timestamp with time zone,
     ADD COLUMN IF NOT EXISTS password_reset_token_hash text,
     ADD COLUMN IF NOT EXISTS password_reset_expires_at timestamp with time zone;
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_verification_token_hash_idx
+    ON public.users (email_verification_token_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS users_password_reset_token_hash_idx
     ON public.users (password_reset_token_hash);
 

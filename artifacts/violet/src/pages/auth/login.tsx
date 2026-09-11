@@ -56,6 +56,14 @@ export default function LoginPage() {
             : "/pos");
       },
       onError: (error) => {
+        const apiError = error as Error & { data?: { code?: string; email?: string } };
+        if (apiError.data?.code === "EMAIL_NOT_VERIFIED") {
+          if (apiError.data.email) {
+            sessionStorage.setItem("violet_pending_verification_email", apiError.data.email);
+          }
+          setLocation(`/verify-email${apiError.data.email ? `?email=${encodeURIComponent(apiError.data.email)}` : ""}`);
+          return;
+        }
         toast.error(error.message || "Failed to login. Please check your credentials.");
       }
     }

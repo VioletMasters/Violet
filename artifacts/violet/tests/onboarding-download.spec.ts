@@ -25,6 +25,14 @@ const freeAuthResponse = {
   },
 };
 
+const registrationResponse = {
+  email: "owner@free.example",
+  verificationRequired: true,
+  verificationEmailSent: true,
+  user: freeAuthResponse.user,
+  tenant: freeAuthResponse.tenant,
+};
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -64,25 +72,22 @@ async function assertPrimaryActionsFitViewport(page: Page) {
   }
 }
 
-test("free registration lands on the download page with a useful unavailable state", async ({ page }) => {
-  await page.route("**/api/auth/register", (route) => fulfillJson(route, freeAuthResponse, 201));
+test("free registration waits for email verification before entering Violet", async ({ page }) => {
+  await page.route("**/api/auth/register", (route) => fulfillJson(route, registrationResponse, 201));
   await mockRelease404(page);
 
   await page.goto("/register");
   await fillRegistration(page);
   await page.getByRole("button", { name: "Create free account" }).click();
 
-  await expect(page).toHaveURL(/\/download$/);
-  await expect(page.getByRole("heading", { name: "Download Violet before you start selling" })).toBeVisible();
-  await expect(page.getByText("The first stable download is not published yet")).toBeVisible();
-  await expect(
-    page.getByText("Your account is ready. This page will show the download as soon as a stable Violet package is published."),
-  ).toBeVisible();
-  await assertPrimaryActionsFitViewport(page);
+  await expect(page).toHaveURL(/\/verify-email$/);
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  await expect(page.getByText("Confirm your email address before you start using Violet Enterprise.")).toBeVisible();
 });
 
-test("paid registration reaches secure checkout instead of the download page", async ({ page }) => {
-  await page.route("**/api/auth/register", (route) => fulfillJson(route, freeAuthResponse, 201));
+test("paid registration waits for email verification before checkout", async ({ page }) => {
+  await page.route("**/api/auth/register", (route) => fulfillJson(route, registrationResponse, 201));
+  await page.route("**/api/auth/verify-email", (route) => fulfillJson(route, freeAuthResponse));
   await page.route("**/api/billing/checkout", (route) =>
     fulfillJson(route, { checkoutUrl: "https://checkout.violet.test/secure-checkout?plan=professional" }),
   );
@@ -96,7 +101,26 @@ test("paid registration reaches secure checkout instead of the download page", a
 
   await page.goto("/register?plan=professional");
   await fillRegistration(page);
-  await page.getByRole("button", { name: "Continue to Professional checkout" }).click();
+  await page.getByRole("button", { name: "Continue to Professional verification" }).click();
+
+  await expect(page).toHaveURL(/\/verify-email\?plan=professional$/);
+  await expect(page.getByText("Professional checkout will open after verification.")).toBeVisible();
+});
+
+test("verified paid signup opens secure checkout", async ({ page }) => {
+  await page.route("**/api/auth/verify-email", (route) => fulfillJson(route, freeAuthResponse));
+  await page.route("**/api/billing/checkout", (route) =>
+    fulfillJson(route, { checkoutUrl: "https://checkout.violet.test/secure-checkout?plan=professional" }),
+  );
+  await page.route("https://checkout.violet.test/secure-checkout?plan=professional", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<main><h1>Secure checkout</h1></main>",
+    }),
+  );
+
+  await page.goto(`/verify-email?token=${"a".repeat(64)}&plan=professional`);
 
   await expect(page).toHaveURL("https://checkout.violet.test/secure-checkout?plan=professional");
   await expect(page.getByRole("heading", { name: "Secure checkout" })).toBeVisible();

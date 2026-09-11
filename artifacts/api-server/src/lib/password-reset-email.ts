@@ -1,11 +1,11 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import { logger } from "./logger";
+import { publicAppUrl } from "./public-app-url";
 
-const HOSTED_APP_URL = "https://Violetsolutions.replit.app";
 const DEFAULT_EMAIL_FROM = "Violet Enterprise <onboarding@resend.dev>";
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetUrl = new URL("/reset-password", HOSTED_APP_URL);
+  const resetUrl = new URL("/reset-password", publicAppUrl());
   resetUrl.searchParams.set("token", token);
 
   const connectors = new ReplitConnectors();

@@ -43,6 +43,8 @@ import type {
   CustomerUpdate,
   CustomersPage,
   DashboardStats,
+  EmailVerificationInput,
+  EmailVerificationResendInput,
   Employee,
   EmployeeCreated,
   EmployeeInput,
@@ -114,6 +116,7 @@ import type {
   RefundInput,
   RegisterCreateInput,
   RegisterInput,
+  RegistrationResponse,
   ReleaseAsset,
   ReleaseAssetUpdate,
   ReportData,
@@ -260,9 +263,9 @@ export const getRegisterUrl = () => {
 /**
  * @summary Register a new business account
  */
-export const register = async (registerInput: RegisterInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthResponse> => {
+export const register = async (registerInput: RegisterInput, options?: Parameters<typeof customFetch>[1]): Promise<RegistrationResponse> => {
 
-  return customFetch<AuthResponse>(getRegisterUrl(),
+  return customFetch<RegistrationResponse>(getRegisterUrl(),
   {
     ...options,
     method: 'POST',
@@ -318,6 +321,148 @@ export const useRegister = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRegisterMutationOptions(options));
+    }
+
+export const getVerifyEmailUrl = () => {
+
+
+
+
+  return `/api/auth/verify-email`
+}
+
+/**
+ * @summary Verify an email address with a one-time token
+ */
+export const verifyEmail = async (emailVerificationInput: EmailVerificationInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthResponse> => {
+
+  return customFetch<AuthResponse>(getVerifyEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(emailVerificationInput)
+  }
+);}
+
+
+
+
+
+export const getVerifyEmailMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,{data: BodyType<EmailVerificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,{data: BodyType<EmailVerificationInput>}, TContext> => {
+
+const mutationKey = ['verifyEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyEmail>>, {data: BodyType<EmailVerificationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyEmailMutationResult = NonNullable<Awaited<ReturnType<typeof verifyEmail>>>
+    export type VerifyEmailMutationBody = BodyType<EmailVerificationInput>
+    export type VerifyEmailMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Verify an email address with a one-time token
+ */
+export const useVerifyEmail = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,{data: BodyType<EmailVerificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyEmail>>,
+        TError,
+        {data: BodyType<EmailVerificationInput>},
+        TContext
+      > => {
+      return useMutation(getVerifyEmailMutationOptions(options));
+    }
+
+export const getResendEmailVerificationUrl = () => {
+
+
+
+
+  return `/api/auth/resend-verification`
+}
+
+/**
+ * @summary Resend an email verification link
+ */
+export const resendEmailVerification = async (emailVerificationResendInput: EmailVerificationResendInput, options?: Parameters<typeof customFetch>[1]): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getResendEmailVerificationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(emailVerificationResendInput)
+  }
+);}
+
+
+
+
+
+export const getResendEmailVerificationMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendEmailVerification>>, TError,{data: BodyType<EmailVerificationResendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendEmailVerification>>, TError,{data: BodyType<EmailVerificationResendInput>}, TContext> => {
+
+const mutationKey = ['resendEmailVerification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendEmailVerification>>, {data: BodyType<EmailVerificationResendInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resendEmailVerification(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendEmailVerificationMutationResult = NonNullable<Awaited<ReturnType<typeof resendEmailVerification>>>
+    export type ResendEmailVerificationMutationBody = BodyType<EmailVerificationResendInput>
+    export type ResendEmailVerificationMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Resend an email verification link
+ */
+export const useResendEmailVerification = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendEmailVerification>>, TError,{data: BodyType<EmailVerificationResendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendEmailVerification>>,
+        TError,
+        {data: BodyType<EmailVerificationResendInput>},
+        TContext
+      > => {
+      return useMutation(getResendEmailVerificationMutationOptions(options));
     }
 
 export const getLoginUrl = () => {

@@ -193,6 +193,19 @@ export interface PasswordResetInput {
   newPassword: string;
 }
 
+export interface EmailVerificationInput {
+  /**
+     * @minLength 64
+     * @maxLength 128
+     */
+  token: string;
+}
+
+export interface EmailVerificationResendInput {
+  /** @maxLength 320 */
+  email: string;
+}
+
 export interface LicenseVerifyInput {
   email: string;
   password: string;
@@ -310,6 +323,8 @@ export interface UserProfile {
   /** @nullable */
   avatarUrl?: string | null;
   mustChangePassword: boolean;
+  /** @nullable */
+  emailVerifiedAt?: string | null;
   createdAt?: string;
 }
 
@@ -354,6 +369,14 @@ export interface AuthResponse {
   user: UserProfile;
   tenant: Tenant;
   token: string;
+}
+
+export interface RegistrationResponse {
+  user: UserProfile;
+  tenant: Tenant;
+  email: string;
+  verificationRequired: boolean;
+  verificationEmailSent: boolean;
 }
 
 export interface ChangePasswordInput {

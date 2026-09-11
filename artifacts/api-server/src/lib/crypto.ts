@@ -21,6 +21,10 @@ export function hashPasswordResetToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export function hashEmailVerificationToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export function generateTemporaryPassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
   const bytes = randomBytes(16);

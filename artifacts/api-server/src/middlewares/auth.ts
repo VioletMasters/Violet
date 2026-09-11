@@ -28,6 +28,7 @@ export interface AuthUser {
   tenantId: string;
   avatarUrl: string | null;
   mustChangePassword: boolean;
+  emailVerifiedAt: Date | null;
   createdAt: Date;
 }
 
@@ -224,6 +225,7 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
       tenantId: user.tenantId,
       avatarUrl: user.avatarUrl ?? null,
       mustChangePassword: user.mustChangePassword,
+      emailVerifiedAt: user.emailVerifiedAt,
       createdAt: user.createdAt,
     };
     req.tenantId = user.tenantId;
