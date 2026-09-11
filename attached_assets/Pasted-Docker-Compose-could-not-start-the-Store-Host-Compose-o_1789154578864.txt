@@ -1,0 +1,74 @@
+Docker Compose could not start the Store Host.
+
+Compose output:
+ Image store-host-web Built 
+ Network store-host_default Creating 
+ Network store-host_default Created 
+ Container store-host-db-1 Creating 
+ Container store-host-db-1 Created 
+ Container store-host-api-1 Creating 
+ Container store-host-api-1 Created 
+ Container store-host-web-1 Creating 
+ Container store-host-web-1 Created 
+ Container store-host-db-1 Starting 
+ Container store-host-db-1 Started 
+ Container store-host-db-1 Waiting 
+ Container store-host-db-1 Healthy 
+ Container store-host-api-1 Starting 
+ Container store-host-api-1 Started 
+ Container store-host-api-1 Waiting 
+ Container store-host-api-1 Error dependency api failed to start
+dependency failed to start: container store-host-api-1 is unhealthy
+
+Services: api: running (starting), db: running (healthy), web: created
+
+API output:
+api-1  | ▶  Waiting for database...
+api-1  |    Database not ready yet, retrying in 2s... (30 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (29 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (28 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (27 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (26 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (25 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (24 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (23 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (22 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (21 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (20 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (19 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (18 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (17 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (16 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (15 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (14 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (13 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (12 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (11 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (10 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (9 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (8 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (7 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (6 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (5 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (4 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (3 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (2 attempts left)
+api-1  |    Database not ready yet, retrying in 2s... (1 attempts left)
+api-1  | ERROR: Could not connect to the database after multiple retries.
+api-1  |        Check that DATABASE_URL is correct and the database is running.
+api-1  | ▶  Waiting for database...
+api-1  |    Database not ready yet, retrying in 2s... (30 attempts left)
+
+Database output:
+db-1  | 2026-09-11 19:19:35.386 UTC [142] FATAL:  password authentication failed for user "violet"
+db-1  | 2026-09-11 19:19:35.386 UTC [142] DETAIL:  Connection matched file "/var/lib/postgresql/data/pg_hba.conf" line 128: "host all all all scram-sha-256"
+db-1  | 2026-09-11 19:19:37.406 UTC [144] FATAL:  password authentication failed for user "violet"
+db-1  | 2026-09-11 19:19:37.406 UTC [144] DETAIL:  Connection matched file "/var/lib/postgresql/data/pg_hba.conf" line 128: "host all all all scram-sha-256"
+db-1  | 2026-09-11 19:19:39.424 UTC [152] FATAL:  password authentication failed for user "violet"
+db-1  | 2026-09-11 19:19:39.424 UTC [152] DETAIL:  Connection matched file "/var/lib/postgresql/data/pg_hba.conf" line 128: "host all all all scram-sha-256"
+db-1  | 2026-09-11 19:19:41.474 UTC [153] FATAL:  password authentication failed for user "violet"
+db-1  | 2026-09-11 19:19:41.474 UTC [153] DETAIL:  Connection matched file "/var/lib/postgresql/data/pg_hba.conf" line 128: "host all all all scram-sha-256"
+db-1  | 2026-09-11 19:19:43.521 UTC [161] FATAL:  password authentication failed for user "violet"
+db-1  | 2026-09-11 19:19:43.521 UTC [161] DETAIL:  Connection matched file "/var/lib/postgresql/data/pg_hba.conf" line 128: "host all all all scram-sha-256"
+db-1  | 2026-09-11 19:19:43.962 UTC [162] FATAL:  password authentication failed for user "violet"
+db-1  | 2026-09-11 19:19:43.962 UTC [162] DETAIL:  Connection matched file "/var/lib/postgresql/data/pg_hba.conf" line 128: "host all all all scram-sha-256"
