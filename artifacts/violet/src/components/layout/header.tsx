@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, Moon, Sun, User } from "lucide-react";
@@ -15,7 +17,12 @@ import { useLogout } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
-export function Header() {
+type HeaderProps = {
+  hasActiveShift: boolean;
+  onClockOut: () => void;
+};
+
+export function Header({ hasActiveShift, onClockOut }: HeaderProps) {
   const { user, tenant, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [, setLocation] = useLocation();
@@ -73,15 +80,37 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex items-center gap-2 text-sm">
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground border">
-            <User className="w-4 h-4" />
-          </div>
-          <div className="hidden sm:block">
-            <div className="font-medium leading-none">{user?.firstName} {user?.lastName}</div>
-            <div className="text-xs text-muted-foreground mt-1 capitalize">{user?.role.replace('_', ' ')}</div>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Open account menu"
+            >
+              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground border">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="hidden sm:block">
+                <div className="font-medium leading-none">{user?.firstName} {user?.lastName}</div>
+                <div className="text-xs text-muted-foreground mt-1 capitalize">{user?.role.replace('_', ' ')}</div>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="font-medium">{user?.firstName} {user?.lastName}</div>
+              <div className="text-xs font-normal text-muted-foreground capitalize">{user?.role.replace('_', ' ')}</div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={!hasActiveShift}
+              onSelect={onClockOut}
+            >
+              <LogOut className="h-4 w-4" />
+              {hasActiveShift ? "Clock out & settle" : "No active cashier day"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         
         <Button 
           variant="ghost" 

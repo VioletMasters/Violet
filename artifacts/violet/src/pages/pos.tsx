@@ -18,10 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   getGetCurrentRegisterShiftQueryKey,
   getListPosProductsQueryKey,
-  getListRegisterShiftsQueryKey,
   listPosProducts,
   useConfirmManagerPassword,
-  useCloseRegisterShift,
   useCreateSale,
   useGetCurrentRegisterShift,
   useGetPosTaxSettings,
@@ -30,7 +28,7 @@ import {
   useOpenRegisterShift,
   useRetryPrintJob,
 } from "@workspace/api-client-react";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ArrowLeftRight, Package, Clock3, LogIn, LogOut } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ArrowLeftRight, Package, Clock3, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -76,8 +74,6 @@ type RegisterShift = {
   cashierId: string;
   openingCash: string | number;
   expectedCash?: string | number | null;
-  closingCash?: string | number | null;
-  variance?: string | number | null;
   openedAt: string;
 };
 
@@ -114,9 +110,7 @@ export default function POSPage() {
   const [stockConflict, setStockConflict] = useState<StockConflict | null>(null);
   const [openingCash, setOpeningCash] = useState("");
   const [selectedRegisterId, setSelectedRegisterId] = useState("");
-  const [closingCash, setClosingCash] = useState("");
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
-  const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const checkoutAttemptKey = React.useRef<string | null>(null);
   const queryClient = useQueryClient();
   const retryPrintJob = useRetryPrintJob({
@@ -164,24 +158,6 @@ export default function POSPage() {
         toast.success("Cashier day started.");
       },
       onError: (error) => toast.error(error.message || "Could not start the cashier day."),
-    },
-  });
-
-  const closeShift = useCloseRegisterShift({
-    mutation: {
-      onSuccess: (shift) => {
-        queryClient.invalidateQueries({ queryKey: getGetCurrentRegisterShiftQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListRegisterShiftsQueryKey() });
-        setClosingCash("");
-        setSettlementDialogOpen(false);
-        const settledShift = shift as RegisterShift;
-        toast.success(
-          `Settlement complete. Expected ${formatCurrency(Number(settledShift.expectedCash ?? 0))}; ` +
-          `counted ${formatCurrency(Number(settledShift.closingCash ?? 0))}; ` +
-          `variance ${formatCurrency(Number(settledShift.variance ?? 0))}.`,
-        );
-      },
-      onError: (error) => toast.error(error.message || "Could not settle the cashier day."),
     },
   });
 
@@ -463,16 +439,6 @@ export default function POSPage() {
     openShift.mutate({ data: { registerId: selectedRegisterId, openingCash: amount } });
   };
 
-  const handleSettleShift = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const amount = Number(closingCash);
-    if (!currentShift || !Number.isFinite(amount) || amount < 0) {
-      toast.error("Enter the physical cash counted at clock out.");
-      return;
-    }
-    closeShift.mutate({ id: currentShift.id, data: { closingCash: amount } });
-  };
-
   React.useEffect(() => {
     if (!paymentCompletion) return;
 
@@ -508,9 +474,7 @@ export default function POSPage() {
               </div>
             </div>
             {currentShift ? (
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => setSettlementDialogOpen(true)}>
-                <LogOut className="h-4 w-4" /> Clock out & settle
-              </Button>
+              <span className="text-xs text-muted-foreground">Clock out from your profile menu</span>
             ) : (
               <Button size="sm" className="gap-2" onClick={() => setShiftDialogOpen(true)} disabled={registers.length === 0}>
                 <LogIn className="h-4 w-4" /> Start day
@@ -717,32 +681,6 @@ export default function POSPage() {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShiftDialogOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={openShift.isPending}>{openShift.isPending ? "Starting..." : "Start day"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={settlementDialogOpen}
-        onOpenChange={setSettlementDialogOpen}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Clock out & settle</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-5" onSubmit={handleSettleShift}>
-            <p className="text-sm text-muted-foreground">Count all physical cash in the drawer and enter the amount before closing this cashier day.</p>
-            <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Opening float</span><span className="font-medium">{formatCurrency(Number(currentShift?.openingCash ?? 0))}</span></div>
-              <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Expected cash</span><span className="font-medium">Calculated at settlement</span></div>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="closing-cash" className="text-sm font-medium">Physical cash counted</label>
-              <Input id="closing-cash" type="number" min="0" step="0.01" value={closingCash} onChange={(event) => setClosingCash(event.target.value)} placeholder="0.00" required autoFocus />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setSettlementDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={closeShift.isPending}>{closeShift.isPending ? "Settling..." : "Clock out"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

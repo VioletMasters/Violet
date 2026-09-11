@@ -4,6 +4,11 @@ import { useGetMe } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { CashierShiftDialog, type CashierShift } from "./cashier-shift-dialog";
+import {
+  getGetCurrentRegisterShiftQueryKey,
+  useGetCurrentRegisterShift,
+} from "@workspace/api-client-react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +16,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { token, tenant, user, logout, isManagerAccessActive } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
+  const [settlementDialogOpen, setSettlementDialogOpen] = React.useState(false);
+  const { data: currentShiftResponse } = useGetCurrentRegisterShift({
+    query: {
+      queryKey: getGetCurrentRegisterShiftQueryKey(),
+      enabled: Boolean(token),
+    },
+  });
+  const currentShift = (currentShiftResponse as { shift?: CashierShift | null } | undefined)?.shift ?? null;
   
   // Verify token
   const { data: me, error } = useGetMe({
@@ -72,7 +85,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header />
+          <Header
+            hasActiveShift={Boolean(currentShift)}
+            onClockOut={() => setSettlementDialogOpen(true)}
+          />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           {showBackButton && (
             <div className="mb-5">
@@ -90,6 +106,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <CashierShiftDialog
+        open={settlementDialogOpen}
+        onOpenChange={setSettlementDialogOpen}
+        currentShift={currentShift}
+      />
     </div>
   );
 }
