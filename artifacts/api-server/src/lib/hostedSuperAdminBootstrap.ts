@@ -1,11 +1,13 @@
-import { db, tenantsTable, usersTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { auditEventsTable, db, tenantsTable, usersTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
 import { hashPassword } from "./crypto";
 import { logger } from "./logger";
 import { isSelfHostedRuntime } from "./remoteLicense";
 
 const BOOTSTRAP_EMAIL_KEY = "VIOLET_BOOTSTRAP_ADMIN_EMAIL";
 const BOOTSTRAP_PASSWORD_KEY = "VIOLET_BOOTSTRAP_ADMIN_PASSWORD";
+const ONE_TIME_RESET_EMAIL_KEY = "VIOLET_ONE_TIME_ADMIN_RESET_EMAIL";
+const ONE_TIME_RESET_ACTION = "one_time_hosted_admin_reset";
 const MIN_PASSWORD_LENGTH = 12;
 
 interface BootstrapCredentials {
@@ -129,4 +131,93 @@ export async function bootstrapHostedSuperAdmin(): Promise<boolean> {
   }
 
   return created;
+}
+
+function readOneTimeAdminResetEmail(): string | null {
+  if (process.env.NODE_ENV !== "production" || isSelfHostedRuntime()) {
+    return null;
+  }
+
+  const email = process.env[ONE_TIME_RESET_EMAIL_KEY]?.trim().toLowerCase();
+  if (!email) {
+    return null;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error(`${ONE_TIME_RESET_EMAIL_KEY} must be a valid email address.`);
+  }
+
+  return email;
+}
+
+export async function applyOneTimeHostedAdminReset(): Promise<boolean> {
+  const email = readOneTimeAdminResetEmail();
+  if (!email) {
+    return false;
+  }
+
+  const applied = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext('violet:one-time-hosted-admin-reset'))`,
+    );
+
+    const [user] = await tx
+      .select({
+        id: usersTable.id,
+        tenantId: usersTable.tenantId,
+        role: usersTable.role,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
+
+    if (!user) {
+      logger.warn({ email }, "One-time hosted admin reset target was not found.");
+      return false;
+    }
+
+    const [consumed] = await tx
+      .select({ id: auditEventsTable.id })
+      .from(auditEventsTable)
+      .where(and(
+        eq(auditEventsTable.action, ONE_TIME_RESET_ACTION),
+        eq(auditEventsTable.entityType, "user"),
+        eq(auditEventsTable.entityId, user.id),
+      ))
+      .limit(1);
+
+    if (consumed) {
+      return false;
+    }
+
+    await tx
+      .update(usersTable)
+      .set({
+        role: "super_admin",
+        isActive: "true",
+        updatedAt: new Date(),
+      })
+      .where(eq(usersTable.id, user.id));
+
+    await tx.insert(auditEventsTable).values({
+      tenantId: user.tenantId,
+      actorId: null,
+      storeId: null,
+      action: ONE_TIME_RESET_ACTION,
+      entityType: "user",
+      entityId: user.id,
+      reason: "One-time hosted admin reset",
+    });
+
+    return true;
+  });
+
+  if (applied) {
+    logger.info(
+      "One-time hosted admin reset completed. Remove VIOLET_ONE_TIME_ADMIN_RESET_EMAIL after confirming access.",
+    );
+  } else {
+    logger.info("One-time hosted admin reset skipped because it was already consumed.");
+  }
+
+  return applied;
 }
