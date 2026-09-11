@@ -14,6 +14,7 @@ import {
   useUpdateCategory,
   useUpdateProduct,
   useImportProducts,
+  exportProducts,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -279,6 +280,7 @@ export default function ProductsPage() {
   const [importRows, setImportRows] = useState<ProductImportRow[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [priceMode, setPriceMode] = useState<"manual" | "markup">("manual");
   const [markupPercentage, setMarkupPercentage] = useState("");
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -462,6 +464,25 @@ export default function ProductsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadProducts = async () => {
+    setIsExporting(true);
+    try {
+      const csv = await exportProducts({ responseType: "text" });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "violet-products.csv";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${productsData?.total ?? 0} products`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not download products");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const openEdit = (product: Product) => {
     setEditingProduct(product);
     setPriceMode("manual");
@@ -547,6 +568,9 @@ export default function ProductsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-display font-bold tracking-tight">Products</h1>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={downloadProducts} disabled={isExporting} className="gap-2" title="Download the complete product catalog">
+            <Download className="w-4 h-4" /> {isExporting ? "Preparing..." : "Download CSV"}
+          </Button>
           <Button variant="outline" onClick={openImport} className="gap-2">
             <Upload className="w-4 h-4" /> Import CSV
           </Button>

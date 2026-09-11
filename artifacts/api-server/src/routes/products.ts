@@ -156,6 +156,59 @@ router.get("/products", requireManagerAccess, async (req, res): Promise<void> =>
   });
 });
 
+// GET /products/export — download the complete tenant catalog in the same
+// normalized CSV shape accepted by POST /products/import.
+router.get("/products/export", requireManagerAccess, async (req, res): Promise<void> => {
+  const tenantId = req.tenantId!;
+  const rows = await db.select({
+    p: productsTable,
+    catName: categoriesTable.name,
+    brandName: brandsTable.name,
+  })
+    .from(productsTable)
+    .leftJoin(categoriesTable, and(eq(productsTable.categoryId, categoriesTable.id), eq(categoriesTable.tenantId, tenantId)))
+    .leftJoin(brandsTable, and(eq(productsTable.brandId, brandsTable.id), eq(brandsTable.tenantId, tenantId)))
+    .where(eq(productsTable.tenantId, tenantId))
+    .orderBy(desc(productsTable.createdAt));
+
+  const csvEscape = (value: unknown) => `"${String(value ?? "").replace(/"/g, "\"\"")}"`;
+  const header = [
+    "Name",
+    "SKU",
+    "Barcode",
+    "Price",
+    "Cost Price",
+    "Stock",
+    "Minimum Stock",
+    "Category",
+    "Brand",
+    "Description",
+    "Print Destination",
+    "Warehouse Location",
+  ];
+  const lines = [
+    header.map(csvEscape).join(","),
+    ...rows.map(({ p, catName, brandName }) => [
+      p.name,
+      p.sku,
+      p.barcode,
+      p.price,
+      p.costPrice,
+      p.stock,
+      p.minStock,
+      catName,
+      brandName,
+      p.description,
+      p.printDestination,
+      p.warehouseLocation,
+    ].map(csvEscape).join(",")),
+  ];
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="violet-products.csv"');
+  res.send(`\uFEFF${lines.join("\r\n")}\r\n`);
+});
+
 // POST /products
 router.post("/products", requireManagerAccess, async (req, res): Promise<void> => {
   const tenantId = req.tenantId!;

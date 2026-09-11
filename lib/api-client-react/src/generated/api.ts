@@ -1583,6 +1583,83 @@ export const useCreateProduct = <TError = ErrorType<unknown>,
       return useMutation(getCreateProductMutationOptions(options));
     }
 
+export const getExportProductsUrl = () => {
+
+
+
+
+  return `/api/products/export`
+}
+
+/**
+ * @summary Export the complete product catalog as CSV
+ */
+export const exportProducts = async ( options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getExportProductsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportProductsQueryKey = () => {
+    return [
+    `/api/products/export`
+    ] as const;
+    }
+
+
+export const getExportProductsQueryOptions = <TData = Awaited<ReturnType<typeof exportProducts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportProducts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportProductsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportProducts>>> = ({ signal }) => exportProducts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportProducts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportProductsQueryResult = NonNullable<Awaited<ReturnType<typeof exportProducts>>>
+export type ExportProductsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Export the complete product catalog as CSV
+ */
+
+export function useExportProducts<TData = Awaited<ReturnType<typeof exportProducts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportProducts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportProductsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getImportProductsUrl = () => {
 
 

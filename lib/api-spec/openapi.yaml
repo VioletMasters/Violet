@@ -491,6 +491,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Product"
 
+  /products/export:
+    get:
+      operationId: exportProducts
+      tags: [products]
+      summary: Export the complete product catalog as CSV
+      responses:
+        "200":
+          description: Complete product catalog CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
   /products/import:
     post:
       operationId: importProducts

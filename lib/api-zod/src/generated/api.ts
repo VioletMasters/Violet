@@ -555,6 +555,12 @@ export const CreateProductResponse = zod.object({
 
 
 /**
+ * @summary Export the complete product catalog as CSV
+ */
+export const ExportProductsResponse = zod.unknown()
+
+
+/**
  * @summary Import products from normalized CSV rows
  */
 export const importProductsBodyRowsMax = 5000;
