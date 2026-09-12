@@ -29,5 +29,8 @@ WHOP_PLAN_STARTER = "plan_kuPVDFTDfLPEu"
 WHOP_PRODUCT_ID = "prod_keK8sXeY9P2le"
 VIOLET_ONE_TIME_ADMIN_RESET_EMAIL = "kevaughnks1@gmail.com"
 
+[userenv.production]
+VIOLET_EMAIL_FROM = "Violet Enterprise <no-reply@violetenterprise.online>"
+
 [nix]
 channel = "stable-25_05"
