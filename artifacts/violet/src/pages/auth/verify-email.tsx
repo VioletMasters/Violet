@@ -4,11 +4,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  createBillingCheckout,
   useResendEmailVerification,
   useVerifyEmail,
 } from "@workspace/api-client-react";
-import { useAuth } from "@/hooks/use-auth";
 import { getRequestedPaidTier, planLabel } from "@/lib/billing";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,38 +20,23 @@ const resendSchema = z.object({
 type ResendForm = z.infer<typeof resendSchema>;
 
 function continueAfterVerification(
-  setAuth: ReturnType<typeof useAuth>["setAuth"],
-  setLocation: (path: string) => void,
-  data: Awaited<ReturnType<typeof import("@workspace/api-client-react").verifyEmail>>,
   selectedTier: ReturnType<typeof getRequestedPaidTier>,
-  setIsOpeningCheckout: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
-  setAuth(data.user, data.tenant, data.token);
   sessionStorage.removeItem("violet_pending_verification_email");
-  if (selectedTier) {
-    setIsOpeningCheckout(true);
-    void createBillingCheckout({ tier: selectedTier }).then(
-      (checkout) => window.location.assign(checkout.checkoutUrl),
-      (error) => {
-        toast.error(error instanceof Error ? error.message : "Secure checkout is unavailable.");
-        setLocation(`/subscription?checkout=error&tier=${selectedTier}`);
-      },
-    );
-    return;
-  }
-  setLocation("/download");
+  const loginUrl = selectedTier
+    ? `/login?plan=${encodeURIComponent(selectedTier)}`
+    : "/login";
+  window.location.assign(loginUrl);
 }
 
 export default function VerifyEmailPage() {
   const [, setLocation] = useLocation();
-  const { setAuth } = useAuth();
   const selectedTier = getRequestedPaidTier();
   const token = React.useMemo(
     () => new URLSearchParams(window.location.search).get("token")?.trim() ?? "",
     [],
   );
   const tokenIsValidShape = /^[a-f0-9]{64}$/i.test(token);
-  const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   const [verificationStarted, setVerificationStarted] = React.useState(false);
   const [pendingEmail] = React.useState(() => {
     const queryEmail = new URLSearchParams(window.location.search).get("email")?.trim() ?? "";
@@ -66,9 +49,8 @@ export default function VerifyEmailPage() {
 
   const verifyMutation = useVerifyEmail({
     mutation: {
-      onSuccess: (data) => {
-        toast.success("Email verified. Welcome to Violet Enterprise.");
-        continueAfterVerification(setAuth, setLocation, data, selectedTier, setIsOpeningCheckout);
+      onSuccess: () => {
+        continueAfterVerification(selectedTier);
       },
       onError: (error) => toast.error(error.message || "This verification link is invalid or expired."),
     },
@@ -151,7 +133,7 @@ export default function VerifyEmailPage() {
                 />
                 {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
               </div>
-              <Button type="submit" className="w-full h-11" disabled={resendMutation.isPending || isOpeningCheckout}>
+              <Button type="submit" className="w-full h-11" disabled={resendMutation.isPending}>
                 {resendMutation.isPending ? "Sending verification email..." : "Resend verification email"}
               </Button>
             </form>

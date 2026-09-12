@@ -107,23 +107,23 @@ test("paid registration waits for email verification before checkout", async ({ 
   await expect(page.getByText("Professional checkout will open after verification.")).toBeVisible();
 });
 
-test("verified paid signup opens secure checkout", async ({ page }) => {
+test("verified free signup reloads to sign in", async ({ page }) => {
   await page.route("**/api/auth/verify-email", (route) => fulfillJson(route, freeAuthResponse));
-  await page.route("**/api/billing/checkout", (route) =>
-    fulfillJson(route, { checkoutUrl: "https://checkout.violet.test/secure-checkout?plan=professional" }),
-  );
-  await page.route("https://checkout.violet.test/secure-checkout?plan=professional", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "text/html",
-      body: "<main><h1>Secure checkout</h1></main>",
-    }),
-  );
+
+  await page.goto(`/verify-email?token=${"a".repeat(64)}`);
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Sign in to Violet" })).toBeVisible();
+});
+
+test("verified paid signup reloads to sign in with checkout plan", async ({ page }) => {
+  await page.route("**/api/auth/verify-email", (route) => fulfillJson(route, freeAuthResponse));
 
   await page.goto(`/verify-email?token=${"a".repeat(64)}&plan=professional`);
 
-  await expect(page).toHaveURL("https://checkout.violet.test/secure-checkout?plan=professional");
-  await expect(page.getByRole("heading", { name: "Secure checkout" })).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?plan=professional$/);
+  await expect(page.getByRole("heading", { name: "Sign in to Violet" })).toBeVisible();
+  await expect(page.getByText("Sign in to continue to Professional checkout")).toBeVisible();
 });
 
 test("existing login lands on the browser POS", async ({ page }) => {
