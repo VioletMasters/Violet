@@ -203,6 +203,8 @@ CREATE TABLE IF NOT EXISTS public.products (
     stock integer DEFAULT 0 NOT NULL,
     min_stock integer DEFAULT 5 NOT NULL,
     image_url text,
+    print_destination text DEFAULT 'customer_receipt'::text NOT NULL,
+    warehouse_location text,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
@@ -212,6 +214,8 @@ CREATE TABLE IF NOT EXISTS public.products (
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS require_manager_password_for_cart_removal boolean DEFAULT false NOT NULL;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS show_voided_items boolean DEFAULT false NOT NULL;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS brand_id uuid;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS print_destination text DEFAULT 'customer_receipt'::text NOT NULL;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS warehouse_location text;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS currency text DEFAULT 'JMD'::text NOT NULL;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS whop_plan_id text;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS checkout_price numeric(10,2) DEFAULT '0'::numeric NOT NULL;
