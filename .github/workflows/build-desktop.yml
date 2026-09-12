@@ -11,6 +11,49 @@ permissions:
   contents: read
 
 jobs:
+  product-schema-upgrade-regression:
+    name: Store Host product schema upgrade regression
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: violet
+          POSTGRES_PASSWORD: violetpass
+          POSTGRES_DB: violetdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U violet -d violetdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies (reproducible)
+        run: pnpm install --frozen-lockfile
+
+      - name: Run legacy product schema upgrade regression
+        env:
+          DATABASE_URL: postgresql://violet:violetpass@127.0.0.1:5432/violetdb
+          SESSION_SECRET: product-schema-upgrade-harness-session-secret
+        run: pnpm --filter @workspace/api-server run test:product-schema-upgrade
+
   offline-license-regression:
     name: Offline Store Host licensing regression
     runs-on: ubuntu-latest
@@ -74,7 +117,9 @@ jobs:
 
   build:
     name: ${{ matrix.name }}
-    needs: offline-license-regression
+    needs:
+      - product-schema-upgrade-regression
+      - offline-license-regression
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

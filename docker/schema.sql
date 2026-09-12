@@ -466,24 +466,27 @@ CREATE INDEX IF NOT EXISTS sales_tenant_cashier_created_idx ON public.sales (ten
 CREATE UNIQUE INDEX IF NOT EXISTS sales_tenant_idempotency_uidx ON public.sales (tenant_id, idempotency_key);
 CREATE INDEX IF NOT EXISTS inventory_movements_tenant_created_idx ON public.inventory_movements (tenant_id, created_at);
 
--- Primary keys (IF NOT EXISTS not supported for constraints; wrapped in DO blocks)
-DO $$ BEGIN ALTER TABLE ONLY public.tenants ADD CONSTRAINT tenants_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.tenants ADD CONSTRAINT tenants_email_unique UNIQUE (email); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.subscription_plans ADD CONSTRAINT subscription_plans_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_tenant_id_unique UNIQUE (tenant_id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.users ADD CONSTRAINT users_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_unique UNIQUE (email); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.sessions ADD CONSTRAINT sessions_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.sessions ADD CONSTRAINT sessions_token_unique UNIQUE (token); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.settings ADD CONSTRAINT settings_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.settings ADD CONSTRAINT settings_tenant_id_unique UNIQUE (tenant_id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.categories ADD CONSTRAINT categories_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.brands ADD CONSTRAINT brands_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.products ADD CONSTRAINT products_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.customers ADD CONSTRAINT customers_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.sales ADD CONSTRAINT sales_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.sale_items ADD CONSTRAINT sale_items_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.inventory_movements ADD CONSTRAINT inventory_movements_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.employees ADD CONSTRAINT employees_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE ONLY public.suppliers ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+-- Primary keys (IF NOT EXISTS not supported for constraints; wrapped in DO blocks).
+-- A legacy table can already have its primary key, which PostgreSQL reports as
+-- invalid_table_definition rather than duplicate_object when the same key is
+-- added again.
+DO $$ BEGIN ALTER TABLE ONLY public.tenants ADD CONSTRAINT tenants_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.tenants ADD CONSTRAINT tenants_email_unique UNIQUE (email); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.subscription_plans ADD CONSTRAINT subscription_plans_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_tenant_id_unique UNIQUE (tenant_id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.users ADD CONSTRAINT users_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_unique UNIQUE (email); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.sessions ADD CONSTRAINT sessions_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.sessions ADD CONSTRAINT sessions_token_unique UNIQUE (token); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.settings ADD CONSTRAINT settings_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.settings ADD CONSTRAINT settings_tenant_id_unique UNIQUE (tenant_id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.categories ADD CONSTRAINT categories_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.brands ADD CONSTRAINT brands_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.products ADD CONSTRAINT products_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.customers ADD CONSTRAINT customers_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.sales ADD CONSTRAINT sales_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.sale_items ADD CONSTRAINT sale_items_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.inventory_movements ADD CONSTRAINT inventory_movements_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.employees ADD CONSTRAINT employees_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE ONLY public.suppliers ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id); EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;

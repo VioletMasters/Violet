@@ -7,4 +7,4 @@ Keep the self-hosted database bootstrap SQL in step with Drizzle schema changes,
 
 **Why:** LAN deployments initialize and upgrade their PostgreSQL database through the Docker bootstrap SQL. Updating only the application schema can leave self-hosted installations missing newly queried tables or columns.
 
-**How to apply:** When adding or changing persisted application data, update both schema definitions and the bootstrap SQL with safe `CREATE ... IF NOT EXISTS` or `ALTER ... ADD COLUMN IF NOT EXISTS` statements as appropriate.
+**How to apply:** When adding or changing persisted application data, update both schema definitions and the bootstrap SQL with safe `CREATE ... IF NOT EXISTS` or `ALTER ... ADD COLUMN IF NOT EXISTS` statements as appropriate. Constraint guards must also handle PostgreSQL's `invalid_table_definition` when a legacy table already has a primary key.
