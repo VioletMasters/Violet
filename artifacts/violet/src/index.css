@@ -105,6 +105,16 @@
   --sidebar-accent: 262 30% 18%;
   --sidebar-accent-foreground: 0 0% 100%;
 
+  /* POS product options use a blue surface in light mode so they remain
+     visually distinct from the neutral product grid background. */
+  --pos-product-background: 214 100% 97%;
+  --pos-product-border: 213 82% 82%;
+  --pos-product-hover-background: 214 100% 94%;
+  --pos-product-hover-border: 213 78% 62%;
+  --pos-product-price: 221 83% 45%;
+  --pos-product-stock-background: 214 95% 90%;
+  --pos-product-stock-foreground: 221 83% 35%;
+
   --app-font-sans: 'Inter', sans-serif;
   --app-font-display: 'Outfit', sans-serif;
   --app-font-mono: 'JetBrains Mono', monospace;
@@ -154,6 +164,39 @@
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 262 30% 14%;
   --sidebar-accent-foreground: 0 0% 100%;
+
+  --pos-product-background: 262 35% 9%;
+  --pos-product-border: 262 30% 16%;
+  --pos-product-hover-background: 262 35% 12%;
+  --pos-product-hover-border: 262.1 83.3% 57.8%;
+  --pos-product-price: 262.1 83.3% 70%;
+  --pos-product-stock-background: 262 30% 14%;
+  --pos-product-stock-foreground: 262 10% 98%;
+}
+
+.pos-product-card {
+  background-color: hsl(var(--pos-product-background));
+  border-color: hsl(var(--pos-product-border));
+}
+
+.pos-product-card:not(:disabled):hover {
+  background-color: hsl(var(--pos-product-hover-background));
+  border-color: hsl(var(--pos-product-hover-border));
+}
+
+.pos-product-card-price {
+  color: hsl(var(--pos-product-price));
+}
+
+.pos-product-card-stock {
+  background-color: hsl(var(--pos-product-stock-background));
+  color: hsl(var(--pos-product-stock-foreground));
+  border-color: transparent;
+}
+
+.dark .pos-product-card-stock {
+  background-color: hsl(var(--pos-product-stock-background));
+  color: hsl(var(--pos-product-stock-foreground));
 }
 
 @layer base {

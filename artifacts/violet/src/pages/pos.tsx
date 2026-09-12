@@ -514,13 +514,16 @@ export default function POSPage() {
                   disabled={product.stock <= 0}
                   className={`text-left flex flex-col p-4 rounded-xl border transition-all ${
                     product.stock <= 0 
-                      ? "opacity-50 cursor-not-allowed border-border/50 bg-background" 
-                      : "bg-card hover:border-primary/50 hover:shadow-md active:scale-[0.98] border-border/50"
+                      ? "pos-product-card pos-product-card-disabled opacity-50 cursor-not-allowed" 
+                      : "pos-product-card hover:shadow-md active:scale-[0.98]"
                   }`}
                 >
                   <div className="flex justify-between items-start w-full mb-2">
-                    <span className="font-semibold text-primary">{formatCurrency(product.price)}</span>
-                    <Badge variant={product.stock > 10 ? "secondary" : product.stock > 0 ? "warning" : "destructive"}>
+                    <span className="pos-product-card-price font-semibold">{formatCurrency(product.price)}</span>
+                    <Badge
+                      className="pos-product-card-stock"
+                      variant={product.stock > 10 ? "secondary" : product.stock > 0 ? "warning" : "destructive"}
+                    >
                       {product.stock} in stock
                     </Badge>
                   </div>
