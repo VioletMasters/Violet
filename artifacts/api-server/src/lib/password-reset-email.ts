@@ -5,7 +5,7 @@ import { sendResendEmail } from "./resend-email";
 const DEFAULT_EMAIL_FROM = "Violet Enterprise <onboarding@resend.dev>";
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetUrl = new URL("/reset-password", publicAppUrl());
+  const resetUrl = new URL("/pos/reset-password", publicAppUrl());
   resetUrl.searchParams.set("token", token);
 
   const response = await sendResendEmail({

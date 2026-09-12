@@ -23,9 +23,8 @@ function continueAfterVerification(
   selectedTier: ReturnType<typeof getRequestedPaidTier>,
 ) {
   sessionStorage.removeItem("violet_pending_verification_email");
-  const loginUrl = selectedTier
-    ? `/login?plan=${encodeURIComponent(selectedTier)}`
-    : "/login";
+  const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const loginUrl = `${appBasePath}/login${selectedTier ? `?plan=${encodeURIComponent(selectedTier)}` : ""}`;
   window.location.assign(loginUrl);
 }
 

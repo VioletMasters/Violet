@@ -9,7 +9,7 @@ export async function sendEmailVerificationEmail(
   token: string,
   requestedPaidTier?: string | null,
 ) {
-  const verificationUrl = new URL("/verify-email", publicAppUrl());
+  const verificationUrl = new URL("/pos/verify-email", publicAppUrl());
   verificationUrl.searchParams.set("token", token);
   if (requestedPaidTier) verificationUrl.searchParams.set("plan", requestedPaidTier);
 
