@@ -1,6 +1,6 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
 import { logger } from "./logger";
 import { publicAppUrl } from "./public-app-url";
+import { sendResendEmail } from "./resend-email";
 
 const DEFAULT_EMAIL_FROM = "Violet Enterprise <onboarding@resend.dev>";
 
@@ -8,11 +8,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   const resetUrl = new URL("/reset-password", publicAppUrl());
   resetUrl.searchParams.set("token", token);
 
-  const connectors = new ReplitConnectors();
-  const response = await connectors.proxy("resend", "/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const response = await sendResendEmail({
       from: process.env.VIOLET_EMAIL_FROM?.trim() || DEFAULT_EMAIL_FROM,
       to: [email],
       subject: "Reset your Violet password",
@@ -28,7 +24,6 @@ export async function sendPasswordResetEmail(email: string, token: string) {
         </div>
       `,
       text: `Reset your Violet password: ${resetUrl.toString()}\n\nThis link expires in 30 minutes and can only be used once. If you did not request it, ignore this email.`,
-    }),
   });
 
   if (!response.ok) {

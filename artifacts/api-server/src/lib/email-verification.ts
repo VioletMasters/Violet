@@ -1,6 +1,6 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
 import { logger } from "./logger";
 import { publicAppUrl } from "./public-app-url";
+import { sendResendEmail } from "./resend-email";
 
 const DEFAULT_EMAIL_FROM = "Violet Enterprise <onboarding@resend.dev>";
 
@@ -13,11 +13,7 @@ export async function sendEmailVerificationEmail(
   verificationUrl.searchParams.set("token", token);
   if (requestedPaidTier) verificationUrl.searchParams.set("plan", requestedPaidTier);
 
-  const connectors = new ReplitConnectors();
-  const response = await connectors.proxy("resend", "/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const response = await sendResendEmail({
       from: process.env.VIOLET_EMAIL_FROM?.trim() || DEFAULT_EMAIL_FROM,
       to: [email],
       subject: "Verify your Violet Enterprise email",
@@ -35,7 +31,6 @@ export async function sendEmailVerificationEmail(
         </div>
       `,
       text: `Verify your Violet Enterprise email: ${verificationUrl.toString()}\n\nThis link expires in 24 hours and can only be used once. If you did not create this account, ignore this email.`,
-    }),
   });
 
   if (!response.ok) {
