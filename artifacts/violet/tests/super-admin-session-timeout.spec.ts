@@ -49,6 +49,40 @@ const ownerAuth = {
   },
 };
 
+const firstTenantAuth = {
+  ...ownerAuth,
+  token: "hosted-first-tenant-session",
+  user: {
+    ...ownerAuth.user,
+    id: "first-tenant-owner",
+    email: "first-owner@violet.test",
+    tenantId: "first-tenant",
+  },
+  tenant: {
+    ...ownerAuth.tenant,
+    id: "first-tenant",
+    name: "First Tenant",
+    email: "first-owner@violet.test",
+  },
+};
+
+const secondTenantAuth = {
+  ...ownerAuth,
+  token: "hosted-second-tenant-session",
+  user: {
+    ...ownerAuth.user,
+    id: "second-tenant-owner",
+    email: "second-owner@violet.test",
+    tenantId: "second-tenant",
+  },
+  tenant: {
+    ...ownerAuth.tenant,
+    id: "second-tenant",
+    name: "Second Tenant",
+    email: "second-owner@violet.test",
+  },
+};
+
 async function installAuthMocks(
   page: Page,
   auth: typeof superAdminAuth,
@@ -82,6 +116,64 @@ async function installAuthMocks(
     await page.addInitScript((authState: typeof superAdminAuth) => {
       localStorage.setItem("violet_auth", JSON.stringify(authState));
     }, auth);
+  }
+}
+
+async function installTenantSwitchMocks(page: Page, options: { seedAuth?: boolean } = {}) {
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    const token = route.request().headers().authorization?.replace(/^Bearer\s+/i, "");
+    const auth = token === secondTenantAuth.token ? secondTenantAuth : firstTenantAuth;
+
+    if (url.pathname === "/api/auth/me") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(auth),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/pos/products") {
+      if (auth === secondTenantAuth) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [{
+            id: `${auth.tenant.id}-product`,
+            name: `${auth.tenant.name} Product`,
+            sku: `${auth.tenant.id}-sku`,
+            price: 12.5,
+            stock: 10,
+          }],
+          total: 1,
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        url.pathname === "/api/settings/pos-tax"
+          ? { taxRate: 0, taxName: "Tax", currency: "USD" }
+          : url.pathname === "/api/register-shifts/current"
+            ? { shift: null }
+            : url.pathname === "/api/registers"
+              ? { data: [] }
+              : [],
+      ),
+    });
+  });
+
+  if (options.seedAuth !== false) {
+    await page.addInitScript((authState: typeof firstTenantAuth) => {
+      localStorage.setItem("violet_auth", JSON.stringify(authState));
+    }, firstTenantAuth);
   }
 }
 
@@ -149,6 +241,24 @@ test("signs in an already-open login tab when another tab creates a session", as
   await expect(page).toHaveURL(/\/pos$/);
   await expect(page.getByText("Store Owner")).toBeVisible();
 
+  await otherPage.close();
+});
+
+test("clears the previous tenant's POS data before the replacement tenant responds", async ({ page, context }) => {
+  await installTenantSwitchMocks(page);
+  await page.goto("/pos");
+  await expect(page.getByText("First Tenant Product")).toBeVisible();
+
+  const otherPage = await context.newPage();
+  await installTenantSwitchMocks(otherPage, { seedAuth: false });
+  await otherPage.goto("/login");
+  await otherPage.evaluate((authState) => {
+    localStorage.setItem("violet_auth", JSON.stringify(authState));
+  }, secondTenantAuth);
+
+  await page.waitForTimeout(100);
+  expect(await page.getByText("First Tenant Product").count()).toBe(0);
+  await expect(page.getByText("Second Tenant Product")).toBeVisible();
   await otherPage.close();
 });
 

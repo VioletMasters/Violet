@@ -1,3 +1,4 @@
+import React from "react";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { Redirect, Route, Switch, Router as WouterRouter } from 'wouter';
@@ -49,14 +50,33 @@ function RootRoute() {
   return <Redirect to={token ? (user?.mustChangePassword ? "/change-password" : tenant?.requiresBillingAction && !isSuperAdmin ? "/subscription" : isSuperAdmin ? "/admin" : "/pos") : "/login"} />;
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1,
+        refetchOnWindowFocus: false,
+      },
     },
-  },
-});
+  });
+}
+
+function SessionQueryProvider({ children }: { children: React.ReactNode }) {
+  const { token, user, tenant } = useAuth();
+  const sessionScope = token
+    ? `${token}:${user?.id ?? ""}:${tenant?.id ?? ""}`
+    : "anonymous";
+  const queryClient = React.useMemo(createQueryClient, [sessionScope]);
+
+  // Most generated query keys identify an endpoint, not the account that owns
+  // its data. Remounting this provider on an account or tenant change gives
+  // the new session a clean cache before any routed page can render.
+  return (
+    <QueryClientProvider client={queryClient} key={sessionScope}>
+      {children}
+    </QueryClientProvider>
+  );
+}
 
 function AppRoutes() {
   return (
@@ -105,14 +125,14 @@ function App() {
   const { theme } = useTheme();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
+    <AuthProvider>
+      <SessionQueryProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
         <Toaster theme={theme} position="top-right" richColors />
-      </AuthProvider>
-    </QueryClientProvider>
+      </SessionQueryProvider>
+    </AuthProvider>
   );
 }
 
