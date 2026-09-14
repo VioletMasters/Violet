@@ -1,5 +1,23 @@
 # Onboarding staging smoke test
 
+## CI browser runtime
+
+The desktop browser regression runs in GitHub Actions on every push and pull
+request through `.github/workflows/playwright.yml`. The job uses the pinned
+workspace pnpm and Node versions, then runs these commands from a clean Ubuntu
+runner:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --filter @workspace/violet exec playwright install --with-deps chromium
+pnpm --filter @workspace/violet exec playwright test \
+  --project=desktop tests/super-admin-session-timeout.spec.ts
+```
+
+`playwright install --with-deps` supplies Chromium's native Ubuntu runtime
+libraries on the ephemeral CI runner. Do not add those desktop browser
+libraries to the hosted deployment image.
+
 The normal Playwright command uses deterministic API responses and does not touch
 external services. The real-service suite is a separate, opt-in project. Run it
 only against a disposable staging deployment:

@@ -1,0 +1,41 @@
+name: Browser regression checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  super-admin-session-timeout:
+    name: Super Admin session timeout
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies (reproducible)
+        run: pnpm install --frozen-lockfile
+
+      # --with-deps installs Chromium and the Ubuntu libraries it needs on the
+      # ephemeral runner. These desktop-only libraries never enter a deploy image.
+      - name: Install Playwright Chromium runtime
+        run: pnpm --filter @workspace/violet exec playwright install --with-deps chromium
+
+      - name: Run Super Admin timeout browser regression
+        run: pnpm --filter @workspace/violet exec playwright test --project=desktop tests/super-admin-session-timeout.spec.ts
