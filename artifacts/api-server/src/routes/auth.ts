@@ -296,6 +296,27 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const normalizedEmail = email.trim().toLowerCase();
   let [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
+  let preverifiedRemoteLicense: Awaited<ReturnType<typeof verifyHostedLicenseCredentials>> | undefined;
+  if (isSelfHostedRuntime() && !user) {
+    try {
+      preverifiedRemoteLicense = await verifyHostedLicenseCredentials(normalizedEmail, password);
+      user = await provisionHostedAccountForFreshStore(normalizedEmail, password, preverifiedRemoteLicense);
+    } catch (error) {
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "statusCode" in error &&
+        typeof error.statusCode === "number"
+          ? error.statusCode
+          : 503;
+      res.status(statusCode).json({
+        error: error instanceof Error
+          ? error.message
+          : "Violet could not verify this hosted account for the Store Host.",
+      });
+      return;
+    }
+  }
   if (!user || user.isActive !== "true") {
     res.status(401).json({ error: "Invalid email or password" });
     return;
@@ -318,28 +339,6 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       error: "Super administrator access is only available on hosted Violet",
     });
     return;
-  }
-
-  let preverifiedRemoteLicense: Awaited<ReturnType<typeof verifyHostedLicenseCredentials>> | undefined;
-  if (isSelfHostedRuntime() && !user) {
-    try {
-      preverifiedRemoteLicense = await verifyHostedLicenseCredentials(normalizedEmail, password);
-      user = await provisionHostedAccountForFreshStore(normalizedEmail, password, preverifiedRemoteLicense);
-    } catch (error) {
-      const statusCode =
-        typeof error === "object" &&
-        error !== null &&
-        "statusCode" in error &&
-        typeof error.statusCode === "number"
-          ? error.statusCode
-          : 503;
-      res.status(statusCode).json({
-        error: error instanceof Error
-          ? error.message
-          : "Violet could not verify this hosted account for the Store Host.",
-      });
-      return;
-    }
   }
 
   let [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
