@@ -1,12 +1,25 @@
 import { Router } from "express";
-import { db, tenantsTable, usersTable, sessionsTable, plansTable, subscriptionsTable, settingsTable, storesTable, registersTable } from "@workspace/db";
+import {
+  db,
+  tenantsTable,
+  usersTable,
+  sessionsTable,
+  plansTable,
+  subscriptionsTable,
+  settingsTable,
+  storesTable,
+  registersTable,
+  productsTable,
+  customersTable,
+  salesTable,
+} from "@workspace/db";
 import {
   ConfirmManagerPasswordBody,
   ConfirmManagerPasswordResponse,
   UnlockManagerAccessBody,
   UnlockManagerAccessResponse,
 } from "@workspace/api-zod";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, count } from "drizzle-orm";
 import {
   hashEmailVerificationToken,
   hashPassword,
@@ -34,6 +47,87 @@ import { ensureTenantLicense } from "../lib/entitlements";
 
 const router = Router();
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function provisionHostedAccountForFreshStore(
+  email: string,
+  password: string,
+  remoteLicense: Awaited<ReturnType<typeof verifyHostedLicenseCredentials>>,
+) {
+  const [localTenant] = await db.select().from(tenantsTable).limit(1);
+  if (!localTenant) {
+    throw Object.assign(
+      new Error("This Store Host has not finished initializing its local business account."),
+      { statusCode: 503 },
+    );
+  }
+
+  const localUsers = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.tenantId, localTenant.id))
+    .limit(2);
+  const [[productSummary], [customerSummary], [saleSummary]] = await Promise.all([
+    db.select({ count: count() }).from(productsTable).where(eq(productsTable.tenantId, localTenant.id)),
+    db.select({ count: count() }).from(customersTable).where(eq(customersTable.tenantId, localTenant.id)),
+    db.select({ count: count() }).from(salesTable).where(eq(salesTable.tenantId, localTenant.id)),
+  ]);
+  const hasLocalData = [productSummary.count, customerSummary.count, saleSummary.count]
+    .some((value) => Number(value) > 0);
+
+  if (localUsers.length > 1 || hasLocalData) {
+    throw Object.assign(
+      new Error(
+        "This Store Host is already configured with local data for another account. " +
+        "Use that local account or reset the Store Host only after making a backup.",
+      ),
+      { statusCode: 409 },
+    );
+  }
+
+  const account = remoteLicense.account;
+  const firstName = account?.firstName?.trim() || "Store";
+  const lastName = account?.lastName?.trim() || "Owner";
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const existingLocalUser = localUsers[0];
+    const [user] = existingLocalUser
+      ? await tx.update(usersTable).set({
+          email,
+          passwordHash: hashPassword(password),
+          firstName,
+          lastName,
+          role: "owner",
+          emailVerifiedAt: now,
+          mustChangePassword: false,
+          updatedAt: now,
+        }).where(eq(usersTable.id, existingLocalUser.id)).returning()
+      : await tx.insert(usersTable).values({
+          tenantId: localTenant.id,
+          email,
+          passwordHash: hashPassword(password),
+          firstName,
+          lastName,
+          role: "owner",
+          emailVerifiedAt: now,
+        }).returning();
+
+    if (account?.businessName?.trim()) {
+      await tx.update(tenantsTable).set({
+        name: account.businessName.trim(),
+        email,
+        updatedAt: now,
+      }).where(eq(tenantsTable.id, localTenant.id));
+      await tx.update(settingsTable).set({
+        businessName: account.businessName.trim(),
+        businessEmail: email,
+        updatedAt: now,
+      }).where(eq(settingsTable.tenantId, localTenant.id));
+    }
+
+    return user;
+  });
+}
 
 // POST /auth/register
 router.post("/auth/register", async (req, res): Promise<void> => {
@@ -226,6 +320,28 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
+  let preverifiedRemoteLicense: Awaited<ReturnType<typeof verifyHostedLicenseCredentials>> | undefined;
+  if (isSelfHostedRuntime() && !user) {
+    try {
+      preverifiedRemoteLicense = await verifyHostedLicenseCredentials(normalizedEmail, password);
+      user = await provisionHostedAccountForFreshStore(normalizedEmail, password, preverifiedRemoteLicense);
+    } catch (error) {
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "statusCode" in error &&
+        typeof error.statusCode === "number"
+          ? error.statusCode
+          : 503;
+      res.status(statusCode).json({
+        error: error instanceof Error
+          ? error.message
+          : "Violet could not verify this hosted account for the Store Host.",
+      });
+      return;
+    }
+  }
+
   let [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, user.tenantId)).limit(1);
 
   if (!tenant) {
@@ -238,7 +354,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   let remoteLicenseValidatedAt: Date | undefined;
   if (isSelfHostedRuntime()) {
     try {
-      const remoteLicense = await verifyHostedLicenseCredentials(email, password);
+      const remoteLicense = preverifiedRemoteLicense
+        ?? await verifyHostedLicenseCredentials(normalizedEmail, password);
       await syncLocalLicenseSnapshot(tenant.id, remoteLicense);
       remoteLicenseToken = remoteLicense.licenseSessionToken;
       remoteLicenseValidatedAt = new Date();

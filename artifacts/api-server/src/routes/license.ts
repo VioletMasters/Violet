@@ -24,7 +24,12 @@ function stringField(value: unknown, maxLength: number) {
     : null;
 }
 
-async function licenseSnapshot(tenantId: string, message: string, valid: boolean) {
+async function licenseSnapshot(
+  tenantId: string,
+  message: string,
+  valid: boolean,
+  account?: { email: string; firstName: string | null; lastName: string | null },
+) {
   const state = await getTenantEntitlementState(tenantId);
   const tenant = state?.tenant;
   const subscription = state?.subscription;
@@ -46,6 +51,12 @@ async function licenseSnapshot(tenantId: string, message: string, valid: boolean
     licenseActivatedAt: license?.activatedAt?.toISOString() ?? null,
     entitlements: state?.entitlements ?? null,
     usage: state?.usage ?? null,
+    account: account
+      ? {
+          ...account,
+          businessName: tenant?.name ?? null,
+        }
+      : undefined,
   };
 }
 
@@ -89,6 +100,11 @@ router.post("/license/verify", async (req, res): Promise<void> => {
     user.tenantId,
     failure ?? "Online license verified.",
     !failure,
+    {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    },
   );
   if (failure) {
     res.status(402).json(snapshot);

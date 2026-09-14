@@ -16,6 +16,12 @@ export interface RemoteLicenseSnapshot {
   paymentStatus: string | null;
   licenseStatus: string | null;
   licenseValidUntil: string | null;
+  account?: {
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    businessName: string | null;
+  };
   licenseSessionToken?: string;
   tokenExpiresAt?: string;
 }
