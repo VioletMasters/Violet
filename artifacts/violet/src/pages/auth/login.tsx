@@ -20,9 +20,24 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { setAuth } = useAuth();
+  const { setAuth, token, user, tenant } = useAuth();
   const selectedTier = getRequestedPaidTier();
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
+  const localLoginStarted = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!token || !user || !tenant || localLoginStarted.current) return;
+
+    setLocation(
+      user.mustChangePassword
+        ? "/change-password"
+        : tenant.requiresBillingAction && user.role !== "super_admin"
+          ? "/subscription"
+          : user.role === "super_admin"
+            ? "/admin"
+            : "/pos",
+    );
+  }, [setLocation, tenant, token, user]);
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema)
@@ -31,6 +46,7 @@ export default function LoginPage() {
   const loginMutation = useLogin({
     mutation: {
       onSuccess: async (data) => {
+        localLoginStarted.current = true;
         setAuth(data.user, data.tenant, data.token);
         toast.success("Welcome back to Violet Enterprise");
         if (data.user.mustChangePassword) {

@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, Tenant } from "@workspace/api-client-react";
 
+type StoredAuthState = {
+  user: UserProfile | null;
+  tenant: Tenant | null;
+  token: string | null;
+};
+
 interface AuthState {
   user: UserProfile | null;
   tenant: Tenant | null;
@@ -18,7 +24,33 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 const authStorageKey = "violet_auth";
 const managerAccessStorageKey = "violet_manager_access";
-const emptyAuthState = { user: null, tenant: null, token: null };
+const emptyAuthState: StoredAuthState = { user: null, tenant: null, token: null };
+
+function parseAuthState(value: string | null): StoredAuthState | null {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredAuthState>;
+    if (
+      typeof parsed.token !== "string" ||
+      !parsed.token ||
+      !parsed.user ||
+      typeof parsed.user !== "object" ||
+      !parsed.tenant ||
+      typeof parsed.tenant !== "object"
+    ) {
+      return null;
+    }
+
+    return {
+      user: parsed.user as UserProfile,
+      tenant: parsed.tenant as Tenant,
+      token: parsed.token,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function readManagerAccess(): { accessToken: string; expiresAt: string } | null {
   try {
@@ -37,17 +69,9 @@ function readManagerAccess(): { accessToken: string; expiresAt: string } | null 
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<{ user: UserProfile | null; tenant: Tenant | null; token: string | null }>(() => {
-    try {
-      const stored = localStorage.getItem(authStorageKey);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error("Failed to parse auth from local storage");
-    }
-    return { user: null, tenant: null, token: null };
-  });
+  const [state, setState] = useState<StoredAuthState>(() => (
+    parseAuthState(localStorage.getItem(authStorageKey)) ?? emptyAuthState
+  ));
   const [managerAccess, setManagerAccessState] = useState(readManagerAccess);
 
   useEffect(() => {
@@ -96,19 +120,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (state.user?.role !== "super_admin") return;
-
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key !== authStorageKey || event.newValue !== null) return;
+      if (event.key !== authStorageKey && event.key !== null) return;
 
-      setState(emptyAuthState);
-      sessionStorage.removeItem(managerAccessStorageKey);
-      setManagerAccessState(null);
+      if (event.newValue === null) {
+        setState(emptyAuthState);
+        sessionStorage.removeItem(managerAccessStorageKey);
+        setManagerAccessState(null);
+        return;
+      }
+
+      const next = parseAuthState(event.newValue);
+      if (!next) {
+        setState(emptyAuthState);
+        sessionStorage.removeItem(managerAccessStorageKey);
+        setManagerAccessState(null);
+        return;
+      }
+
+      // Manager elevation is tied to the current session token and tenant.
+      // Keep it for profile/tenant updates in the same session, but never
+      // carry it into another account or tenant opened in a different tab.
+      const sessionChanged =
+        state.token !== next.token ||
+        state.user?.id !== next.user?.id ||
+        state.tenant?.id !== next.tenant?.id;
+      if (sessionChanged) {
+        sessionStorage.removeItem(managerAccessStorageKey);
+        setManagerAccessState(null);
+      }
+
+      setState(next);
     };
 
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, [state.user?.role]);
+  }, [state.token, state.user?.id, state.tenant?.id]);
 
   useEffect(() => {
     if (!managerAccess) return;

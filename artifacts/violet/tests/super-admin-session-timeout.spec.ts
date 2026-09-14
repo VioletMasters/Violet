@@ -52,6 +52,7 @@ const ownerAuth = {
 async function installAuthMocks(
   page: Page,
   auth: typeof superAdminAuth,
+  options: { seedAuth?: boolean } = {},
 ) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -77,9 +78,11 @@ async function installAuthMocks(
     });
   });
 
-  await page.addInitScript((authState: typeof superAdminAuth) => {
-    localStorage.setItem("violet_auth", JSON.stringify(authState));
-  }, auth);
+  if (options.seedAuth !== false) {
+    await page.addInitScript((authState: typeof superAdminAuth) => {
+      localStorage.setItem("violet_auth", JSON.stringify(authState));
+    }, auth);
+  }
 }
 
 test("logs out an idle hosted Super Admin after 30 minutes", async ({ page }) => {
@@ -132,4 +135,82 @@ test("does not apply the Super Admin idle timer to an owner session", async ({ p
   await page.clock.fastForward(31 * 60 * 1000);
   await expect(page).toHaveURL(/\/pos$/);
   expect(await page.evaluate(() => localStorage.getItem("violet_auth"))).not.toBeNull();
+});
+
+test("signs in an already-open login tab when another tab creates a session", async ({ page, context }) => {
+  await installAuthMocks(page, ownerAuth, { seedAuth: false });
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Sign in to Violet" })).toBeVisible();
+
+  const otherPage = await context.newPage();
+  await installAuthMocks(otherPage, ownerAuth);
+  await otherPage.goto("/pos");
+
+  await expect(page).toHaveURL(/\/pos$/);
+  await expect(page.getByText("Store Owner")).toBeVisible();
+
+  await otherPage.close();
+});
+
+test("refreshes account and role changes without dropping same-session manager access", async ({ page, context }) => {
+  await installAuthMocks(page, ownerAuth);
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "violet_manager_access",
+      JSON.stringify({
+        accessToken: "manager-access-for-owner-session",
+        expiresAt: "2030-01-01T00:00:00.000Z",
+      }),
+    );
+  });
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText("Store Owner")).toBeVisible();
+
+  const otherPage = await context.newPage();
+  await installAuthMocks(otherPage, ownerAuth);
+  await otherPage.goto("/pos");
+
+  const updatedAuth = {
+    ...ownerAuth,
+    user: {
+      ...ownerAuth.user,
+      firstName: "Updated",
+      role: "manager",
+    },
+    tenant: {
+      ...ownerAuth.tenant,
+      name: "Updated Store",
+    },
+  };
+  await otherPage.evaluate((authState) => {
+    localStorage.setItem("violet_auth", JSON.stringify(authState));
+  }, updatedAuth);
+
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText("Updated Store")).toBeVisible();
+  await expect(page.getByText("Updated Owner")).toBeVisible();
+  await expect(page.getByText("manager", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("violet_manager_access"))).not.toBeNull();
+
+  await otherPage.close();
+});
+
+test("logs out non-Super-Admin tabs when the shared session is removed", async ({ page, context }) => {
+  await installAuthMocks(page, ownerAuth);
+  await page.goto("/pos");
+  await expect(page).toHaveURL(/\/pos$/);
+
+  const otherPage = await context.newPage();
+  await installAuthMocks(otherPage, ownerAuth);
+  await otherPage.goto("/pos");
+  await expect(otherPage).toHaveURL(/\/pos$/);
+
+  await page.getByTitle("Logout").click();
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(otherPage).toHaveURL(/\/login$/);
+  await expect(otherPage.getByRole("heading", { name: "Sign in to Violet" })).toBeVisible();
+
+  await otherPage.close();
 });
