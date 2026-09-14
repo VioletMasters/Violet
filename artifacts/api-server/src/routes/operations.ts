@@ -219,12 +219,23 @@ router.get("/register-shifts/export", requireManagerAccess, async (req, res): Pr
 });
 
 router.get("/register-shifts/current", requireAuth, async (req, res): Promise<void> => {
-  const [shift] = await db.select().from(registerShiftsTable).where(and(
-    eq(registerShiftsTable.tenantId, req.tenantId!),
-    eq(registerShiftsTable.cashierId, req.user!.id),
-    eq(registerShiftsTable.status, "open"),
-  )).orderBy(desc(registerShiftsTable.openedAt)).limit(1);
-  res.json({ shift: shift ?? null });
+  const [shift, openRegisters] = await Promise.all([
+    db.select().from(registerShiftsTable).where(and(
+      eq(registerShiftsTable.tenantId, req.tenantId!),
+      eq(registerShiftsTable.cashierId, req.user!.id),
+      eq(registerShiftsTable.status, "open"),
+    )).orderBy(desc(registerShiftsTable.openedAt)).limit(1),
+    db.select({ registerId: registerShiftsTable.registerId })
+      .from(registerShiftsTable)
+      .where(and(
+        eq(registerShiftsTable.tenantId, req.tenantId!),
+        eq(registerShiftsTable.status, "open"),
+      )),
+  ]);
+  res.json({
+    shift: shift[0] ?? null,
+    occupiedRegisterIds: [...new Set(openRegisters.map(({ registerId }) => registerId))],
+  });
 });
 
 router.post("/register-shifts/open", requireAuth, async (req, res): Promise<void> => {

@@ -138,16 +138,27 @@ export default function POSPage() {
   } = useGetPosTaxSettings();
   const { data: currentShiftResponse, isLoading: isLoadingShift } = useGetCurrentRegisterShift();
   const { data: registersResponse } = useListRegisters();
-  const currentShift = (currentShiftResponse as { shift?: RegisterShift | null } | undefined)?.shift ?? null;
+  const currentShiftPayload = currentShiftResponse as {
+    shift?: RegisterShift | null;
+    occupiedRegisterIds?: string[];
+  } | undefined;
+  const currentShift = currentShiftPayload?.shift ?? null;
+  const occupiedRegisterIds = currentShiftPayload?.occupiedRegisterIds ?? [];
   const registers = ((registersResponse as { data?: RegisterOption[] } | undefined)?.data ?? [])
     .filter((register) => register.isActive !== false);
+  const availableRegisters = registers.filter((register) =>
+    !occupiedRegisterIds.includes(register.id) || register.id === currentShift?.registerId,
+  );
   const products = productsData?.data || [];
 
   React.useEffect(() => {
-    if (!selectedRegisterId && registers.length === 1) {
-      setSelectedRegisterId(registers[0].id);
+    if (!selectedRegisterId && availableRegisters.length === 1) {
+      setSelectedRegisterId(availableRegisters[0].id);
     }
-  }, [registers, selectedRegisterId]);
+    if (selectedRegisterId && !availableRegisters.some((register) => register.id === selectedRegisterId)) {
+      setSelectedRegisterId("");
+    }
+  }, [availableRegisters, selectedRegisterId]);
 
   const openShift = useOpenRegisterShift({
     mutation: {
@@ -473,16 +484,21 @@ export default function POSPage() {
                 </p>
               </div>
             </div>
-            {currentShift ? (
+             {currentShift ? (
               <span className="text-xs text-muted-foreground">Clock out from your profile menu</span>
             ) : (
-              <Button size="sm" className="gap-2" onClick={() => setShiftDialogOpen(true)} disabled={registers.length === 0}>
+               <Button size="sm" className="gap-2" onClick={() => setShiftDialogOpen(true)} disabled={availableRegisters.length === 0}>
                 <LogIn className="h-4 w-4" /> Start day
               </Button>
             )}
           </div>
-          {!isLoadingShift && !currentShift && registers.length === 0 && (
-            <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">No registers are configured yet. Ask a manager to set one up.</p>
+           {!isLoadingShift && !currentShift && registers.length === 0 && (
+             <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">No registers are configured yet. Ask a manager to set one up.</p>
+           )}
+           {!isLoadingShift && !currentShift && registers.length > 0 && availableRegisters.length === 0 && (
+             <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+               All registers already have an active cashier day. The current cashier must clock out and settle before a new float can be entered.
+             </p>
           )}
         </div>
         <div className="p-4 border-b border-border/50 flex gap-4 bg-card">
@@ -671,7 +687,7 @@ export default function POSPage() {
               <Select value={selectedRegisterId} onValueChange={setSelectedRegisterId}>
                 <SelectTrigger><SelectValue placeholder="Choose a register" /></SelectTrigger>
                 <SelectContent>
-                  {registers.map((register) => (
+                  {availableRegisters.map((register) => (
                     <SelectItem key={register.id} value={register.id}>{register.name} ({register.code})</SelectItem>
                   ))}
                 </SelectContent>
