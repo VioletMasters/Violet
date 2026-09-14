@@ -10,7 +10,8 @@
     "verify:cash-tender": "tsx ../artifacts/api-server/src/lib/cashTender.test.ts",
     "verify:recent-sales": "tsx ../artifacts/api-server/src/routes/dashboard.recent-sales.test.ts",
     "verify:dashboard-aggregates": "tsx ../artifacts/api-server/src/routes/dashboard.aggregates.test.ts",
-    "verify:printer-routing": "tsx ../artifacts/api-server/src/lib/printer-routing.test.ts"
+    "verify:printer-routing": "tsx ../artifacts/api-server/src/lib/printer-routing.test.ts",
+    "verify:super-admin-session-timeout": "tsx ../artifacts/api-server/src/middlewares/auth.session-timeout.test.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
