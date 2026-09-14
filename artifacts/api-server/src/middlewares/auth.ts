@@ -7,7 +7,7 @@ import {
   plansTable,
   subscriptionsTable,
 } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, lte } from "drizzle-orm";
 import { hasValidManagerAccess } from "../lib/manager-access";
 import { refreshWhopMembershipIfStale, WhopBindingError } from "../lib/subscriptionSync";
 import {
@@ -38,6 +38,7 @@ interface LicenseCheckOptions {
 
 const managerRoles = new Set(["owner", "administrator", "manager", "super_admin"]);
 const MAX_TRANSIENT_WHOP_STALENESS_MS = 6 * 60 * 60 * 1000;
+const SUPER_ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export function isManagerRole(role: string): boolean {
   return managerRoles.has(role);
@@ -214,6 +215,36 @@ async function authenticateSession(req: Request, res: Response): Promise<boolean
         error: "Super administrator access is only available on hosted Violet",
       });
       return false;
+    }
+
+    if (isSuperAdmin({ role: user.role })) {
+      const idleCutoff = new Date(now.getTime() - SUPER_ADMIN_IDLE_TIMEOUT_MS);
+      const lastActivityAt = session.lastActivityAt ?? session.createdAt;
+      if (lastActivityAt <= idleCutoff) {
+        await db.delete(sessionsTable).where(and(
+          eq(sessionsTable.token, token),
+          lte(sessionsTable.lastActivityAt, idleCutoff),
+        ));
+        res.status(401).json({
+          error: "Your Super Admin session expired after 30 minutes of inactivity. Sign in again.",
+        });
+        return false;
+      }
+
+      const [activityRefresh] = await db.update(sessionsTable)
+        .set({ lastActivityAt: now })
+        .where(and(
+          eq(sessionsTable.token, token),
+          gt(sessionsTable.lastActivityAt, idleCutoff),
+          gt(sessionsTable.expiresAt, now),
+        ))
+        .returning({ id: sessionsTable.id });
+      if (!activityRefresh) {
+        res.status(401).json({
+          error: "Your Super Admin session expired after 30 minutes of inactivity. Sign in again.",
+        });
+        return false;
+      }
     }
 
     req.user = {

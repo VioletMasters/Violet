@@ -12,11 +12,18 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const SUPER_ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const SUPER_ADMIN_ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart", "scroll", "wheel"];
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { token, tenant, user, logout, isManagerAccessActive } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
+  const logoutRef = React.useRef(logout);
+  const setLocationRef = React.useRef(setLocation);
   const [settlementDialogOpen, setSettlementDialogOpen] = React.useState(false);
+  logoutRef.current = logout;
+  setLocationRef.current = setLocation;
   const { data: currentShiftResponse } = useGetCurrentRegisterShift({
     query: {
       queryKey: getGetCurrentRegisterShiftQueryKey(),
@@ -43,6 +50,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setLocation("/subscription");
     }
   }, [token, tenant?.requiresBillingAction, user?.mustChangePassword, isSuperAdmin, location, setLocation]);
+
+  useEffect(() => {
+    if (!token || !isSuperAdmin) return;
+
+    let timeoutId = 0;
+    const logOutForInactivity = () => {
+      logoutRef.current();
+      setLocationRef.current("/login");
+    };
+    const resetTimer = () => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(logOutForInactivity, SUPER_ADMIN_IDLE_TIMEOUT_MS);
+    };
+
+    for (const eventName of SUPER_ADMIN_ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, resetTimer, { passive: true });
+    }
+    resetTimer();
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      for (const eventName of SUPER_ADMIN_ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, resetTimer);
+      }
+    };
+  }, [isSuperAdmin, token]);
 
   useEffect(() => {
     if (error) {

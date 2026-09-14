@@ -7,6 +7,7 @@ export const sessionsTable = pgTable("sessions", {
   licenseToken: text("license_token"),
   licenseValidatedAt: timestamp("license_validated_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -98,12 +98,14 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     license_token text,
     license_validated_at timestamp with time zone,
     expires_at timestamp with time zone NOT NULL,
+    last_activity_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 ALTER TABLE public.sessions
     ADD COLUMN IF NOT EXISTS license_token text,
-    ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone;
+    ADD COLUMN IF NOT EXISTS license_validated_at timestamp with time zone,
+    ADD COLUMN IF NOT EXISTS last_activity_at timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL,
     ADD COLUMN IF NOT EXISTS email_verified_at timestamp with time zone DEFAULT now(),
