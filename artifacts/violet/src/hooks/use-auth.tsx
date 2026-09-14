@@ -16,7 +16,9 @@ interface AuthState {
 }
 
 const AuthContext = createContext<AuthState | null>(null);
+const authStorageKey = "violet_auth";
 const managerAccessStorageKey = "violet_manager_access";
+const emptyAuthState = { user: null, tenant: null, token: null };
 
 function readManagerAccess(): { accessToken: string; expiresAt: string } | null {
   try {
@@ -37,7 +39,7 @@ function readManagerAccess(): { accessToken: string; expiresAt: string } | null 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<{ user: UserProfile | null; tenant: Tenant | null; token: string | null }>(() => {
     try {
-      const stored = localStorage.getItem('violet_auth');
+      const stored = localStorage.getItem(authStorageKey);
       if (stored) {
         return JSON.parse(stored);
       }
@@ -49,14 +51,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [managerAccess, setManagerAccessState] = useState(readManagerAccess);
 
   useEffect(() => {
-    localStorage.setItem('violet_auth', JSON.stringify(state));
+    if (state.token) {
+      localStorage.setItem(authStorageKey, JSON.stringify(state));
+    } else {
+      localStorage.removeItem(authStorageKey);
+    }
   }, [state]);
 
   const setAuth = (user: UserProfile, tenant: Tenant, token: string) => {
     const next = { user, tenant, token };
     // Write synchronously before the navigation redirect fires so that the
     // next page's initializer finds a populated localStorage immediately.
-    localStorage.setItem('violet_auth', JSON.stringify(next));
+    localStorage.setItem(authStorageKey, JSON.stringify(next));
     sessionStorage.removeItem(managerAccessStorageKey);
     setManagerAccessState(null);
     setState(next);
@@ -65,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateUser = (user: UserProfile) => {
     setState((prev) => {
       const next = { ...prev, user };
-      localStorage.setItem('violet_auth', JSON.stringify(next));
+      localStorage.setItem(authStorageKey, JSON.stringify(next));
       return next;
     });
   };
@@ -73,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateTenant = (tenant: Tenant) => {
     setState((prev) => {
       const next = { ...prev, tenant };
-      localStorage.setItem('violet_auth', JSON.stringify(next));
+      localStorage.setItem(authStorageKey, JSON.stringify(next));
       return next;
     });
   };
@@ -90,6 +96,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    if (state.user?.role !== "super_admin") return;
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== authStorageKey || event.newValue !== null) return;
+
+      setState(emptyAuthState);
+      sessionStorage.removeItem(managerAccessStorageKey);
+      setManagerAccessState(null);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [state.user?.role]);
+
+  useEffect(() => {
     if (!managerAccess) return;
 
     const delay = new Date(managerAccess.expiresAt).getTime() - Date.now();
@@ -103,8 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [managerAccess]);
 
   const logout = () => {
-    setState({ user: null, tenant: null, token: null });
-    localStorage.removeItem('violet_auth');
+    setState(emptyAuthState);
+    localStorage.removeItem(authStorageKey);
     clearManagerAccess();
   };
 

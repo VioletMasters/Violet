@@ -94,6 +94,26 @@ test("logs out an idle hosted Super Admin after 30 minutes", async ({ page }) =>
   expect(await page.evaluate(() => localStorage.getItem("violet_auth"))).toBeNull();
 });
 
+test("logs out every open hosted Super Admin tab when one expires", async ({ page, context }) => {
+  await installAuthMocks(page, superAdminAuth);
+  await page.clock.install();
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin$/);
+
+  const otherPage = await context.newPage();
+  await installAuthMocks(otherPage, superAdminAuth);
+  await otherPage.goto("/admin");
+  await expect(otherPage).toHaveURL(/\/admin$/);
+
+  await page.clock.fastForward(30 * 60 * 1000);
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(otherPage).toHaveURL(/\/login$/);
+  expect(await otherPage.evaluate(() => localStorage.getItem("violet_auth"))).toBeNull();
+
+  await otherPage.close();
+});
+
 test("activity resets the hosted Super Admin idle timer", async ({ page }) => {
   await installAuthMocks(page, superAdminAuth);
   await page.clock.install();
