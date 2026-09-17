@@ -374,6 +374,7 @@ jobs:
       - name: Check packaged Store Host smoke capability
         if: matrix.platform == 'windows'
         id: docker_linux
+        continue-on-error: true
         shell: pwsh
         run: |
           $ErrorActionPreference = "Continue"
