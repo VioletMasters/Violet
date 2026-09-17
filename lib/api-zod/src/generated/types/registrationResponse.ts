@@ -14,4 +14,5 @@ export interface RegistrationResponse {
   email: string;
   verificationRequired: boolean;
   verificationEmailSent: boolean;
+  verificationMonitorToken: string;
 }

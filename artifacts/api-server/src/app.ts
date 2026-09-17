@@ -55,6 +55,14 @@ const authLimiter = rateLimit({
   message: { error: "Too many requests. Please wait a minute before trying again." },
 });
 
+const verificationStatusLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many verification status checks. Please wait a minute before trying again." },
+});
+
 app.use(
   pinoHttp({
     logger,
@@ -93,6 +101,7 @@ app.use("/api/auth/forgot-password", authLimiter);
 app.use("/api/auth/reset-password", authLimiter);
 app.use("/api/auth/verify-email", authLimiter);
 app.use("/api/auth/resend-verification", authLimiter);
+app.use("/api/auth/email-verification-status", verificationStatusLimiter);
 app.use("/api/auth/manager-unlock", authLimiter);
 app.use("/api/auth/manager-confirmation", authLimiter);
 app.use("/api/license/verify", authLimiter);

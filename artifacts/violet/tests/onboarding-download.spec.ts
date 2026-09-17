@@ -126,6 +126,39 @@ test("verified paid signup reloads to sign in with checkout plan", async ({ page
   await expect(page.getByText("Sign in to continue to Professional checkout")).toBeVisible();
 });
 
+test("waiting verification page follows verification completed in another tab", async ({ page }) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem("violet_pending_verification_email", "owner@free.example");
+  });
+
+  await page.goto("/verify-email");
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+
+  const verificationPage = await page.context().newPage();
+  await verificationPage.route("**/api/auth/verify-email", (route) => fulfillJson(route, freeAuthResponse));
+  await verificationPage.goto(`/verify-email?token=${"a".repeat(64)}`);
+
+  await expect(verificationPage).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login$/);
+  await verificationPage.close();
+});
+
+test("waiting verification page follows verification completed on another device", async ({ page }) => {
+  let statusChecks = 0;
+  await page.addInitScript(() => {
+    sessionStorage.setItem("violet_pending_verification_email", "owner@free.example");
+    sessionStorage.setItem("violet_verification_monitor_token", "verification-monitor-token");
+  });
+  await page.route("**/api/auth/email-verification-status*", async (route) => {
+    statusChecks += 1;
+    await fulfillJson(route, { verified: statusChecks > 1 });
+  });
+
+  await page.goto("/verify-email");
+  await expect(page).toHaveURL(/\/login$/);
+  expect(statusChecks).toBeGreaterThanOrEqual(2);
+});
+
 test("existing login lands on the browser POS", async ({ page }) => {
   await page.route("**/api/auth/login", (route) =>
     fulfillJson(route, {

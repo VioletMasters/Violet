@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Moon, Sun, User } from "lucide-react";
+import { BookOpen, LogOut, Moon, Sun, User } from "lucide-react";
 import { useLogout } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -20,9 +20,10 @@ import { toast } from "sonner";
 type HeaderProps = {
   hasActiveShift: boolean;
   onClockOut: () => void;
+  onOpenTutorial: () => void;
 };
 
-export function Header({ hasActiveShift, onClockOut }: HeaderProps) {
+export function Header({ hasActiveShift, onClockOut, onOpenTutorial }: HeaderProps) {
   const { user, tenant, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [, setLocation] = useLocation();
@@ -102,6 +103,10 @@ export function Header({ hasActiveShift, onClockOut }: HeaderProps) {
               <div className="text-xs font-normal text-muted-foreground capitalize">{user?.role.replace('_', ' ')}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onOpenTutorial}>
+              <BookOpen className="h-4 w-4" />
+              Starter guide
+            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={!hasActiveShift}
               onSelect={onClockOut}

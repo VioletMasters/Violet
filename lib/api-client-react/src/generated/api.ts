@@ -46,6 +46,7 @@ import type {
   EmailVerificationInput,
   EmailVerificationResendInput,
   EmailVerificationResendResponse,
+  EmailVerificationStatusResponse,
   Employee,
   EmployeeCreated,
   EmployeeInput,
@@ -54,6 +55,7 @@ import type {
   ExportClosedRegisterShiftsParams,
   ExportReportingTransactionsParams,
   GetCashReportParams,
+  GetEmailVerificationStatusParams,
   GetEmployeeReportParams,
   GetInventoryMovementReportParams,
   GetLatestReleaseParams,
@@ -394,6 +396,90 @@ export const useVerifyEmail = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getVerifyEmailMutationOptions(options));
     }
+
+export const getGetEmailVerificationStatusUrl = (params: GetEmailVerificationStatusParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/auth/email-verification-status?${stringifiedParams}` : `/api/auth/email-verification-status`
+}
+
+/**
+ * @summary Check whether a registered email has been verified
+ */
+export const getEmailVerificationStatus = async (params: GetEmailVerificationStatusParams, options?: Parameters<typeof customFetch>[1]): Promise<EmailVerificationStatusResponse> => {
+
+  return customFetch<EmailVerificationStatusResponse>(getGetEmailVerificationStatusUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmailVerificationStatusQueryKey = (params?: GetEmailVerificationStatusParams,) => {
+    return [
+    `/api/auth/email-verification-status`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEmailVerificationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getEmailVerificationStatus>>, TError = ErrorType<ErrorResponse>>(params: GetEmailVerificationStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailVerificationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmailVerificationStatusQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailVerificationStatus>>> = ({ signal }) => getEmailVerificationStatus(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmailVerificationStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmailVerificationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getEmailVerificationStatus>>>
+export type GetEmailVerificationStatusQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Check whether a registered email has been verified
+ */
+
+export function useGetEmailVerificationStatus<TData = Awaited<ReturnType<typeof getEmailVerificationStatus>>, TError = ErrorType<ErrorResponse>>(
+ params: GetEmailVerificationStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailVerificationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmailVerificationStatusQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getResendEmailVerificationUrl = () => {
 

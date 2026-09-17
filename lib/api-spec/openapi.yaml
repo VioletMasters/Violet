@@ -110,6 +110,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/email-verification-status:
+    get:
+      operationId: getEmailVerificationStatus
+      tags: [auth]
+      summary: Check whether a registered email has been verified
+      parameters:
+        - name: monitorToken
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 64
+            maxLength: 1024
+      responses:
+        "200":
+          description: Email verification status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailVerificationStatusResponse"
+        "400":
+          description: Invalid or expired verification monitor token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/resend-verification:
     post:
       operationId: resendEmailVerification
@@ -2928,7 +2955,7 @@ components:
 
     RegistrationResponse:
       type: object
-      required: [user, tenant, email, verificationRequired, verificationEmailSent]
+      required: [user, tenant, email, verificationRequired, verificationEmailSent, verificationMonitorToken]
       properties:
         user:
           $ref: "#/components/schemas/UserProfile"
@@ -2939,6 +2966,15 @@ components:
         verificationRequired:
           type: boolean
         verificationEmailSent:
+          type: boolean
+        verificationMonitorToken:
+          type: string
+
+    EmailVerificationStatusResponse:
+      type: object
+      required: [verified]
+      properties:
+        verified:
           type: boolean
 
     UserProfile:

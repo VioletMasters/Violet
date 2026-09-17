@@ -34,6 +34,7 @@ import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/ap
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { dispatchSalePrintJobs } from "@/lib/desktop-print";
+import { STARTER_TUTORIAL_ACTION_EVENT } from "@/components/layout/starter-tutorial";
 
 interface CartItem extends PosProduct {
   cartQuantity: number;
@@ -167,6 +168,9 @@ export default function POSPage() {
         setOpeningCash("");
         setShiftDialogOpen(false);
         toast.success("Cashier day started.");
+        window.dispatchEvent(new CustomEvent(STARTER_TUTORIAL_ACTION_EVENT, {
+          detail: { action: "cashier-day-started" },
+        }));
       },
       onError: (error) => toast.error(error.message || "Could not start the cashier day."),
     },

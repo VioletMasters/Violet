@@ -32,6 +32,11 @@ export default function RegisterPage() {
     mutation: {
       onSuccess: async (data) => {
         sessionStorage.setItem("violet_pending_verification_email", data.email);
+        if (data.verificationMonitorToken) {
+          sessionStorage.setItem("violet_verification_monitor_token", data.verificationMonitorToken);
+        } else {
+          sessionStorage.removeItem("violet_verification_monitor_token");
+        }
         toast.success(
           data.verificationEmailSent
             ? "Check your email to verify your Violet account."

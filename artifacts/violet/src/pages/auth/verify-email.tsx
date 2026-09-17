@@ -4,6 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
+  getGetEmailVerificationStatusQueryKey,
+  useGetEmailVerificationStatus,
   useResendEmailVerification,
   useVerifyEmail,
 } from "@workspace/api-client-react";
@@ -18,6 +20,34 @@ const resendSchema = z.object({
 });
 
 type ResendForm = z.infer<typeof resendSchema>;
+
+const EMAIL_VERIFICATION_SIGNAL_KEY = "violet.email-verification.completed";
+
+type EmailVerificationSignal = {
+  email?: string;
+  verifiedAt?: number;
+};
+
+function readEmailVerificationSignal(value: string | null): EmailVerificationSignal | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as EmailVerificationSignal;
+    return typeof parsed.email === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function publishEmailVerification(email: string) {
+  try {
+    localStorage.setItem(
+      EMAIL_VERIFICATION_SIGNAL_KEY,
+      JSON.stringify({ email: email.trim().toLowerCase(), verifiedAt: Date.now() }),
+    );
+  } catch {
+    // The verification tab still redirects when browser storage is unavailable.
+  }
+}
 
 function continueAfterVerification(
   selectedTier: ReturnType<typeof getRequestedPaidTier>,
@@ -41,14 +71,29 @@ export default function VerifyEmailPage() {
     const queryEmail = new URLSearchParams(window.location.search).get("email")?.trim() ?? "";
     return queryEmail || sessionStorage.getItem("violet_pending_verification_email") || "";
   });
+  const [verificationMonitorToken] = React.useState(
+    () => sessionStorage.getItem("violet_verification_monitor_token") || "",
+  );
   const { register, handleSubmit, formState: { errors } } = useForm<ResendForm>({
     resolver: zodResolver(resendSchema),
     defaultValues: { email: pendingEmail },
   });
+  const verificationStatusQuery = useGetEmailVerificationStatus(
+    { monitorToken: verificationMonitorToken },
+    {
+      query: {
+        queryKey: getGetEmailVerificationStatusQueryKey({ monitorToken: verificationMonitorToken }),
+        enabled: Boolean(verificationMonitorToken) && !tokenIsValidShape,
+        refetchInterval: 3000,
+        retry: false,
+      },
+    },
+  );
 
   const verifyMutation = useVerifyEmail({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
+        publishEmailVerification(data.user.email);
         continueAfterVerification(selectedTier);
       },
       onError: (error) => toast.error(error.message || "This verification link is invalid or expired."),
@@ -71,6 +116,41 @@ export default function VerifyEmailPage() {
     setVerificationStarted(true);
     verifyMutation.mutate({ data: { token } });
   }, [token, tokenIsValidShape, verificationStarted, verifyMutation]);
+
+  React.useEffect(() => {
+    if (!pendingEmail) return;
+
+    const redirectIfVerified = (value: string | null) => {
+      const signal = readEmailVerificationSignal(value);
+      if (!signal || signal.email?.toLowerCase() !== pendingEmail.trim().toLowerCase()) return;
+      continueAfterVerification(selectedTier);
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === EMAIL_VERIFICATION_SIGNAL_KEY) {
+        redirectIfVerified(event.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    redirectIfVerified(localStorage.getItem(EMAIL_VERIFICATION_SIGNAL_KEY));
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [pendingEmail, selectedTier]);
+
+  React.useEffect(() => {
+    if (
+      tokenIsValidShape
+      || !verificationMonitorToken
+      || !verificationStatusQuery.data?.verified
+    ) {
+      return;
+    }
+    continueAfterVerification(selectedTier);
+  }, [
+    selectedTier,
+    tokenIsValidShape,
+    verificationMonitorToken,
+    verificationStatusQuery.data?.verified,
+  ]);
 
   const onResend = ({ email }: ResendForm) => {
     resendMutation.mutate({ data: { email: email.trim() } });
@@ -116,6 +196,14 @@ export default function VerifyEmailPage() {
               <p className="text-sm leading-6 text-muted-foreground">
                 We sent a one-time link to your email. It expires in 24 hours.
               </p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Keep this page open. After you verify from your email, Violet will take you to sign in automatically.
+              </p>
+              {verificationStatusQuery.isError && (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  We are still waiting for verification. This page will keep checking automatically.
+                </p>
+              )}
               {selectedTier && (
                 <p className="rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-center text-sm font-medium text-primary">
                   {planLabel(selectedTier)} checkout will open after verification.

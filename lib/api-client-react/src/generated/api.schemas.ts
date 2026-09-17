@@ -382,6 +382,11 @@ export interface RegistrationResponse {
   email: string;
   verificationRequired: boolean;
   verificationEmailSent: boolean;
+  verificationMonitorToken: string;
+}
+
+export interface EmailVerificationStatusResponse {
+  verified: boolean;
 }
 
 export interface ChangePasswordInput {
@@ -1787,6 +1792,14 @@ export const ReportTransactionStatusParameter = {
   partial_refund: 'partial_refund',
   voided: 'voided',
 } as const;
+
+export type GetEmailVerificationStatusParams = {
+/**
+ * @minLength 64
+ * @maxLength 1024
+ */
+monitorToken: string;
+};
 
 export type ListPosProductsParams = {
 search?: string;

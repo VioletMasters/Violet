@@ -40,6 +40,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { STARTER_TUTORIAL_ACTION_EVENT } from "@/components/layout/starter-tutorial";
 import type { Product } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { calculateRetailPrice, isValidMarkupPercentage } from "@/lib/product-pricing";
@@ -340,6 +341,9 @@ export default function ProductsPage() {
         toast.success("Product created");
         setIsSheetOpen(false);
         refreshCatalog();
+        window.dispatchEvent(new CustomEvent(STARTER_TUTORIAL_ACTION_EVENT, {
+          detail: { action: "product-created" },
+        }));
       },
       onError: (e) => toast.error(e.message || "Failed to create product")
     }

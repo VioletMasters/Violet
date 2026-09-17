@@ -26,6 +26,8 @@ import {
   hashPasswordResetToken,
   verifyPassword,
   generateToken,
+  createEmailVerificationMonitorToken,
+  verifyEmailVerificationMonitorToken,
 } from "../lib/crypto";
 import { getLicenseFailure, isManagerRole, requireAuth, requireSession } from "../middlewares/auth";
 import { issueManagerAccess } from "../lib/manager-access";
@@ -271,6 +273,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     email: user.email,
     verificationRequired: true,
     verificationEmailSent,
+    verificationMonitorToken: createEmailVerificationMonitorToken(
+      user.id,
+      user.emailVerificationExpiresAt ?? new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    ),
   });
 });
 
@@ -515,6 +521,36 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
       createdAt: verified.tenant.createdAt.toISOString(),
     },
   });
+});
+
+// GET /auth/email-verification-status
+router.get("/auth/email-verification-status", async (req, res): Promise<void> => {
+  if (isSelfHostedRuntime()) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const monitorToken = typeof req.query.monitorToken === "string"
+    ? req.query.monitorToken.trim()
+    : "";
+  const userId = monitorToken ? verifyEmailVerificationMonitorToken(monitorToken) : null;
+  if (!userId) {
+    res.status(400).json({ error: "This verification session is invalid or expired." });
+    return;
+  }
+
+  const [user] = await db.select({
+    emailVerifiedAt: usersTable.emailVerifiedAt,
+  }).from(usersTable).where(and(
+    eq(usersTable.id, userId),
+    eq(usersTable.isActive, "true"),
+  )).limit(1);
+  if (!user) {
+    res.status(400).json({ error: "This verification session is invalid or expired." });
+    return;
+  }
+
+  res.json({ verified: Boolean(user.emailVerifiedAt) });
 });
 
 // POST /auth/resend-verification

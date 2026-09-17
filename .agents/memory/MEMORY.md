@@ -23,3 +23,4 @@
 - [Hosted admin recovery](hosted-admin-recovery.md) — emergency hosted admin promotion must preserve the password and consume a database-recorded one-time marker.
 - [Public pricing source](public-pricing-source.md) — marketing prices come from the public plans API; Whop checkout amounts remain a separate billing value.
 - [Resend connector setup](resend-connector-setup.md) — Violet email uses the Replit Resend connector; the Resend MCP server is for external AI clients and is not needed.
+- [Cross-device email verification](email-verification-cross-device.md) — waiting pages need a scoped server signal when verification happens outside the current browser.

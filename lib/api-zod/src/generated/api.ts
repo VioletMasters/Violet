@@ -70,7 +70,8 @@ export const RegisterResponse = zod.object({
 }),
   "email": zod.string(),
   "verificationRequired": zod.boolean(),
-  "verificationEmailSent": zod.boolean()
+  "verificationEmailSent": zod.boolean(),
+  "verificationMonitorToken": zod.string()
 })
 
 
@@ -121,6 +122,23 @@ export const VerifyEmailResponse = zod.object({
   "createdAt": zod.string()
 }),
   "token": zod.string()
+})
+
+
+/**
+ * @summary Check whether a registered email has been verified
+ */
+export const getEmailVerificationStatusQueryMonitorTokenMin = 64;
+export const getEmailVerificationStatusQueryMonitorTokenMax = 1024;
+
+
+
+export const GetEmailVerificationStatusQueryParams = zod.object({
+  "monitorToken": zod.coerce.string().min(getEmailVerificationStatusQueryMonitorTokenMin).max(getEmailVerificationStatusQueryMonitorTokenMax)
+})
+
+export const GetEmailVerificationStatusResponse = zod.object({
+  "verified": zod.boolean()
 })
 
 
