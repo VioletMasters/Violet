@@ -57,11 +57,11 @@ function planFeatureLabels(plan: PublicPlan) {
   const capacityFeature = /\b(products?|customers?)\b/i;
   const features = plan.features.filter((feature) => !capacityFeature.test(feature));
 
-  return [
+  return Array.from(new Set([
     ...features.map(featureLabel),
     formatPlanLimit(plan.maxProducts, "products"),
     formatPlanLimit(plan.maxCustomers, "customers"),
-  ];
+  ]));
 }
 
 function formatPlanPrice(plan: PublicPlan, currency: Currency) {
