@@ -54,7 +54,7 @@ function formatPlanLimit(value: number, resource: "products" | "customers") {
 }
 
 function planFeatureLabels(plan: PublicPlan) {
-  const capacityFeature = /\b(products?|customers?)\b/i;
+  const capacityFeature = /(?:\b(?:up\s+to|unlimited)\b|\b\d[\d,]*\b).*\b(products?|customers?)\b/i;
   const features = plan.features.filter((feature) => !capacityFeature.test(feature));
 
   return Array.from(new Set([
