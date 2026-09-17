@@ -115,6 +115,12 @@ async function installAuthMocks(
   if (options.seedAuth !== false) {
     await page.addInitScript((authState: typeof superAdminAuth) => {
       localStorage.setItem("violet_auth", JSON.stringify(authState));
+      if (authState.user.role !== "super_admin") {
+        localStorage.setItem(
+          `violet.starter-tutorial.v1.${authState.tenant.id}.${authState.user.id}`,
+          JSON.stringify({ step: 2, completed: true }),
+        );
+      }
     }, auth);
   }
 }
