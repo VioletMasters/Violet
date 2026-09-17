@@ -17,6 +17,8 @@ type PublicPlan = {
   currency: string;
   checkoutPrice: number;
   checkoutCurrency: string;
+  maxProducts: number;
+  maxCustomers: number;
   features: string[];
   isPopular: boolean;
   trialDays: number;
@@ -43,6 +45,23 @@ function featureLabel(feature: string) {
   return feature
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatPlanLimit(value: number, resource: "products" | "customers") {
+  return value >= 1_000_000
+    ? `Unlimited ${resource}`
+    : `Up to ${value.toLocaleString()} ${resource}`;
+}
+
+function planFeatureLabels(plan: PublicPlan) {
+  const capacityFeature = /\b(products?|customers?)\b/i;
+  const features = plan.features.filter((feature) => !capacityFeature.test(feature));
+
+  return [
+    ...features.map(featureLabel),
+    formatPlanLimit(plan.maxProducts, "products"),
+    formatPlanLimit(plan.maxCustomers, "customers"),
+  ];
 }
 
 function formatPlanPrice(plan: PublicPlan, currency: Currency) {
@@ -223,7 +242,7 @@ function Home() {
                      <div className="price-local-note">{localPriceNote(plan, currency)}</div>
                    )}
                    <div className="price-divider" />
-                   <ul>{plan.features.map((feature) => <li key={feature}><CheckCircle2 size={16} />{featureLabel(feature)}</li>)}</ul>
+                    <ul>{planFeatureLabels(plan).map((feature) => <li key={feature}><CheckCircle2 size={16} />{feature}</li>)}</ul>
                    <CheckoutButton plan={plan} />
                  </article>
                );
