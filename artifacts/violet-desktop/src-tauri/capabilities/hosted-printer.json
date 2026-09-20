@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/remote-schema.json",
+  "identifier": "hosted-printer",
+  "description": "Allow the trusted hosted Violet application to enumerate and dispatch local printers.",
+  "local": false,
+  "windows": ["main"],
+  "remote": {
+    "urls": [
+      "https://Violetsolutions.replit.app",
+      "https://violetenterprise.online"
+    ]
+  },
+  "permissions": [
+    "list_native_printers",
+    "print_native_document"
+  ]
+}
