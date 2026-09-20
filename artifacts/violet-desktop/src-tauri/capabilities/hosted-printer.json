@@ -11,7 +11,7 @@
     ]
   },
   "permissions": [
-    "list_native_printers",
-    "print_native_document"
+    "list-native-printers",
+    "print-native-document"
   ]
 }
