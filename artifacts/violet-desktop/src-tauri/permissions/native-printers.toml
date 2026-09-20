@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-list-native-printers"
+description = "Allows the trusted hosted Violet application to enumerate local printers."
+commands.allow = ["list_native_printers"]
+
+[[permission]]
+identifier = "allow-print-native-document"
+description = "Allows the trusted hosted Violet application to dispatch a document to a configured local printer."
+commands.allow = ["print_native_document"]
