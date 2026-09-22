@@ -212,3 +212,34 @@
     @apply font-display tracking-tight;
   }
 }
+
+.browser-receipt-print {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 8mm;
+  }
+
+  html.browser-receipt-printing body > * {
+    visibility: hidden !important;
+  }
+
+  html.browser-receipt-printing .browser-receipt-print {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 72mm;
+    padding: 2mm;
+    color: #000 !important;
+    background: #fff !important;
+    font-family: Arial, sans-serif;
+    visibility: visible !important;
+  }
+
+  html.browser-receipt-printing .browser-receipt-print * {
+    visibility: visible !important;
+  }
+}

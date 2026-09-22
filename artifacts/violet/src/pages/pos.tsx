@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
-import { dispatchSalePrintJobs } from "@/lib/desktop-print";
+import { dispatchSalePrintJobs, isDesktopPrinterAvailable } from "@/lib/desktop-print";
 import { STARTER_TUTORIAL_ACTION_EVENT } from "@/components/layout/starter-tutorial";
 
 interface CartItem extends PosProduct {
@@ -58,6 +58,18 @@ type PaymentCompletion = {
   change: number;
   receiptNumber?: string;
   printJobs?: PrintJob[];
+};
+
+type BrowserReceipt = {
+  receiptNumber?: string;
+  createdAt?: string;
+  totalAmount?: number;
+  items: Array<{
+    name?: string;
+    quantity?: number;
+    unitPrice?: number;
+    totalPrice?: number;
+  }>;
 };
 
 type StockConflict = {
@@ -93,6 +105,24 @@ function createCheckoutIdempotencyKey(): string {
   return `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
 
+function getBrowserReceipt(printJobs: PrintJob[] | undefined): BrowserReceipt | null {
+  const receiptJob = printJobs?.find((job) => job.documentType === "customer_receipt") ?? printJobs?.[0];
+  if (!receiptJob) return null;
+
+  try {
+    const payload = JSON.parse(receiptJob.payload) as Partial<BrowserReceipt>;
+    if (!Array.isArray(payload.items)) return null;
+    return {
+      receiptNumber: payload.receiptNumber,
+      createdAt: payload.createdAt,
+      totalAmount: typeof payload.totalAmount === "number" ? payload.totalAmount : undefined,
+      items: payload.items,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function POSPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -114,6 +144,10 @@ export default function POSPage() {
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
   const checkoutAttemptKey = React.useRef<string | null>(null);
   const queryClient = useQueryClient();
+  const browserReceipt = useMemo(
+    () => getBrowserReceipt(paymentCompletion?.printJobs),
+    [paymentCompletion],
+  );
   const retryPrintJob = useRetryPrintJob({
     mutation: {
       onSuccess: () => toast.success("Print job queued again."),
@@ -466,6 +500,25 @@ export default function POSPage() {
     window.addEventListener("keydown", handleCompletionKeyDown);
     return () => window.removeEventListener("keydown", handleCompletionKeyDown);
   }, [paymentCompletion]);
+
+  React.useEffect(() => {
+    if (!paymentCompletion || isDesktopPrinterAvailable() || !browserReceipt) return;
+
+    const printTimer = window.setTimeout(() => {
+      document.documentElement.classList.add("browser-receipt-printing");
+      window.print();
+    }, 100);
+    const cleanupPrintMode = () => {
+      document.documentElement.classList.remove("browser-receipt-printing");
+    };
+
+    window.addEventListener("afterprint", cleanupPrintMode);
+    return () => {
+      window.clearTimeout(printTimer);
+      window.removeEventListener("afterprint", cleanupPrintMode);
+      cleanupPrintMode();
+    };
+  }, [browserReceipt, paymentCompletion]);
 
   return (
     <div className="h-[calc(100vh-theme(spacing.16)-theme(spacing.8))] flex gap-6 overflow-hidden relative">
@@ -989,6 +1042,38 @@ export default function POSPage() {
           </p>
         </AlertDialogContent>
       </AlertDialog>
+
+      {!isDesktopPrinterAvailable() && browserReceipt && (
+        <article className="browser-receipt-print" aria-hidden="true">
+          <header className="border-b border-black pb-3 text-center">
+            <h1 className="text-xl font-bold">Violet Enterprise</h1>
+            <p className="mt-1 text-sm">Customer receipt</p>
+            {browserReceipt.receiptNumber && (
+              <p className="mt-2 font-mono text-sm">Receipt {browserReceipt.receiptNumber}</p>
+            )}
+            {browserReceipt.createdAt && (
+              <p className="text-xs">{new Date(browserReceipt.createdAt).toLocaleString()}</p>
+            )}
+          </header>
+          <div className="space-y-2 py-4 text-sm">
+            {browserReceipt.items.map((item, index) => (
+              <div key={`${item.name ?? "item"}-${index}`} className="flex justify-between gap-4">
+                <span>
+                  {item.quantity ?? 1} × {item.name ?? "Item"}
+                  {item.unitPrice != null && (
+                    <span className="block text-xs">{formatCurrency(item.unitPrice)} each</span>
+                  )}
+                </span>
+                <span className="shrink-0">{item.totalPrice != null ? formatCurrency(item.totalPrice) : "—"}</span>
+              </div>
+            ))}
+          </div>
+          <footer className="flex justify-between border-t border-black pt-3 text-base font-bold">
+            <span>Total</span>
+            <span>{browserReceipt.totalAmount != null ? formatCurrency(browserReceipt.totalAmount) : "—"}</span>
+          </footer>
+        </article>
+      )}
 
       <Dialog
         open={!!pendingCartRemoval}
