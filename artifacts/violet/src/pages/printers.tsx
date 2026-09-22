@@ -58,6 +58,7 @@ export default function PrintersPage() {
   });
   const [detectedPrinters, setDetectedPrinters] = useState<string[]>([]);
   const [isDetecting, setIsDetecting] = useState(false);
+  const desktopPrinterAvailable = isDesktopPrinterAvailable();
 
   const stores = Array.isArray(storesResponse) ? storesResponse : [];
   const registers = Array.isArray(registersResponse) ? registersResponse : [];
@@ -116,16 +117,22 @@ export default function PrintersPage() {
   };
 
   const detectPrinters = async () => {
-    if (!isDesktopPrinterAvailable()) {
-      toast.info("Printer detection is available in the Violet desktop app.");
+    if (!desktopPrinterAvailable) {
+      window.print();
+      toast.info("Browsers can show printers in the system print dialog, but cannot return the selected printer name to Violet.");
       return;
     }
     setIsDetecting(true);
     try {
       const detected = await discoverDesktopPrinters();
-      setDetectedPrinters(detected.map((printer) => printer.name));
+      const names = detected.map((printer) => printer.name);
+      setDetectedPrinters(names);
       if (detected[0] && !form.deviceName) update("deviceName", detected[0].name);
-      toast.success(`${detected.length} native printer${detected.length === 1 ? "" : "s"} detected.`);
+      if (detected.length === 0) {
+        toast.warning("No Windows printers were detected.");
+      } else {
+        toast.success(`${detected.length} Windows printer${detected.length === 1 ? "" : "s"} found. Choose one below.`);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not detect native printers.");
     } finally {
@@ -175,9 +182,30 @@ export default function PrintersPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2"><Label>Native device name</Label><Button type="button" variant="ghost" size="sm" onClick={() => void detectPrinters()} disabled={isDetecting}>{isDetecting ? "Detecting..." : "Detect"}</Button></div>
-                  <Input list="detected-native-printers" value={form.deviceName} onChange={(event) => update("deviceName", event.target.value)} placeholder="EPSON TM-T20III" />
-                  {detectedPrinters.length > 0 && <datalist id="detected-native-printers">{detectedPrinters.map((name) => <option key={name} value={name} />)}</datalist>}
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Native device name</Label>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => void detectPrinters()} disabled={isDetecting}>
+                      {isDetecting ? "Detecting..." : desktopPrinterAvailable ? "Detect" : "Open printer dialog"}
+                    </Button>
+                  </div>
+                  {detectedPrinters.length > 0 ? (
+                    <Select
+                      value={detectedPrinters.includes(form.deviceName ?? "") ? form.deviceName ?? undefined : undefined}
+                      onValueChange={(value) => update("deviceName", value)}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Choose a detected Windows printer" /></SelectTrigger>
+                      <SelectContent>
+                        {detectedPrinters.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={form.deviceName} onChange={(event) => update("deviceName", event.target.value)} placeholder="EPSON TM-T20III" />
+                  )}
+                  {!desktopPrinterAvailable && (
+                    <p className="text-xs text-muted-foreground">
+                      Browsers can open the system print dialog, but Windows does not allow websites to read or save the selected printer. Use the desktop app for automatic detection.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
