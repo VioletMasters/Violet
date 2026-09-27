@@ -172,7 +172,7 @@ fn windows_print_script(printer_name: &str, path: &Path) -> String {
     let printer = printer_name.replace('\'', "''");
     let file = path.to_string_lossy().replace('\'', "''");
     format!(
-        "Start-Process -FilePath '{}' -Verb PrintTo -ArgumentList \"'{}'\"",
+        "Start-Process -FilePath '{}' -Verb PrintTo -ArgumentList \"'{}'\" -Wait -ErrorAction Stop",
         file, printer
     )
 }
@@ -1066,5 +1066,6 @@ mod tests {
         let script = windows_print_script("Front O'ffice", path);
         assert!(script.contains("violet receipt.txt"));
         assert!(script.contains("Front O''ffice"));
+        assert!(script.contains("-Wait -ErrorAction Stop"));
     }
 }
