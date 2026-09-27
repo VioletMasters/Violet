@@ -65,7 +65,7 @@ export function selectPrinterForSale(
       return rankDifference || a.createdAt.getTime() - b.createdAt.getTime();
     })[0] ?? null;
 }
-async function resolvePrinter(
+export async function resolvePrinter(
   tx: Transaction,
   tenantId: string,
   role: string,
@@ -91,6 +91,83 @@ async function resolvePrinter(
     .where(and(...scopeConditions))
     .orderBy(asc(printersTable.createdAt));
   return selectPrinterForSale(candidates, storeId, registerId);
+}
+
+export function printerRoleForDocumentType(documentType: string): string | null {
+  if (documentType === "customer_receipt") return "customer_receipt";
+  if (!documentType.endsWith("_ticket")) return null;
+  const role = documentType.slice(0, -"_ticket".length);
+  return PRINTER_ROLES.includes(role as typeof PRINTER_ROLES[number]) ? role : null;
+}
+
+type RetryablePrintJob = Pick<
+  typeof printJobsTable.$inferSelect,
+  "id" | "tenantId" | "status" | "documentType" | "payload" | "printerId" | "retryCount" | "errorMessage"
+>;
+
+export type PrintJobRetryPlan =
+  | {
+      ok: true;
+      printerId: string;
+      payload: string;
+      retryCount: number;
+    }
+  | {
+      ok: false;
+      code: "not_retryable" | "no_printer" | "invalid_payload";
+      message: string;
+    };
+
+export function preparePrintJobRetry(
+  job: RetryablePrintJob,
+  printer: typeof printersTable.$inferSelect | null,
+): PrintJobRetryPlan {
+  if (job.status !== "failed" && job.status !== "cancelled") {
+    return {
+      ok: false,
+      code: "not_retryable",
+      message: "Only failed or cancelled print jobs can be retried.",
+    };
+  }
+  if (!printer) {
+    return {
+      ok: false,
+      code: "no_printer",
+      message: "No active printer is configured for this role and register. Choose an active printer before retrying.",
+    };
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(job.payload);
+  } catch {
+    return {
+      ok: false,
+      code: "invalid_payload",
+      message: "This print job has invalid saved document data and cannot be retried safely.",
+    };
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {
+      ok: false,
+      code: "invalid_payload",
+      message: "This print job has invalid saved document data and cannot be retried safely.",
+    };
+  }
+
+  return {
+    ok: true,
+    printerId: printer.id,
+    payload: JSON.stringify({ ...payload, printerName: printer.deviceName }),
+    retryCount: job.retryCount + 1,
+  };
+}
+
+export function printJobRetryPredicate(tenantId: string, jobId: string) {
+  return and(
+    eq(printJobsTable.id, jobId),
+    eq(printJobsTable.tenantId, tenantId),
+  )!;
 }
 
 function documentTypeForRole(role: string) {
