@@ -6,9 +6,16 @@ import {
   registersTable,
   storesTable,
 } from "@workspace/db";
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { requireAuth, requireManagerAccess } from "../middlewares/auth";
-import { PRINTER_ROLES, PRINT_JOB_STATUSES } from "../lib/printer-routing";
+import {
+  PRINTER_ROLES,
+  PRINT_JOB_STATUSES,
+  preparePrintJobRetry,
+  printJobRetryPredicate,
+  printerRoleForDocumentType,
+  resolvePrinter,
+} from "../lib/printer-routing";
 
 const router = Router();
 const CONNECTION_TYPES = ["os", "usb", "network", "shared"] as const;
@@ -138,7 +145,9 @@ router.patch("/printers/:id", requireManagerAccess, async (req, res): Promise<vo
 
   const isDefault = req.body?.isDefault === undefined ? Boolean(existing.isDefault) : Boolean(req.body.isDefault);
   const updated = await db.transaction(async (tx) => {
-    if (isDefault) {
+    // Re-activating a paused default must not take the default back from a printer
+    // deliberately selected since it was paused. Only an explicit promotion changes peers.
+    if (req.body?.isDefault === true) {
       await tx.update(printersTable).set({ isDefault: 0 }).where(and(
         eq(printersTable.tenantId, tenantId),
         eq(printersTable.role, role),
@@ -190,20 +199,73 @@ router.get("/print-jobs", requireManagerAccess, async (req, res): Promise<void> 
 });
 
 router.post("/print-jobs/:id/retry", requireManagerAccess, async (req, res): Promise<void> => {
-  const [job] = await db.update(printJobsTable).set({
-    status: "queued",
-    errorMessage: null,
-    retryCount: sql`${printJobsTable.retryCount} + 1`,
-    updatedAt: new Date(),
-  }).where(and(
-    eq(printJobsTable.id, String(req.params.id)),
-    eq(printJobsTable.tenantId, req.tenantId!),
-  )).returning();
-  if (!job) {
+  const tenantId = req.tenantId!;
+  const jobId = String(req.params.id);
+  const result = await db.transaction(async (tx) => {
+    const [job] = await tx.select().from(printJobsTable)
+      .where(printJobRetryPredicate(tenantId, jobId))
+      .for("update")
+      .limit(1);
+    if (!job) return { kind: "not_found" as const };
+
+    const role = printerRoleForDocumentType(job.documentType);
+    if (!role) {
+      return {
+        kind: "invalid_document" as const,
+        error: `Print job document type "${job.documentType}" is not supported for retry.`,
+      };
+    }
+
+    if (job.status !== "failed" && job.status !== "cancelled") {
+      return {
+        kind: "not_retryable" as const,
+        error: "Only failed or cancelled print jobs can be retried.",
+      };
+    }
+
+    const printer = await resolvePrinter(tx, tenantId, role, job.storeId, job.registerId);
+    const retry = preparePrintJobRetry(job, printer);
+    if (!retry.ok) {
+      return { kind: "conflict" as const, code: retry.code, error: retry.message };
+    }
+
+    const [updated] = await tx.update(printJobsTable).set({
+      printerId: retry.printerId,
+      payload: retry.payload,
+      status: "queued",
+      errorMessage: null,
+      retryCount: retry.retryCount,
+      updatedAt: new Date(),
+    }).where(and(
+      printJobRetryPredicate(tenantId, jobId),
+      inArray(printJobsTable.status, ["failed", "cancelled"]),
+    )).returning();
+    if (!updated) {
+      return {
+        kind: "not_retryable" as const,
+        error: "This print job has already been retried by another manager.",
+      };
+    }
+    return { kind: "queued" as const, job: updated };
+  });
+
+  if (result.kind === "not_found") {
     res.status(404).json({ error: "Print job not found" });
     return;
   }
-  res.json(job);
+  if (result.kind === "not_retryable") {
+    res.status(409).json({ error: result.error, code: "PRINT_JOB_NOT_RETRYABLE" });
+    return;
+  }
+  if (result.kind === "invalid_document") {
+    res.status(409).json({ error: result.error, code: "UNSUPPORTED_PRINT_DOCUMENT" });
+    return;
+  }
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: result.error, code: result.code });
+    return;
+  }
+  res.json(result.job);
 });
 
 router.post("/print-jobs/:id/status", requireAuth, async (req, res): Promise<void> => {
