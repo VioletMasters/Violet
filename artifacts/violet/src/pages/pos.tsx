@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import type { PosProduct, SaleInputPaymentMethod, PrintJob } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
-import { dispatchSalePrintJobs, isDesktopPrinterAvailable } from "@/lib/desktop-print";
+import { dispatchPrintJob, dispatchSalePrintJobs, isDesktopPrinterAvailable, nativePrinterErrorMessage } from "@/lib/desktop-print";
 import { STARTER_TUTORIAL_ACTION_EVENT } from "@/components/layout/starter-tutorial";
 
 interface CartItem extends PosProduct {
@@ -150,7 +150,18 @@ export default function POSPage() {
   );
   const retryPrintJob = useRetryPrintJob({
     mutation: {
-      onSuccess: () => toast.success("Print job queued again."),
+      onSuccess: async (job) => {
+        if (!isDesktopPrinterAvailable()) {
+          toast.info("The print job was queued, but automatic printing requires the Windows desktop app.");
+          return;
+        }
+        try {
+          await dispatchPrintJob(job);
+          toast.success("Receipt sent to Windows. Check the printer queue and paper.");
+        } catch (error) {
+          toast.error(nativePrinterErrorMessage(error, "The receipt could not be submitted to Windows."));
+        }
+      },
       onError: (error) => toast.error(error.message || "Could not retry this print job."),
     },
   });
@@ -239,7 +250,9 @@ export default function POSPage() {
           receiptNumber: sale.receiptNumber,
           printJobs: sale.printJobs,
         });
-        void dispatchSalePrintJobs(sale.printJobs);
+        void dispatchSalePrintJobs(sale.printJobs).then((errors) => {
+          if (errors.length) toast.error(`Windows did not accept the receipt: ${errors.join(" ")} Check Settings → Printers to retry.`);
+        });
         checkoutAttemptKey.current = null;
       },
       onError: (err) => {
