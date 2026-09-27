@@ -15,6 +15,16 @@ export function isDesktopPrinterAvailable() {
   return Boolean(tauri()?.core?.invoke);
 }
 
+export function nativePrinterErrorMessage(error: unknown, fallback = "Could not detect native printers."): string {
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  return fallback;
+}
+
 export async function discoverDesktopPrinters() {
   const invoke = tauri()?.core?.invoke;
   if (!invoke) return [];
@@ -46,7 +56,7 @@ export async function dispatchPrintJob(job: PrintJob) {
   } catch (error) {
     await updatePrintJobStatus(job.id, {
       status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Native printer dispatch failed.",
+      errorMessage: nativePrinterErrorMessage(error, "Native printer dispatch failed."),
     });
     return false;
   }

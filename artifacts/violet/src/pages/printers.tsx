@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Printer as PrinterIcon, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { discoverDesktopPrinters, isDesktopPrinterAvailable } from "@/lib/desktop-print";
+import { discoverDesktopPrinters, isDesktopPrinterAvailable, nativePrinterErrorMessage } from "@/lib/desktop-print";
 
 const roleLabels: Record<string, string> = {
   customer_receipt: "Customer receipt",
@@ -57,6 +57,7 @@ export default function PrintersPage() {
     isActive: true,
   });
   const [detectedPrinters, setDetectedPrinters] = useState<string[]>([]);
+  const [detectError, setDetectError] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const desktopPrinterAvailable = isDesktopPrinterAvailable();
 
@@ -123,6 +124,7 @@ export default function PrintersPage() {
       return;
     }
     setIsDetecting(true);
+    setDetectError(null);
     try {
       const detected = await discoverDesktopPrinters();
       const names = detected.map((printer) => printer.name);
@@ -134,7 +136,10 @@ export default function PrintersPage() {
         toast.success(`${detected.length} Windows printer${detected.length === 1 ? "" : "s"} found. Choose one below.`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not detect native printers.");
+      const message = nativePrinterErrorMessage(error);
+      setDetectedPrinters([]);
+      setDetectError(message);
+      toast.error("Printer detection failed. See the error below.");
     } finally {
       setIsDetecting(false);
     }
@@ -204,6 +209,11 @@ export default function PrintersPage() {
                   {!desktopPrinterAvailable && (
                     <p className="text-xs text-muted-foreground">
                       Browsers can open the system print dialog, but Windows does not allow websites to read or save the selected printer. Use the desktop app for automatic detection.
+                    </p>
+                  )}
+                  {detectError && (
+                    <p role="alert" className="break-words rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                      Printer detection failed: {detectError}
                     </p>
                   )}
                 </div>
