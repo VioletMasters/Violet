@@ -168,13 +168,18 @@ fn parse_cups_printer_names(output: &str) -> Vec<NativePrinter> {
         .collect()
 }
 
-fn windows_print_script(printer_name: &str, path: &Path) -> String {
-    let printer = printer_name.replace('\'', "''");
-    let file = path.to_string_lossy().replace('\'', "''");
-    format!(
-        "Start-Process -FilePath '{}' -Verb PrintTo -ArgumentList \"'{}'\"",
-        file, printer
-    )
+#[cfg(windows)]
+fn windows_powershell() -> Command {
+    use std::os::windows::process::CommandExt;
+
+    let mut command = Command::new("powershell.exe");
+    // PowerShell is a print transport here, not a window for the cashier.
+    command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    command
+}
+
+fn windows_print_script() -> &'static str {
+    include_str!("windows-print.ps1")
 }
 
 fn cups_print_args(printer_name: &str, path: &Path) -> Vec<String> {
@@ -211,7 +216,7 @@ fn list_native_printers(webview: tauri::WebviewWindow) -> Result<Vec<NativePrint
 
     #[cfg(windows)]
     {
-        let names = command_output_lines(Command::new("powershell").args([
+        let names = command_output_lines(windows_powershell().args([
             "-NoProfile",
             "-NonInteractive",
             "-Command",
@@ -239,13 +244,19 @@ fn print_native_document(
     let result = (|| {
         #[cfg(windows)]
         {
-            let script = windows_print_script(&request.printer_name, &path);
-            let output = Command::new("powershell")
-                .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            let output = windows_powershell()
+                .args(["-NoProfile", "-NonInteractive", "-Command", windows_print_script()])
+                .env("VIOLET_PRINTER_NAME", request.printer_name.trim())
+                .env("VIOLET_PRINT_PATH", &path)
                 .output()
                 .map_err(|error| error.to_string())?;
             if !output.status.success() {
-                return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                return Err(if detail.is_empty() {
+                    format!("Windows rejected the print job for {} ({}). Check the printer queue and driver.", request.printer_name, output.status)
+                } else {
+                    detail
+                });
             }
         }
         #[cfg(not(windows))]
@@ -1063,8 +1074,29 @@ mod tests {
             cups_print_args(" receipt ", path),
             vec!["-d", "receipt", "/tmp/violet receipt.txt"]
         );
-        let script = windows_print_script("Front O'ffice", path);
-        assert!(script.contains("violet receipt.txt"));
-        assert!(script.contains("Front O''ffice"));
+        let script = windows_print_script();
+        assert!(script.contains("VIOLET_PRINTER_NAME"));
+        assert!(script.contains("VIOLET_PRINT_PATH"));
+        assert!(script.contains("PrintDocument"));
+        assert!(!script.contains("PrintTo"));
+
+        #[cfg(windows)]
+        {
+            let output = super::windows_powershell()
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseInput($env:VIOLET_PRINT_SCRIPT,[ref]$tokens,[ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | Out-String | Write-Error; exit 1 }",
+                ])
+                .env("VIOLET_PRINT_SCRIPT", script)
+                .output()
+                .expect("Windows PowerShell should be available for printing");
+            assert!(
+                output.status.success(),
+                "Windows print script must parse: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
     }
 }
