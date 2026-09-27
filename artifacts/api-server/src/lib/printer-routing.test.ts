@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { printJobsTable } from "@workspace/db";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   buildSalePrintJobPlan,
   createSalePrintJobs,
+  preparePrintJobRetry,
+  printJobRetryPredicate,
+  printerRoleForDocumentType,
   resolvePrintDestination,
   selectPrinterForSale,
 } from "./printer-routing";
@@ -12,6 +16,8 @@ function printer(overrides: Partial<{
   id: string;
   storeId: string | null;
   registerId: string | null;
+  deviceName: string;
+  role: string;
   isDefault: number;
   isActive: number;
   createdAt: Date;
@@ -22,9 +28,9 @@ function printer(overrides: Partial<{
     storeId: overrides.storeId ?? null,
     registerId: overrides.registerId ?? null,
     name: "Test printer",
-    role: "customer_receipt",
+    role: overrides.role ?? "customer_receipt",
     connectionType: "os",
-    deviceName: "test-device",
+    deviceName: overrides.deviceName ?? "test-device",
     deviceAddress: null,
     platform: null,
     isActive: overrides.isActive ?? 1,
@@ -60,6 +66,68 @@ assert.equal(
   "global",
   "inactive printers must never be selected",
 );
+
+const retryableJob = {
+  id: "job-1",
+  tenantId: "tenant-1",
+  status: "failed",
+  documentType: "customer_receipt",
+  payload: JSON.stringify({ receiptNumber: "RCP-1", printerName: "Old printer" }),
+  printerId: "old-printer",
+  retryCount: 2,
+  errorMessage: "Printer unavailable",
+} as const;
+const replacementPrinter = printer({
+  id: "replacement-printer",
+  deviceName: "Windows Receipt Printer",
+});
+const retryPlanForSwitchedPrinter = preparePrintJobRetry(retryableJob, replacementPrinter as never);
+assert.equal(retryPlanForSwitchedPrinter.ok, true, "failed job should be retryable with an active replacement printer");
+if (retryPlanForSwitchedPrinter.ok) {
+  assert.equal(retryPlanForSwitchedPrinter.printerId, "replacement-printer");
+  assert.equal(retryPlanForSwitchedPrinter.retryCount, 3);
+  assert.deepEqual(
+    JSON.parse(retryPlanForSwitchedPrinter.payload),
+    { receiptNumber: "RCP-1", printerName: "Windows Receipt Printer" },
+    "retry must retain receipt data and direct it to the newly selected device",
+  );
+}
+assert.equal(
+  printerRoleForDocumentType("warehouse_ticket"),
+  "warehouse",
+  "operational tickets must resolve to the role used when the sale was created",
+);
+assert.equal(printerRoleForDocumentType("unknown_document"), null);
+const noPrinterRetry = preparePrintJobRetry(retryableJob, null);
+assert.equal(noPrinterRetry.ok, false);
+if (!noPrinterRetry.ok) {
+  assert.equal(noPrinterRetry.code, "no_printer");
+  assert.match(noPrinterRetry.message, /No active printer/);
+}
+const alreadyQueuedRetry = preparePrintJobRetry(
+  { ...retryableJob, status: "queued" },
+  replacementPrinter as never,
+);
+assert.equal(alreadyQueuedRetry.ok, false, "queued jobs cannot be dispatched by concurrent retries");
+if (!alreadyQueuedRetry.ok) assert.equal(alreadyQueuedRetry.code, "not_retryable");
+const invalidPayloadRetry = preparePrintJobRetry(
+  { ...retryableJob, payload: "{not-json" },
+  replacementPrinter as never,
+);
+assert.equal(invalidPayloadRetry.ok, false, "legacy malformed payloads must not crash retry handling");
+if (!invalidPayloadRetry.ok) {
+  assert.equal(invalidPayloadRetry.code, "invalid_payload");
+  assert.match(invalidPayloadRetry.message, /invalid saved document data/);
+}
+const tenantScopedRetryWhere = new PgDialect().sqlToQuery(
+  printJobRetryPredicate("tenant-1", "job-1"),
+);
+assert.deepEqual(
+  tenantScopedRetryWhere.params,
+  ["job-1", "tenant-1"],
+  "retry lookup must include both the job id and authenticated tenant id",
+);
+assert.match(tenantScopedRetryWhere.sql, /"tenant_id"/);
 
 const categoryDestinations = new Map([["bakery", "warehouse"]]);
 assert.equal(
