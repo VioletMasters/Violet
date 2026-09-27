@@ -188,8 +188,13 @@ jobs:
 
       - name: Check Windows receipt print command
         if: matrix.platform == 'windows'
-        working-directory: artifacts/violet-desktop/src-tauri
-        run: cargo test --locked --lib native_dispatch_validates_requests_and_builds_platform_commands
+        working-directory: artifacts/violet-desktop
+        shell: pwsh
+        run: |
+          npm run prepare:self-host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path src-tauri/Cargo.toml --locked --lib native_dispatch_validates_requests_and_builds_platform_commands
+          exit $LASTEXITCODE
 
       # ── Tauri build ─────────────────────────────────────────────────────────
       - name: Build Tauri app (Windows)
